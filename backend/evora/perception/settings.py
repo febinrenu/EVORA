@@ -41,6 +41,10 @@ class IngestSettings(BaseModel):
     crop_jpeg_quality: int = 88
     crop_max_side: int = 256
     point_hz: float = 4.0             # track_points downsample rate
+    # colour
+    # "legacy" = the original method; "v2" = person masks, survey naming and shades.
+    # Keep legacy until v2 has beaten it on human labels (scripts/colour_eval.py --ablate).
+    colour_engine: str = "legacy"
     # L3 captions
     l3_max_tracks: int = 60           # best tracks per camera to caption
     l3_budget_s: float = 300.0        # time limit per camera; the layer stops and keeps what it has

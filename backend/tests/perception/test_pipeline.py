@@ -193,3 +193,18 @@ def test_ingest_records_the_clock_zone_once(env):
     db.set_meta("tz", "-04:00")                                  # an operator's choice is never overwritten
     pipeline.ingest(cam, "cpu", {"L0"}, lambda e: None, ws=ws, settings=_settings())
     assert db.get_meta("tz") == "-04:00"
+
+
+def test_l2_v2_colour_engine_adds_shade_names_and_still_fills_the_contract_fields(env, monkeypatch):
+    from evora.perception import l2
+
+    monkeypatch.setattr(l2, "get_segmenter", lambda device="auto": None)       # no masks: geometric regions, deterministic
+    ws, db, cam = env
+    pipeline.ingest(cam, "cpu", {"L0", "L1", "L2"}, lambda e: None, ws=ws, settings=_settings(colour_engine="v2"))
+    with db.read() as c:
+        attrs = [json.loads(r["attrs"]) for r in c.execute("SELECT attrs FROM tracks")]
+    assert len(attrs) == 2
+    for a in attrs:
+        assert a["upper_color"] in COLOURS and a["lower_color"] in COLOURS and a["color"] == a["upper_color"]
+        assert isinstance(a["upper_color_name"], str) and a["upper_color_name"].endswith(a["upper_color"])
+        assert 0.0 <= a["color_conf"] <= 1.0

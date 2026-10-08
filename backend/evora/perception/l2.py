@@ -21,7 +21,9 @@ from contracts.models import CameraInfo, IngestJob, TrackAttrs
 from evora.core.db import Database
 from evora.core.workspace import Workspace
 from evora.perception import attributes as at
+from evora.perception import colourmodel as cm
 from evora.perception.events import recompute_events, zones_of
+from evora.perception.segment import get_segmenter
 from evora.perception.settings import IngestSettings
 from evora.reid.features import ReidUnavailable, compute_reid
 
@@ -88,6 +90,36 @@ def _bag_owners(persons: dict[str, list[at.Box]], bags: dict[str, tuple[str, lis
     return owned
 
 
+def _v2_colours(attrs: TrackAttrs, extras: dict, cls: str, images: list, gains, segmenter) -> None:
+    """Colours from the masked, survey-named model; fills the contract fields plus additive `*_name` shade fields."""
+    kind = "person" if cls == "person" else "vehicle"
+    per_slot: dict[str, list[cm.ColourResult]] = defaultdict(list)
+    for img in images:
+        mask = segmenter.mask(img, kind) if segmenter is not None else None
+        for slot, res in cm.predict_detail(kind, img, gains, mask).items():
+            if res.term is not None:
+                per_slot[slot].append(res)
+    best: dict[str, tuple[str, float, str | None]] = {}
+    for slot, results in per_slot.items():
+        totals: dict[str, float] = defaultdict(float)
+        for r in results:
+            totals[r.term] += r.conf or 0.0
+        term = max(totals, key=lambda t: totals[t])
+        wins = [r for r in results if r.term == term]
+        names = [r.name for r in wins if r.name]
+        best[slot] = (term, totals[term] / len(results), max(set(names), key=names.count) if names else None)
+    if kind == "person":
+        if "upper" in best:
+            attrs.upper_color, attrs.color, attrs.color_conf = best["upper"][0], best["upper"][0], round(best["upper"][1], 3)
+            extras["upper_color_name"] = extras["color_name"] = best["upper"][2]
+        if "lower" in best:
+            attrs.lower_color = best["lower"][0]
+            extras["lower_color_name"] = best["lower"][2]
+    elif "color" in best:
+        attrs.color, attrs.color_conf = best["color"][0], round(best["color"][1], 3)
+        extras["color_name"] = best["color"][2]
+
+
 def run_l2(cam: CameraInfo, ws: Workspace, db: Database, store, st: IngestSettings, embedder,
            on_progress: ProgressFn) -> dict[str, int]:
     """Compute attributes and events for every track of `cam`; returns small counters for logging."""
@@ -116,6 +148,7 @@ def run_l2(cam: CameraInfo, ws: Workspace, db: Database, store, st: IngestSettin
     for r in crop_rows:
         crops_by_track[r["track_id"]].append(r)
     boxes = _load_boxes(db, cid)
+    segmenter = get_segmenter(st.device) if st.colour_engine == "v2" else None
     type_vecs = embedder.embed_texts([at.VEHICLE_PROMPTS[t] for t in at.VEHICLE_TYPES])
 
     persons = {t["id"]: boxes[t["id"]] for t in tracks if t["cls"] == "person" and boxes.get(t["id"])}
@@ -126,6 +159,7 @@ def run_l2(cam: CameraInfo, ws: Workspace, db: Database, store, st: IngestSettin
     for i, t in enumerate(tracks):
         tid, cls = t["id"], t["cls"]
         attrs = TrackAttrs()
+        extras: dict = {}        # shade names (e.g. "dark blue"), additive to the TrackAttrs contract
         pts = boxes.get(tid, [])
         if pts:
             attrs.size_rel = round(statistics.median(p.h for p in pts), 4)
@@ -136,7 +170,9 @@ def run_l2(cam: CameraInfo, ws: Workspace, db: Database, store, st: IngestSettin
             img = cv2.imread(str(Path(ws.media_dir) / r["crop_path"]))
             if img is not None:
                 images.append((img, np.asarray(r["vector"], dtype=np.float32)))
-        if images and not attrs.is_ir:
+        if images and not attrs.is_ir and st.colour_engine == "v2" and (cls == "person" or cls in VEHICLES):
+            _v2_colours(attrs, extras, cls, [im for im, _ in images], gains, segmenter)
+        elif images and not attrs.is_ir:
             if cls == "person":
                 up = at.aggregate_colour([at.dominant_colour(at.person_regions(im)[0], gains) for im, _ in images])
                 lo = at.aggregate_colour([at.dominant_colour(at.person_regions(im)[1], gains) for im, _ in images])
@@ -155,7 +191,7 @@ def run_l2(cam: CameraInfo, ws: Workspace, db: Database, store, st: IngestSettin
                 attrs.vehicle_type = guess[0] if guess else allowed[0]
         if cls == "person":
             attrs.carrying = at.carrying_terms(carrying.get(tid, []))
-        updates.append((json.dumps(attrs.model_dump(mode="json", exclude_none=True)), tid))
+        updates.append((json.dumps({**attrs.model_dump(mode="json", exclude_none=True), **extras}), tid))
         if i % 25 == 0:
             report(0.1 + 0.75 * i / max(len(tracks), 1))
 

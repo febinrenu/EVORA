@@ -23,7 +23,7 @@ BGE = "BAAI/bge-small-en-v1.5"
 YUNET_URL = ("https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/"
              "face_detection_yunet_2023mar.onnx")
 # Exact YOLO26 / YOLOE-26 checkpoint names must be confirmed against the Ultralytics docs (spike P2.3).
-YOLO_WEIGHTS = ["yolo26n.pt", "yolo26s.pt", "yoloe-26n-seg.pt", "yoloe-26n-seg-pf.pt"]
+YOLO_WEIGHTS = ["yolo26n.pt", "yolo26s.pt", "yolo26n-seg.pt", "yoloe-26n-seg.pt", "yoloe-26n-seg-pf.pt"]
 BOXMOT_WEIGHTS = {"osnet_x0_25_msmt17.pt": "1sSwXSUlj4_tHZequ_iZ8w_Jh0VaRQMqF"}
 ALL_STEPS = ["yolo", "yoloe", "siglip2", "bge", "fastembed", "boxmot", "yunet", "ollama"]
 

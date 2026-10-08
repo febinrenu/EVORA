@@ -7,6 +7,10 @@ Usage: python scripts/colour_eval.py labels.json [--predictor stored|baseline|cu
   baseline  the original method (fixed geometric regions, hand colour prototypes) re-run on the labelled crop
   current   whatever evora.perception.colourmodel does now (added during the colour upgrade)
 
+Variants of the new method can be switched on and off with `--param name=value` (any ColourParams field, e.g.
+`--param skin_filter=true --param trim=0.3`), and `--ablate` prints one compact table over a fixed list of variants,
+so every improvement is kept only if it raises the score on the held-out half.
+
 Labels are split by position: even items form the tune half, odd items the test half. Tune thresholds on
 `tune`, and report the final number from `test` only. "Adjacent" counts neighbouring terms as acceptable
 (grey/black, red/pink, brown/orange ...), because clothing in poor light sits between them.
@@ -98,7 +102,18 @@ def stored_predictions(items: list[dict]) -> dict:
     return out
 
 
-def rescored_predictions(items: list[dict], workspace: str, which: str) -> dict:
+def parse_params(pairs: list[str]) -> dict:
+    out: dict = {}
+    for p in pairs:
+        key, _, raw = p.partition("=")
+        low = raw.lower()
+        out[key] = True if low == "true" else False if low == "false" else float(raw) if raw.replace(".", "", 1).lstrip("-").isdigit() else raw
+        if isinstance(out[key], float) and out[key].is_integer() and key in ("knn", "min_pixels"):
+            out[key] = int(out[key])
+    return out
+
+
+def rescored_predictions(items: list[dict], workspace: str, which: str, overrides: dict | None = None) -> dict:
     import cv2
     from evora.perception import attributes as at
 
@@ -116,8 +131,12 @@ def rescored_predictions(items: list[dict], workspace: str, which: str) -> dict:
         gains = gains_by_cam[cam]
         if which == "current":
             from evora.perception import colourmodel as cm
+            from evora.perception.segment import get_segmenter
 
-            res = cm.predict(it["kind"], crop, gains)
+            params = cm.load_params().with_overrides(**(overrides or {}))
+            seg = get_segmenter() if params.use_mask else None
+            mask = seg.mask(crop, it["kind"]) if seg is not None else None
+            res = cm.predict(it["kind"], crop, gains, mask, params)
             for slot, val in res.items():
                 out[(it["id"], slot)] = val
             continue
@@ -130,19 +149,60 @@ def rescored_predictions(items: list[dict], workspace: str, which: str) -> dict:
     return out
 
 
+VARIANTS = [
+    ("baseline (original method)", None, {}),
+    ("survey naming only", "current", {"use_mask": False, "trim": 0.2, "skin_filter": False, "background_filter": False}),
+    ("+ central columns only", "current", {"use_mask": False, "trim": 0.3, "skin_filter": False, "background_filter": False}),
+    ("+ background removal", "current", {"use_mask": False, "trim": 0.3, "skin_filter": False, "background_filter": True}),
+    ("+ person mask", "current", {"use_mask": True, "trim": 0.25}),
+    ("+ mask + skin removal", "current", {"use_mask": True, "trim": 0.25, "skin_filter": True}),
+    ("mask, original prototypes", "current", {"use_mask": True, "trim": 0.25, "use_survey": False}),
+]
+
+
+def ablate(items: list[dict], ws: str, split: str) -> int:
+    """One line per variant: exact / adjacent accuracy and macro recall for upper, lower and vehicle."""
+    print(f"{'variant':<30} " + " ".join(f"{s:^26}" for s in ("upper body", "lower body", "vehicles")))
+    print(f"{'':<30} " + " ".join(f"{'exact adj  macro':^26}" for _ in range(3)))
+    for title, predictor, overrides in VARIANTS:
+        preds = rescored_predictions(items, ws, "baseline") if predictor is None else rescored_predictions(items, ws, predictor, overrides)
+        rows = load_pairs(items, preds, split)
+        cells = []
+        for slot in ("upper", "lower", "color"):
+            sub = [r for r in rows if r[4] == slot]
+            if not sub:
+                cells.append(f"{'-':^26}")
+                continue
+            exact = sum(1 for t, p, *_ in sub if t == p) / len(sub)
+            adj = sum(1 for t, p, *_ in sub if is_adjacent(t, p)) / len(sub)
+            by: dict = defaultdict(lambda: [0, 0])
+            for t, p, *_ in sub:
+                by[t][0] += 1
+                by[t][1] += t == p
+            macro = sum(v[1] / v[0] for v in by.values()) / len(by)
+            cells.append(f"{exact:6.1%} {adj:6.1%} {macro:6.1%}   ")
+        print(f"{title:<30} " + " ".join(cells))
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("labels", type=Path)
     ap.add_argument("--predictor", choices=["stored", "baseline", "current"], default="stored")
     ap.add_argument("--workspace", default=None)
     ap.add_argument("--split", choices=["all", "tune", "test"], default="all")
+    ap.add_argument("--param", action="append", default=[], help="override a ColourParams field for the 'current' predictor")
+    ap.add_argument("--ablate", action="store_true", help="score a fixed list of variants of the current method side by side")
     args = ap.parse_args()
     data = json.loads(args.labels.read_text(encoding="utf-8"))
     items = data["items"]
     ws = args.workspace or data.get("workspace", "meva-school")
     done = sum(1 for it in items if any(f"label_{s}" in it for s in SLOTS[it["kind"]]))
     print(f"{args.labels}: {len(items)} items, {done} with at least one label; predictor={args.predictor}, split={args.split}")
-    preds = stored_predictions(items) if args.predictor == "stored" else rescored_predictions(items, ws, args.predictor)
+    if args.ablate:
+        return ablate(items, ws, args.split)
+    overrides = parse_params(args.param)
+    preds = stored_predictions(items) if args.predictor == "stored" else rescored_predictions(items, ws, args.predictor, overrides)
     rows = load_pairs(items, preds, args.split)
     for slot, title in (("upper", "upper body"), ("lower", "lower body"), ("color", "vehicles")):
         report([r for r in rows if r[4] == slot], title)
