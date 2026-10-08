@@ -1,0 +1,346 @@
+/* Report page on the light table. Chart colours are a validated categorical
+   pair (EVORA blue, baseline violet), kept away from the product's red (the
+   answer) and yellow (memory). Text always wears ink colours. */
+.rp {
+  --lightbox: #e8edef;
+  --diffuser: #f6f8f9;
+  --graphite: #2b3137;
+  --g8: rgb(43 49 55 / 0.08);
+  --g16: rgb(43 49 55 / 0.16);
+  --g48: rgb(43 49 55 / 0.62);
+  --series-a: #2a78d6;
+  --series-b: #4a3aa7;
+  --cyanotype: #1f4e79;
+  --bg: var(--lightbox);
+  --ink: var(--graphite);
+  min-height: 100svh;
+  background: var(--lightbox);
+  color: var(--graphite);
+  font-family: var(--font-display);
+  font-stretch: 88%;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.rp a {
+  color: var(--cyanotype);
+}
+.rp :focus-visible {
+  outline: 2px solid var(--cyanotype);
+  outline-offset: 2px;
+}
+.rp-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem clamp(1rem, 4vw, 3rem);
+  border-bottom: 1px solid var(--g16);
+}
+.rp-mark {
+  font-weight: 800;
+  font-stretch: 120%;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  color: var(--graphite) !important;
+}
+.rp-main {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 2.6rem clamp(1rem, 4vw, 3rem) 5rem;
+}
+.rp-title {
+  margin: 0 0 1rem;
+  font-size: clamp(2rem, 1.2rem + 3vw, 2.75rem);
+  line-height: 1.09;
+  font-weight: 700;
+  font-stretch: 122%;
+  letter-spacing: -0.01em;
+}
+.rp-summary {
+  max-width: 72ch;
+  margin: 0 0 1.8rem;
+  font-size: 1.0625rem;
+  font-stretch: 95%;
+}
+.rp-note {
+  color: var(--g48);
+}
+.rp-section {
+  margin-top: 3rem;
+}
+.rp-section h2 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2rem);
+  line-height: 1.12;
+  font-weight: 650;
+  font-stretch: 118%;
+}
+.rp-lead {
+  max-width: 72ch;
+  margin: 0 0 1.2rem;
+  color: var(--g48);
+}
+
+/* headline tiles */
+.rp-tiles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.8rem;
+}
+.rp-tiles li {
+  display: grid;
+  gap: 0.2rem;
+  padding: 1rem 1.1rem;
+  background: var(--diffuser);
+  border: 1px solid var(--g8);
+  border-radius: 6px;
+}
+.rp-tile-what {
+  color: var(--g48);
+}
+.rp-tile-value {
+  font-size: 2.25rem;
+  line-height: 1.1;
+  font-weight: 700;
+  font-stretch: 112%;
+}
+.rp-tile-vs {
+  font-size: 0.8125rem;
+  color: var(--g48);
+}
+
+/* table */
+.rp-table-wrap {
+  overflow-x: auto;
+  background: var(--diffuser);
+  border: 1px solid var(--g8);
+  border-radius: 6px;
+}
+.rp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.rp-table th,
+.rp-table td {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--g8);
+  white-space: nowrap;
+}
+.rp-table thead th {
+  text-align: right;
+  font-weight: 600;
+  color: var(--g48);
+}
+.rp-table thead th:nth-child(-n + 2),
+.rp-table tbody th,
+.rp-table td:nth-child(2) {
+  text-align: left;
+}
+.rp-table td {
+  text-align: right;
+}
+.rp-table tbody th {
+  font-weight: 600;
+}
+.rp-table tr.is-ours th {
+  box-shadow: inset 3px 0 0 var(--series-a);
+}
+
+/* charts */
+.rp-figure {
+  position: relative;
+  margin: 0;
+  padding: 1.1rem 1.2rem 1rem;
+  background: var(--diffuser);
+  border: 1px solid var(--g8);
+  border-radius: 6px;
+}
+.rp-figure figcaption {
+  margin-top: 0.8rem;
+  font-size: 0.8125rem;
+  color: var(--g48);
+}
+.rp-legend {
+  display: flex;
+  gap: 1.2rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.8125rem;
+}
+.rp-key::before {
+  content: "";
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-right: 0.4rem;
+  border-radius: 2px;
+  vertical-align: -0.05em;
+}
+.rp-key.is-a::before {
+  background: var(--series-a);
+}
+.rp-key.is-b::before {
+  background: var(--series-b);
+}
+.rp-pairs,
+.rp-abl ol,
+.rp-lat {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.rp-pairs li,
+.rp-abl li,
+.rp-lat li {
+  display: grid;
+  grid-template-columns: minmax(9rem, 13rem) 1fr;
+  gap: 0.8rem;
+  align-items: center;
+}
+.rp-row-label {
+  font-size: 0.875rem;
+}
+.rp-row-label em {
+  font-style: normal;
+  color: var(--g48);
+  margin-left: 0.3rem;
+}
+.rp-bars {
+  display: grid;
+  gap: 2px;
+}
+.rp-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 0.9rem;
+  background: linear-gradient(90deg, var(--g16) 1px, transparent 1px) 0 0 / 25% 100%;
+}
+.rp-bar {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 0 4px 4px 0;
+  outline-offset: 1px;
+}
+.rp-bar.is-a {
+  background: var(--series-a);
+}
+.rp-bar.is-b {
+  background: var(--series-b);
+}
+.rp-bar:hover,
+.rp-bar:focus-visible {
+  filter: brightness(1.12);
+}
+.rp-val {
+  margin-left: 0.45rem;
+  font-size: 0.8125rem;
+  color: var(--g48);
+}
+.rp-abl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+  gap: 1.6rem;
+}
+.rp-abl h3 {
+  margin: 0 0 0.7rem;
+  font-size: 1rem;
+  font-weight: 650;
+}
+.rp-abl li.is-full .rp-row-label {
+  font-weight: 650;
+}
+.rp-ref {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  translate: -1px 0;
+  background: var(--graphite);
+}
+.rp-skip {
+  font-size: 0.8125rem;
+  color: var(--g48);
+}
+.rp-lat-track {
+  position: relative;
+  height: 1.2rem;
+  margin-right: 8rem;
+  background: linear-gradient(90deg, var(--g16) 1px, transparent 1px) 0 0 / 25% 100%;
+}
+.rp-range {
+  position: absolute;
+  top: 50%;
+  height: 2px;
+  translate: 0 -50%;
+}
+.rp-range.is-a {
+  background: var(--series-a);
+}
+.rp-range.is-b {
+  background: var(--series-b);
+}
+.rp-dot {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  translate: -50% -50%;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--diffuser);
+}
+.rp-dot.is-a {
+  background: var(--series-a);
+}
+.rp-dot.is-b {
+  background: var(--series-b);
+}
+.rp-lat-val {
+  position: absolute;
+  left: calc(100% + 0.6rem);
+  top: 50%;
+  translate: 0 -50%;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  color: var(--g48);
+}
+.rp-lat-axis {
+  position: relative;
+  height: 1.2rem;
+  margin: 0.5rem 8rem 0 calc(min(13rem, 30%) + 0.8rem);
+  font-size: 0.75rem;
+  color: var(--g48);
+}
+.rp-lat-axis span {
+  position: absolute;
+  translate: -50% 0;
+  white-space: nowrap;
+}
+.rp-tip {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+  max-width: 22rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--graphite);
+  color: var(--diffuser);
+  font-size: 0.8125rem;
+  border-radius: 4px;
+}
+@media (max-width: 640px) {
+  .rp-pairs li,
+  .rp-abl li,
+  .rp-lat li {
+    grid-template-columns: 1fr;
+    gap: 0.3rem;
+  }
+  .rp-lat-axis {
+    margin-left: 0;
+  }
+}

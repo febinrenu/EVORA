@@ -3,11 +3,11 @@
 // Clip with the tracked box drawn over it, synced to playback from the track's
 // points (≈4 Hz, interpolated). J/K/L and ←/→ work while it has focus.
 import { useEffect, useRef, useState } from "react";
-import { apiUrl, endpoints, type Evidence, type TrackPoint } from "@/lib/api/client";
+import { apiUrl, endpoints, withUnblur, type Evidence, type TrackPoint } from "@/lib/api/client";
 
 const PRE_ROLL = 3;
 
-export function ClipPlayer({ ev, onClose }: { ev: Evidence; onClose: () => void }) {
+export function ClipPlayer({ ev, token, onClose }: { ev: Evidence; token?: string | null; onClose: () => void }) {
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [points, setPoints] = useState<TrackPoint[]>([]);
@@ -113,7 +113,7 @@ export function ClipPlayer({ ev, onClose }: { ev: Evidence; onClose: () => void 
 
   return (
     <div className="lt-clip" onKeyDown={onKey}>
-      <video ref={video} src={apiUrl(ev.clip_url)} controls autoPlay muted playsInline preload="metadata" onError={() => setFailed(true)} aria-label={`Clip from ${ev.camera_name}`} />
+      <video ref={video} src={apiUrl(withUnblur(ev.clip_url, token))} controls autoPlay muted playsInline preload="metadata" onError={() => setFailed(true)} aria-label={`Clip from ${ev.camera_name}`} />
       <canvas ref={canvas} aria-hidden="true" />
     </div>
   );

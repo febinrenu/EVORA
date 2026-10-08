@@ -1205,3 +1205,60 @@
     transition: none;
   }
 }
+
+/* unblur: a stated, logged reason */
+.lt-unblur {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+.lt-unblur label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--g48);
+}
+.lt-unblur input {
+  font: inherit;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--g16);
+  border-radius: 6px;
+  background: var(--lightbox);
+  color: var(--graphite);
+}
+.lt-unblur button {
+  justify-self: start;
+  border: 1px solid var(--graphite);
+  background: var(--graphite);
+  color: var(--diffuser);
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+}
+.lt-unblur button:disabled {
+  background: var(--g8);
+  border-color: var(--g16);
+  color: var(--g48);
+}
+.lt-unblurred {
+  margin-top: 0.4rem !important;
+  padding: 0.3rem 0.5rem;
+  border-left: 3px solid var(--graphite);
+  font-size: 0.8125rem;
+}
+
+/* draggable site-plan nodes */
+.lt-plan-node {
+  cursor: grab;
+}
+.lt-plan-node:active {
+  cursor: grabbing;
+}
+.lt-plan-node:focus-visible circle {
+  stroke-width: 1.2;
+}
+.lt-plan-node circle.is-unplaced {
+  stroke-dasharray: 1 0.8;
+}
+.lt-results {
+  color: var(--cyanotype);
+}

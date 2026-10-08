@@ -92,6 +92,9 @@ export const endpoints = {
   health: () => api<Health>("/api/health"),
   cameras: () => api<CameraInfo[]>("/api/cameras"),
   renameCamera: (id: string, name: string) => api<CameraInfo>(`/api/cameras/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ name }) }),
+  placeCamera: (id: string, xy: [number, number]) => api<CameraInfo>(`/api/cameras/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ site_xy: xy }) }),
+  /** audited, 5-minute token; pass as ?unblur= on media and frame routes */
+  unblur: (reason: string, evidenceId?: string) => api<{ token: string; expires_at: number }>("/api/media/unblur", { method: "POST", body: JSON.stringify({ reason, evidence_id: evidenceId }) }),
   upload: (files: File[]) => {
     const form = new FormData();
     for (const f of files) form.append("files", f, f.name);
@@ -114,4 +117,8 @@ export const endpoints = {
   voice: (audio: Blob) => api<{ text: string }>("/api/voice", { method: "POST", body: audio, headers: { "content-type": audio.type || "audio/webm" } }),
 };
 
-export const frameUrl = (cameraId: string, t: number): string => apiUrl(`/api/cameras/${encodeURIComponent(cameraId)}/frame?t=${t.toFixed(3)}`);
+export const frameUrl = (cameraId: string, t: number, unblur?: string): string =>
+  apiUrl(`/api/cameras/${encodeURIComponent(cameraId)}/frame?t=${t.toFixed(3)}${unblur ? `&unblur=${encodeURIComponent(unblur)}` : ""}`);
+
+/** Add an unblur token to a media URL. */
+export const withUnblur = (url: string, token?: string | null): string => (token ? `${url}${url.includes("?") ? "&" : "?"}unblur=${encodeURIComponent(token)}` : url);

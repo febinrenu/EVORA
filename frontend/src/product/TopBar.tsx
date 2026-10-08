@@ -38,6 +38,9 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
       <span className="lt-spacer" />
       {!connected ? <span className="lt-offline">Reconnecting to this machine…</span> : null}
       {health?.blur === "unavailable" ? <span className="lt-warn">Face blur is unavailable</span> : null}
+      <a href="/report/" className="lt-results">
+        Results
+      </a>
       <button type="button" className="lt-watch-btn" onClick={() => setDrawer(true)}>
         Watch{unseen ? <span className="lt-badge" aria-label={`${unseen} new alerts`}>{unseen}</span> : null}
       </button>
