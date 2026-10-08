@@ -1,0 +1,28 @@
+# Everything tunable lives here. Profiles in config/profiles/ override single keys.
+server:
+  host: 127.0.0.1
+  port: 8700
+  cors_origins: ["http://localhost:5173", "http://127.0.0.1:5173"]
+workspace:
+  root: workspaces
+  default: own-campus
+  schema_version: "1"
+uploads:
+  max_bytes: 4294967296
+  extensions: [".mp4", ".mov", ".mkv", ".avi", ".m4v"]
+llm:
+  models:
+    planner: openai/gpt-oss-20b
+    hard: openai/gpt-oss-120b
+    vision: qwen/qwen3.8-27b
+    voice: whisper-large-v3-turbo
+  onprem: false
+memory:
+  tau_hi: 0.85
+  tau_lo: 0.60
+media:
+  pre_roll_s: 3
+  post_roll_s: 3
+  blur_faces: true
+alerts:
+  default_cooldown_s: 30

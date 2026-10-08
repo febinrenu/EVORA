@@ -1,0 +1,15 @@
+data/
+models/
+workspaces/
+logs/
+.env
+.env.local
+.venv/
+contracts/ts/.schema.check.json
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+node_modules/
+frontend/dist/

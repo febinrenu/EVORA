@@ -1,0 +1,41 @@
+[project]
+name = "evora"
+version = "0.1.0"
+description = "Multi-camera video intelligence with conversational queries"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "pydantic>=2.7",
+  "sse-starlette>=2.1",
+  "python-multipart>=0.0.9",
+  "pyyaml>=6.0",
+  "lancedb>=0.13",
+  "httpx>=0.27",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6", "mypy>=1.10", "types-pyyaml"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["evora"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.File", "fastapi.Query"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S110", "E722"]
+ignore = ["E701", "E702"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", ".."]
+asyncio_mode = "auto"
