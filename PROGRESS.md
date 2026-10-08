@@ -17,8 +17,8 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M1 — Platform, Memory & Integration
 - State: on track
-- Doing: P1.14 done; starting P1.15 evidence pack
-- Next: P1.15 evidence pack + audit view, P1.16 replay-as-live, P1.18 doctor
+- Doing: P1.15 done; starting P1.16 replay-as-live
+- Next: P1.16 replay-as-live, P1.17 live runner, P1.18 doctor, P1.19 make up
 - Blockers:
 
 ### M2 — Perception & Identity
@@ -74,6 +74,7 @@ State values: not started · on track · at risk · blocked · done
 - [17:44] [M2] DECISION: L2 means attributes + events for now (ReID features join it in P2.14/P2.15). Re-running L2 is idempotent and recomputes events for every stored zone.
 
 ## Contract change requests (append only)
+- [01:30] [M1] REQUEST (self-approved, additive): `POST /api/evidence/{id}/pack[?unblur=token]` is real (zip with clip, three frames, evidence.json, manifest.json, SHA256SUMS, README); headers `X-Evora-Blur`, `X-Evora-Pack-SHA256`; 409 when face blur is on but unavailable and no unblur token. Why: demo step 6, chain of custody. Affects: M4. → [01:30] [M1] APPROVED v1.6 (dd34d1c)
 - [00:20] [M1] REQUEST (self-approved, additive): `GET /api/health` gains `egress_blocked` and `blur`; `POST /api/settings` is validated (422) and persistent; bus note `kind="privacy"`; `POST /api/voice` answers 503 in on-prem mode. Why: privacy badge and Wi-Fi-off fallback. Affects: M4. → [00:20] [M1] APPROVED v1.5 (93d7a0f)
 - [22:40] [M1] REQUEST (self-approved, additive): `POST /api/standing` may answer `409 {clarify}`; `/api/events` notes with `kind="alert"`; `GET /api/alerts?acknowledged=`. Why: standing queries reuse clarify-once; the UI needs live alerts. Affects: M4. → [22:40] [M1] APPROVED v1.4 (a1c9d05)
 - [21:30] [M1] REQUEST (self-approved, additive): `DELETE /api/zones/{id}` and response header `X-Evora-Events` on `POST /api/zones`. Why: redraw/remove zones and tell the UI whether crossings were computed. Affects: M4. → [21:30] [M1] APPROVED v1.3 (d9a9358)
@@ -82,6 +83,8 @@ State values: not started · on track · at risk · blocked · done
 <!-- - [HH:MM] [M3] REQUEST: add optional `Answer.followups: list[str]`. Why: UI suggestions. Affects: M1, M4. → [HH:MM] [M1] APPROVED v1.1 -->
 
 ## Requests to other areas (append only)
+- [01:30] [M1] → M4 (export): `POST /api/evidence/{id}/pack` downloads `evora_evidence_<id>.zip`. A `409` means blur is on but the face model cannot run: show the message and, if the operator insists, ask for a reason (`POST /api/media/unblur {reason}`), then repeat with `?unblur=<token>`; the pack then says it is unblurred and why. Read `X-Evora-Pack-SHA256` to show the hash in the UI. Anyone can check a pack offline: unzip and run `sha256sum -c SHA256SUMS`, or `python -m evora.evidence.pack verify pack.zip`.
+- [01:30] [M1] → M3: packs embed the question, plan and timings from `query_log` (the router already fills it) and the watch text and rule for alerts; keep those rows complete (`answer` JSON with every evidence id).
 - [00:20] [M1] → M4 (privacy): the badge reads `GET /api/health`: `onprem`, `egress_blocked` (outside connections refused since start), `blur` (`applied` / `off` / `unavailable`; `unavailable` also covers a model file that is missing, show a warning). Toggle with `POST /api/settings {onprem: bool}` (it persists across restarts; 422 for wrong types) and listen for `/api/events` note `kind=privacy` `{onprem}` to update every open tab. In on-prem mode `POST /api/voice` returns 503: fall back to the browser microphone or typing.
 - [00:20] [M1] → M2 and M3: in on-prem mode every connection that leaves the machine raises `evora.core.privacy_guard.EgressBlocked` (an OSError): sockets, DNS, UDP and asyncio (the Windows proactor loop is covered too). So `make models` and any first-time download (HF, Ultralytics, BoxMOT, YuNet, fastembed) must be done while online; set `HF_HUB_OFFLINE=1` for demo runs. `make offline-test` (on-prem env, e2e plus privacy tests) is wired.
 - [22:40] [M1] → M3: please add `async Gateway.notify(topic: str, title: str, message: str) -> None` to `llm/gateway.py`: one POST to ntfy (`https://ntfy.sh/<topic>`, body = message, `Title` header) with a short timeout, refusing in on-prem mode, never logging the topic or message. Rule 9 says outbound calls go through the gateway; M1's `alerts/notify.py` already calls it when it exists and is silent otherwise.
@@ -179,4 +182,4 @@ State values: not started · on track · at risk · blocked · done
 - [00:35] [M1] Dependency note: `evora/reid/associate.py` imports scipy but it was not declared, so `make check` failed on a clean install; added `scipy>=1.11` to the core dependencies of backend/pyproject.toml. Everyone: run `make setup` after pulling. 830 tests in make check.
 - [00:20] [M3] eval/systems.py done: `ours` (the real router + M1's memory, answering each clarification from the query's scripted clarify_answer, exactly as /api/clarify does) and `b0` (whole-frame scene tiles of the workspace, same plan, camera filter and window), plus a raw-text planner for the C3 ablation. `python -m eval.harness --system ours --system b0 --workspace <slug> --split dev --replay logs/replay.jsonl` and `python -m eval.ablate --workspace <slug> --split test`. Tested end to end with M1's real MemoryService (clarify, remember, paraphrase, no re-ask). So the first real eval is one command once the meva-school workspace is on this machine. B0 note for the write-up: its index is our 2-second whole-frame tiles, not a separate 1 fps pass.
 - [00:20] [M3] → M2 PACKAGING BUG: evora/reid/associate.py imports scipy (linear_sum_assignment, binom) but scipy is not in backend/pyproject.toml, so on a clean `uv sync` 7 test modules fail to collect (tests/perception/*). Please add `scipy` to the dependencies (the perception extra is enough if the reid tests are skipped without it). With `uv run --with scipy pytest` the whole suite is green here: 848 passed, 4 skipped.
-
+- [01:30] [M1] P1.15 done (dd34d1c): evidence packs (clip, start/peak/end frames with the box on the peak, evidence.json with dual timestamps and what produced it, manifest.json with the source file's upload and stored SHA-256 plus conversion history, SHA256SUMS, README), blurred or not exported (409 unless an audited unblur token), flat deterministic zip, offline verifier with tamper tests, audit entry per export. CONTRACT v1.6. 868 tests in make check.
