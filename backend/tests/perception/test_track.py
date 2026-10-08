@@ -76,3 +76,12 @@ def test_creating_a_tracker_does_not_reset_a_running_cameras_ids():
         ids = [x.track_key for x in a.update(frame)]
     assert len(ids) == len(set(ids)) == 3
     assert max(ids) not in seen and max(ids) == 3      # continues from 3; it was not reset to 1 by the other tracker
+
+
+@pytest.mark.parametrize(
+    "width, expected", [(320, 640), (360, 640), (640, 640), (800, 800), (1000, 1024), (1280, 1280), (1920, 1280)])
+def test_detector_size_follows_the_frame_width(width, expected):
+    from evora.perception.track import detector_size
+
+    assert detector_size(width, IngestSettings()) == expected
+    assert detector_size(width, IngestSettings(det_imgsz=512)) == 512        # an explicit setting always wins

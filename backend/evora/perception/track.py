@@ -49,6 +49,17 @@ def build_tracker(tracker_cfg: str):
     return tracker, cfg
 
 
+def detector_size(width: int, cfg: IngestSettings) -> int:
+    """Detector input size: the configured one, else the frame width rounded up to a multiple of 32, between 640 and the cap.
+
+    At 640 pixels a 1080p scene shrinks cars and people to a few pixels and many are missed (on the MEVA hospital clip 6
+    cars were found in 12 frames at 640 against 25 at 1280); small frames gain nothing from a larger size.
+    """
+    if cfg.det_imgsz:
+        return cfg.det_imgsz
+    return int(min(cfg.det_imgsz_max, max(640, -(-width // 32) * 32)))
+
+
 class FrameTracker:
     def __init__(self, det: LoadedDetector, cfg: IngestSettings):
         self.det, self.cfg = det, cfg
@@ -60,7 +71,8 @@ class FrameTracker:
         """Run detection and tracking on one frame; only boxes that belong to a track are returned."""
         with _model_lock:
             results = self.det.model.predict(
-                bgr, conf=self._conf, imgsz=self.cfg.det_imgsz, classes=self.det.class_ids, device=self.det.device,
+                bgr, conf=self._conf, imgsz=detector_size(bgr.shape[1], self.cfg), classes=self.det.class_ids,
+                device=self.det.device,
                 quantize=16 if self.det.half else None, verbose=False,
             )
         boxes = results[0].boxes
