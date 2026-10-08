@@ -164,3 +164,23 @@ def test_missing_source_file_raises(env, tmp_path):
     gone = cam.model_copy(update={"source_uri": str(tmp_path / "gone.mp4")})
     with pytest.raises(Exception, match="source file missing"):
         pipeline.ingest(gone, "cpu", {"L1"}, lambda e: None, ws=ws, settings=_settings())
+
+
+def test_infrared_footage_suppresses_colours_and_is_flagged(env, tmp_path):
+    import subprocess
+
+    ws, db, cam = env
+    grey = tmp_path / "grey.mp4"
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=10:duration=2", "-vf", "hue=s=0,format=yuv420p",
+         str(grey)],
+        check=True,
+    )
+    grey_cam = cams.insert_camera(db, name="Night", kind="file", source_uri=str(grey), t0=1_790_000_100.0, t0_source="manual",
+                                  duration_s=2.0)
+    pipeline.ingest(grey_cam, "cpu", {"L0", "L1", "L2"}, lambda e: None, ws=ws, settings=_settings())
+    with db.read() as c:
+        attrs = [json.loads(r["attrs"]) for r in c.execute("SELECT attrs FROM tracks WHERE camera_id=?", (grey_cam.id,))]
+        ir = c.execute("SELECT ir_fraction FROM cameras WHERE id=?", (grey_cam.id,)).fetchone()[0]
+    assert ir == 1.0 and attrs
+    assert all(a["is_ir"] is True and "upper_color" not in a and "color" not in a for a in attrs)
