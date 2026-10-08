@@ -29,8 +29,8 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M3 — Reasoning, Retrieval & Science
 - State: on track
-- Doing: P3.7 logic.py, P3.8 compose.py (pure, tested on synthetic rows)
-- Next: P3.10 eval harness + B0, then P3.6 retrieve+fuse once M2 mini-index lands
+- Doing: waiting on M2 mini-index + M1 stores for P3.6 retrieve+fuse; meanwhile P3.9 router skeleton, P3.15 meva_to_queries
+- Next: P3.6 retrieve+fuse on the mini-index, register ours/b0 systems in eval/harness.py, first make eval
 - Blockers: need M1 core/db.py + vectors.py (P1.4) and M2 mini-index (~T+3:00) for real retrieval; Groq key not yet run through check_groq
 
 ### M4 — Experience
@@ -95,3 +95,7 @@ State values: not started · on track · at risk · blocked · done
 - [15:50] [M3] P3.5 done: query/planner.py + timeparse.py: fast path -> plan cache (sqlite plan_cache, keyed on text + camera set) -> gateway; time anchored to reference_now (meta.reference_now, else end of latest footage; meta.tz); 218 tests pass in full backend suite (9b891a5)
 - [10:55] [M1] P1.5 camera upload done (1d565b9): extension allow-list, size cap, ffprobe validation, SHA-256, rtsp registration, DB-backed /api/cameras. Fixed `make dev` (contracts import) on the way.
 - [10:55] [M1] P1.6 ingest job runner done (1d2d26c): resumable by layer, one failing camera never stops the others, progress as `note` events on /api/events (kind=ingest|camera). 257 tests in make check after merging M3.
+- [16:30] [M3] P3.7 done: query/logic.py (pass_through/enter/exit/dwell/appear over line/polygon/frame zones, event-time matching, tod filters that wrap midnight, first/last/count distinct); 25 tests (83e2ec4)
+- [16:30] [M3] P3.8 done: query/compose.py deterministic answers, dual timestamps (clock + offset into file), notes for unindexed/IR cameras, evidence-id validator; 27 tests (358a46e)
+- [16:30] [M3] P3.10 done: eval/queries.py + metrics.py + harness.py (all section 9.3 metrics, PROGRESS scoreboard rows) and baseline/b0_frames.py core with injected embedder; 54 tests (01af89e, 764ff52, 7369acd)
+- [16:30] [M3] NOTE: ours/b0 systems are not yet registered in eval/harness.py build_system (needs P3.6 retrieval, P3.9 router and an indexed workspace). No new contract changes needed so far.
