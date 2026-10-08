@@ -22,7 +22,7 @@ log = logging.getLogger("evora.live.runner")
 
 _CAMERA_ID = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 ACTIVE_STREAM_STATES = ("starting", "running", "retrying")
-INSTALL_HINT = "Live analysis needs the perception stack: run `make setup-perception`."
+INSTALL_HINT = "Live analysis needs the perception stack: " + perception_adapter.SETUP_HINT.split(", then")[0] + "."
 
 
 @dataclass

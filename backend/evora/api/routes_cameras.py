@@ -67,6 +67,9 @@ async def _save_one(ctx: AppContext, upload: UploadFile) -> tuple[CameraInfo, bo
     existing = await run_in_threadpool(cams.find_by_sha, ctx.db, sha)
     if existing is not None:
         sink.discard()
+        if existing.status == "error":  # uploading a failed file again means "try again": it can be indexed once more
+            await run_in_threadpool(cams.set_status, ctx.db, existing.id, "pending")
+            existing = existing.model_copy(update={"status": "pending"})
         return existing, True
     return await run_in_threadpool(_register_file, ctx, sink, sha), False
 

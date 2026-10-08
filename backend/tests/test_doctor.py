@@ -72,7 +72,7 @@ def test_missing_core_package_is_a_failure_with_the_fix(tmp_path):
 def test_missing_perception_stack_is_only_a_warning(tmp_path):
     env = healthy(tmp_path, version_of=lambda n: None if n in doctor.PERCEPTION_PACKAGES else "1")
     c = by_id(run_checks(env))["perception"]
-    assert c.status == WARN and c.fix == "make setup-perception" and "torch" in c.detail
+    assert c.status == WARN and c.fix == "start.bat setup (Windows) or make setup-perception" and "torch" in c.detail
 
 
 def test_ffmpeg_missing_and_incomplete(tmp_path):

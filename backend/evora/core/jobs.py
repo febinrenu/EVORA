@@ -72,6 +72,20 @@ class JobRunner:
                 c.execute("UPDATE ingest_jobs SET state='error', error='interrupted by restart' WHERE id=?", (row["id"],))
         return sum(1 for r in rows if self._enqueue(cams.get_camera(self.db, r["camera_id"]), set(self.default_layers)))
 
+    def retry_failed(self) -> list[IngestJob]:
+        """Index again every recorded-file camera whose indexing stopped with an error (for example after setup was run)."""
+        with self.db.read() as c:
+            ids = [r["id"] for r in c.execute("SELECT id FROM cameras WHERE status='error' AND kind='file' ORDER BY id")]
+        jobs = []
+        for cid in ids:
+            try:
+                jobs.append(self._enqueue(cams.get_camera(self.db, cid), set(self.default_layers)))
+            except cams.CameraNotFound:
+                continue
+        if jobs:
+            log.info("re-indexing %d camera(s) that had stopped with an error", len(jobs))
+        return jobs
+
     def get(self, job_id: str) -> IngestJob:
         with self.db.read() as c:
             return self._row_to_job(c.execute("SELECT * FROM ingest_jobs WHERE id=?", (job_id,)).fetchone())

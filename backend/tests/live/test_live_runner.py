@@ -328,7 +328,7 @@ def test_analyze_without_the_stack_is_a_503_with_the_hint(api):
     ctx.live_runner._find = lambda: None
     ctx.live_runner.replay.run("cam_01")
     r = client.post("/api/live/analyze", json={"camera_ids": ["cam_01"]})
-    assert r.status_code == 503 and "make setup-perception" in r.json()["detail"]
+    assert r.status_code == 503 and "start.bat setup" in r.json()["detail"]
 
 
 def test_stopping_the_replay_stops_the_analysis_first(api):

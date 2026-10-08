@@ -178,6 +178,8 @@ class AppContext:
         runner.on_idle = after_batch
         ctx.clock = ClockReader(db, ws.vectors_dir, bus, perception_adapter.detect_clock)
         runner.before_run = lambda camera_id: ctx.clock.wait(camera_id)
+        if not mock and jobs.get("retry_failed_on_start", True):
+            runner.retry_failed()  # a camera that failed (say, before setup was run) gets one new attempt per start
         ctx.zones.on_recomputed = lambda camera_id: ctx.alerts.backfill(camera_id)
         if not mock:
             from evora.api.query_wiring import ClarifierAdapter, build_router

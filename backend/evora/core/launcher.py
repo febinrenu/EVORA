@@ -117,11 +117,15 @@ def start_ui(
     return f"started but not answering on port {port} yet", child
 
 
-def banner(url: str, ws: str, on_prem: bool, keys: int, ollama: str, mediamtx: bool, ui: bool | str, problems: list[str]) -> str:
+def banner(
+    url: str, ws: str, on_prem: bool, keys: int, ollama: str, mediamtx: bool, ui: bool | str, problems: list[str],
+    indexing: str | None = None,
+) -> str:
     interface = ui if isinstance(ui, str) else ("built UI served here" if ui else "API only (no built UI yet)")
     lines = [
         "", f"  evora is starting at {url}", "",
         f"  workspace   {ws}",
+        *([f"  indexing    {indexing}"] if indexing else []),
         f"  privacy     {'on-prem: nothing leaves this machine' if on_prem else 'cloud allowed'}",
         f"  groq keys   {keys}",
         f"  ollama      {ollama}",
@@ -132,6 +136,16 @@ def banner(url: str, ws: str, on_prem: bool, keys: int, ollama: str, mediamtx: b
         lines += ["", "  to improve:"] + [f"    - {p}" for p in problems]
     lines.append("")
     return "\n".join(lines)
+
+
+def indexing_state(checks: list[doctor.Check]) -> str | None:
+    """One clear line about whether new footage can be indexed (None when the checks were skipped)."""
+    row = next((c for c in checks if c.id == "perception"), None)
+    if row is None:
+        return None
+    if row.status == doctor.OK:
+        return "ready"
+    return "not possible yet: the perception stack is not installed. Run `start.bat setup` once (or `make setup-perception`)"
 
 
 def count_keys(env: doctor.Env) -> int:
@@ -199,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Preparing the web interface (the first build can take a minute)...", flush=True)
         interface, ui_child = start_ui(env, url, args.ui_port)
     print(banner(url, ctx.ws.slug, bool(ctx.settings["onprem"]), count_keys(env), ollama_state,
-                 env.mediamtx() is not None, interface, problems), flush=True)
+                 env.mediamtx() is not None, interface, problems, indexing_state(checks)), flush=True)
     if args.open:
         threading.Timer(1.5, lambda: webbrowser.open(url)).start()
     import uvicorn

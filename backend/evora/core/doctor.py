@@ -268,7 +268,7 @@ def check_python(env: Env) -> list[Check]:
     out.append(Check("perception", "Perception stack", WARN if absent else OK,
                      ("not installed: " + ", ".join(absent) + ". New footage cannot be indexed yet.") if absent
                      else ", ".join(f"{p} {env.version_of(p)}" for p in PERCEPTION_PACKAGES),
-                     "make setup-perception" if absent else ""))
+                     "start.bat setup (Windows) or make setup-perception" if absent else ""))
     return out
 
 

@@ -44,6 +44,22 @@ def _find(name: str) -> Callable | None:
     return None
 
 
+# the packages only the perception extra installs; a missing one means setup was never run on this machine
+PERCEPTION_MODULES = {"torch", "torchvision", "ultralytics", "transformers", "boxmot", "fastembed", "clip", "lap"}
+SETUP_HINT = "run `start.bat setup` once (Windows) or `make setup-perception`, then index the camera again"
+
+
+class PerceptionMissing(RuntimeError):
+    """The perception stack is not installed in the environment the app runs in."""
+
+
+def missing_perception(exc: BaseException) -> PerceptionMissing | None:
+    """A clear error for an ImportError caused by a perception package that is not installed, else None."""
+    if isinstance(exc, ModuleNotFoundError) and (exc.name or "").split(".")[0] in PERCEPTION_MODULES:
+        return PerceptionMissing(f"the perception stack is not installed ({exc.name} is missing): {SETUP_HINT}")
+    return None
+
+
 def detect_clock(path: Path, probed: ProbeResult | None = None, *, quick: bool = False) -> tuple[float, str]:
     """`(t0, source)`. `quick` skips the slow on-screen and slate readings (they need the vision model)."""
     real = _find("detect_clock")
@@ -72,7 +88,13 @@ def ingest(
     if real is not None:
         # M2's pipeline resolves its own workspace unless told which one the app is using
         accepts_ws = ws is not None and "ws" in inspect.signature(real).parameters
-        real(cam, profile, layers, on_progress, **({"ws": ws} if accepts_ws else {}))
+        try:
+            real(cam, profile, layers, on_progress, **({"ws": ws} if accepts_ws else {}))
+        except ModuleNotFoundError as exc:
+            clear = missing_perception(exc)
+            if clear is None:
+                raise
+            raise clear from exc
         return
     if not _warned:
         log.warning("perception.ingest is not installed: using the simulated ingest stub")
