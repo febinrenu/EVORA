@@ -42,9 +42,10 @@ class IngestSettings(BaseModel):
     crop_max_side: int = 256
     point_hz: float = 4.0             # track_points downsample rate
     # colour
-    # "legacy" = the original method; "v2" = person masks, survey naming and shades.
-    # Keep legacy until v2 has beaten it on human labels (scripts/colour_eval.py --ablate).
-    colour_engine: str = "legacy"
+    # "v2" = person masks, survey naming and shades (default: it agrees better with two independent opinions and removes the
+    # phantom purple / brown / pink people of the original). "legacy" = the original method, kept for comparison.
+    # Without the segmentation checkpoint v2 falls back to fixed regions by itself.
+    colour_engine: str = "v2"
     # L3 captions
     l3_max_tracks: int = 60           # best tracks per camera to caption
     l3_budget_s: float = 300.0        # time limit per camera; the layer stops and keeps what it has

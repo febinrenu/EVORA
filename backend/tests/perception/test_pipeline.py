@@ -75,6 +75,7 @@ def env(tmp_path, monkeypatch, sample_mp4):
 
 
 def _settings(**kw) -> IngestSettings:
+    kw = {"colour_engine": "legacy"} | kw      # tests pin the original colour engine; one test below covers v2
     return IngestSettings(min_track_obs=2, motion_gate=False, fixed_fps=10, scene_every_s=1.0, **kw)
 
 
