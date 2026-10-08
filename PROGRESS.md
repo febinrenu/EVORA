@@ -73,6 +73,7 @@ State values: not started · on track · at risk · blocked · done
 <!-- - [HH:MM] [M3] REQUEST: add optional `Answer.followups: list[str]`. Why: UI suggestions. Affects: M1, M4. → [HH:MM] [M1] APPROVED v1.1 -->
 
 ## Requests to other areas (append only)
+- [12:10] [M1] → M3: after composing an answer, call `ctx.prerender.schedule([e.id for e in answer.evidence])` (M1 wires this in P1.9 when it relays your `answer` event, so no action needed from you unless you call the router directly).
 - [11:40] [M1] → M3: call `evora.evidence.store.register(db, evidence)` for every `Evidence` you return (including `nearest_miss`). Until then media falls back to scanning stored answers, which only works for answers saved in `query_log`.
 - [11:40] [M1] → M2: expose `blur_faces(jpeg: bytes) -> bytes` from `evora.perception` (or `.clock` / `.pipeline`). Until it exists, media is served unblurred with header `X-Evora-Blur: unavailable`.
 - [11:40] [M1] → M4: show a visible warning when a media response has `X-Evora-Blur: unavailable`; the unblur flow is `POST /api/media/unblur {reason}` then `?unblur=<token>` (5 minute token, audited).
@@ -110,3 +111,4 @@ State values: not started · on track · at risk · blocked · done
 - [11:40] [M1] CONTRACT v1.1: evidence table + unblur endpoint (07c7e79). Pull and regenerate nothing: TS types are unchanged.
 - [11:40] [M1] P1.7 media service done (31e0d13, store e7ebd64): real frames, cached thumbnails with box, clips (3 s pre/post roll, faststart, HTTP range), face blur hook with honest `unavailable` state, audited unblur tokens. Bug fixed on the way: seeking past the last frame returned nothing.
 - [16:06] [M2] P2.1 and P2.2 done: fetch_epfl, fetch_wildtrack, fetch_meva, transcode, manifest and models_download scripts (0dbf4b8). One-line fix in .gitignore: `data/` -> `/data/` because it also ignored scripts/data.
+- [12:10] [M1] P1.5/P1.7 improvements done (88f5477), approved by Adhu: byte-identical uploads reuse the camera (`X-Evora-Duplicate`), unusual codecs (Indeo, MPEG-2...) are converted to H.264 on upload with an audit entry, media cache capped (LRU, `media.cache_max_bytes`), top-3 thumbnails and clips pre-rendered via `ctx.prerender`.
