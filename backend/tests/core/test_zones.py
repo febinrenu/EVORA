@@ -179,3 +179,12 @@ def test_delete_removes_events_and_the_facts_pointer_but_not_the_fact(db):
     assert kb.get(fact.id).binding == {"camera_id": "cam_01"}
     with pytest.raises(zones.ZoneNotFound):
         svc.delete("z1")
+
+
+def test_zones_saved_in_the_same_clock_tick_keep_their_order(db, monkeypatch):
+    monkeypatch.setattr(zones.time, "time", lambda: 1000.0)  # every save gets the same timestamp
+    for zid in ("zz", "aa", "mm"):
+        zones.save(db, Zone(id=zid, camera_id="cam_01", kind="frame"))
+    assert [z.id for z in zones.list_zones(db)] == ["zz", "aa", "mm"], "insertion order, not alphabetical"
+    zones.save(db, Zone(id="zz", camera_id="cam_01", kind="frame"))  # redrawing keeps the zone's place
+    assert [z.id for z in zones.list_zones(db)] == ["zz", "aa", "mm"]

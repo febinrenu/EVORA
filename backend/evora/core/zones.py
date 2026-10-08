@@ -52,7 +52,8 @@ def list_zones(db: Database, camera_id: str | None = None) -> list[Zone]:
     if camera_id:
         sql, args = sql + " WHERE camera_id=?", (camera_id,)
     with db.read() as c:
-        return [_to_zone(r) for r in c.execute(sql + " ORDER BY created_at, id", args)]
+        # rowid breaks ties in insertion order: zones saved within one clock tick (about 16 ms on Windows) share created_at
+        return [_to_zone(r) for r in c.execute(sql + " ORDER BY created_at, rowid", args)]
 
 
 def get_zone(db: Database, zone_id: str) -> Zone:
