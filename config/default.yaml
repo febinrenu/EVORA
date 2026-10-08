@@ -22,6 +22,8 @@ llm:
 memory:
   tau_hi: 0.85
   tau_lo: 0.60
+  margin: 0.03          # two facts this close above tau_hi make the referent ambiguous
+  alias_embed: true     # false = exact aliases only (ablation C4)
 media:
   pre_roll_s: 3
   post_roll_s: 3
