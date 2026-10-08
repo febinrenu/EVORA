@@ -62,6 +62,12 @@ class ColourParams:
     white_l: float = 80.0
     dark_floor_l: float = 14.0       # below this lightness only strongly coloured pixels are not black
     dark_floor_chroma: float = 28.0
+    # thresholds that differ by slot (trousers are often dark denim; sunlit white cars look underexposed)
+    lower_achro_chroma: float = 12.0
+    lower_black_l: float = 24.0
+    vehicle_achro_chroma: float = 12.0
+    vehicle_black_l: float = 24.0
+    vehicle_white_l: float = 80.0
     shade_low: float = 0.33          # shade quantiles among survey colours of the same term
     shade_high: float = 0.67
     # confidence calibration: (raw confidence, observed accuracy) points, interpolated
@@ -264,6 +270,16 @@ def dominant_lab(pixels: np.ndarray, gains: np.ndarray | None, *, k: int = 3, ma
 
 # ---------------------------------------------------------------- public API
 
+def _for_slot(slot: str, params: ColourParams) -> ColourParams:
+    """The thresholds that apply to one garment slot."""
+    if slot == "lower":
+        return replace(params, achro_chroma=params.lower_achro_chroma, black_l=params.lower_black_l)
+    if slot == "color":
+        return replace(params, achro_chroma=params.vehicle_achro_chroma, black_l=params.vehicle_black_l,
+                       white_l=params.vehicle_white_l)
+    return params
+
+
 def predict_detail(kind: str, crop: np.ndarray, gains: np.ndarray | None = None, mask: np.ndarray | None = None,
                    params: ColourParams | None = None) -> dict[str, ColourResult]:
     """Colour of each garment slot of one crop: person -> upper, lower; vehicle -> color."""
@@ -275,7 +291,7 @@ def predict_detail(kind: str, crop: np.ndarray, gains: np.ndarray | None = None,
             result[slot] = ColourResult(None, None)
             continue
         lab, share = dom
-        term, raw, shade = name_lab(lab, params)
+        term, raw, shade = name_lab(lab, _for_slot(slot, params))
         conf = calibrate(raw * (0.5 + 0.5 * share), params)
         result[slot] = ColourResult(term, conf, f"{shade} {term}" if shade else term, shade)
     return result

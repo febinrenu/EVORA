@@ -46,6 +46,9 @@ class IngestSettings(BaseModel):
     # phantom purple / brown / pink people of the original). "legacy" = the original method, kept for comparison.
     # Without the segmentation checkpoint v2 falls back to fixed regions by itself.
     colour_engine: str = "v2"
+    # A colour claim needs this calibrated confidence, otherwise the colour is left unknown. On held-out human labels, predictions
+    # below 0.6 were right only about 40% of the time (coin flips), those at 0.8 or more 95-100%. 0 disables the floor.
+    colour_min_conf: float = 0.6
     # L3 captions
     l3_max_tracks: int = 60           # best tracks per camera to caption
     l3_budget_s: float = 300.0        # time limit per camera; the layer stops and keeps what it has

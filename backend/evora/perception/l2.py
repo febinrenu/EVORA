@@ -90,7 +90,7 @@ def _bag_owners(persons: dict[str, list[at.Box]], bags: dict[str, tuple[str, lis
     return owned
 
 
-def _v2_colours(attrs: TrackAttrs, extras: dict, cls: str, images: list, gains, segmenter) -> None:
+def _v2_colours(attrs: TrackAttrs, extras: dict, cls: str, images: list, gains, segmenter, min_conf: float = 0.0) -> None:
     """Colours from the masked, survey-named model; fills the contract fields plus additive `*_name` shade fields."""
     kind = "person" if cls == "person" else "vehicle"
     per_slot: dict[str, list[cm.ColourResult]] = defaultdict(list)
@@ -108,16 +108,22 @@ def _v2_colours(attrs: TrackAttrs, extras: dict, cls: str, images: list, gains, 
         wins = [r for r in results if r.term == term]
         names = [r.name for r in wins if r.name]
         best[slot] = (term, totals[term] / len(results), max(set(names), key=names.count) if names else None)
+    # a colour the model is not sure about is left unknown: unknown is honest, a coin-flip colour is a false answer
+    sure = {slot: v for slot, v in best.items() if v[1] >= min_conf}
+    for slot, v in best.items():
+        extras[f"{'color' if slot == 'color' else slot + '_color'}_conf"] = round(v[1], 3)
+        if slot not in sure:
+            extras.setdefault("colour_unsure", []).append(slot)
     if kind == "person":
-        if "upper" in best:
-            attrs.upper_color, attrs.color, attrs.color_conf = best["upper"][0], best["upper"][0], round(best["upper"][1], 3)
-            extras["upper_color_name"] = extras["color_name"] = best["upper"][2]
-        if "lower" in best:
-            attrs.lower_color = best["lower"][0]
-            extras["lower_color_name"] = best["lower"][2]
-    elif "color" in best:
-        attrs.color, attrs.color_conf = best["color"][0], round(best["color"][1], 3)
-        extras["color_name"] = best["color"][2]
+        if "upper" in sure:
+            attrs.upper_color, attrs.color, attrs.color_conf = sure["upper"][0], sure["upper"][0], round(sure["upper"][1], 3)
+            extras["upper_color_name"] = extras["color_name"] = sure["upper"][2]
+        if "lower" in sure:
+            attrs.lower_color = sure["lower"][0]
+            extras["lower_color_name"] = sure["lower"][2]
+    elif "color" in sure:
+        attrs.color, attrs.color_conf = sure["color"][0], round(sure["color"][1], 3)
+        extras["color_name"] = sure["color"][2]
 
 
 def run_l2(cam: CameraInfo, ws: Workspace, db: Database, store, st: IngestSettings, embedder,
@@ -171,7 +177,7 @@ def run_l2(cam: CameraInfo, ws: Workspace, db: Database, store, st: IngestSettin
             if img is not None:
                 images.append((img, np.asarray(r["vector"], dtype=np.float32)))
         if images and not attrs.is_ir and st.colour_engine == "v2" and (cls == "person" or cls in VEHICLES):
-            _v2_colours(attrs, extras, cls, [im for im, _ in images], gains, segmenter)
+            _v2_colours(attrs, extras, cls, [im for im, _ in images], gains, segmenter, st.colour_min_conf)
         elif images and not attrs.is_ir:
             if cls == "person":
                 up = at.aggregate_colour([at.dominant_colour(at.person_regions(im)[0], gains) for im, _ in images])

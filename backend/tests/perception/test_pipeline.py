@@ -201,7 +201,8 @@ def test_l2_v2_colour_engine_adds_shade_names_and_still_fills_the_contract_field
 
     monkeypatch.setattr(l2, "get_segmenter", lambda device="auto": None)       # no masks: geometric regions, deterministic
     ws, db, cam = env
-    pipeline.ingest(cam, "cpu", {"L0", "L1", "L2"}, lambda e: None, ws=ws, settings=_settings(colour_engine="v2"))
+    pipeline.ingest(cam, "cpu", {"L0", "L1", "L2"}, lambda e: None, ws=ws,
+                    settings=_settings(colour_engine="v2", colour_min_conf=0.0))
     with db.read() as c:
         attrs = [json.loads(r["attrs"]) for r in c.execute("SELECT attrs FROM tracks")]
     assert len(attrs) == 2
