@@ -413,9 +413,17 @@ def compose_objects(
             parts = ", ".join(f"{k} {v}" for k, v in sorted(mix.items(), key=lambda kv: -kv[1]))
             sentences.append(Sentence(f"In the clearest frame: {parts}.", ids))
         if len(cameras_summary) > 1:
-            per = ", ".join(f"{r['camera_name']} {r['typical']}" for r in sorted(cameras_summary, key=lambda r: r["camera_id"]))
+            mixed = any("vision_counts" in r for r in cameras_summary)
+            def part(r: Mapping[str, Any]) -> str:
+                return f"{r['camera_name']} {r['typical']}" + (" (detector only)" if mixed and "vision_counts" not in r else "")
+
+            per = ", ".join(part(r) for r in sorted(cameras_summary, key=lambda r: r["camera_id"]))
             sentences.append(Sentence(f"Per camera: {per}.", (), "note"))
             notes.append("These cameras may show the same place, so the largest single-camera number is given, not the sum.")
+        counted = best.get("vision_counts")
+        if counted:
+            notes.append(f"Counted by the local vision model in {len(counted)} frames ({', '.join(map(str, counted))}); the "
+                         f"detector outlined {best.get('detected', 0)} in a typical frame and its boxes are the ones shown.")
         return Composed("count", sentences, notes, n)
 
     first = evidence[0] if evidence else None

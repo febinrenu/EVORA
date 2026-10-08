@@ -110,6 +110,27 @@ class LookAnswerer:
         self._media = Path(media_dir)
         self._model = model
 
+    async def count(self, phrase: str, frames: Sequence[Frame]) -> list[int | None]:
+        """How many `phrase` the model counts in each frame on its own (None where it gave no number)."""
+        import cv2
+
+        model = self._model
+        picker = getattr(self._gateway, "pick_look_model", None)
+        if model is None and picker is not None:
+            model = await picker()
+        counts: list[int | None] = []
+        for frame in frames:
+            image = cv2.imread(str(self._media / frame.path))
+            ok, buf = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 85]) if image is not None else (False, None)
+            if not ok:
+                counts.append(None)
+                continue
+            reply = await self._gateway.vision_text(
+                buf.tobytes(), f"How many {phrase} are visible in this image? Reply with only a number.",
+                local_only=True, max_tokens=8, model=model)
+            counts.append(parse_count(reply))
+        return counts
+
     async def ask(self, question: str, camera_name: str, frames: Sequence[Frame], tz: tzinfo = UTC) -> str | None:
         import cv2
 
@@ -130,6 +151,24 @@ class LookAnswerer:
         answer = await self._gateway.vision_text(sheet, prompt_for(question, camera_name, labels), local_only=True,
                                                  max_tokens=ANSWER_TOKENS, model=model)
         return answer.strip() if answer else None
+
+
+NUMBER_WORDS = {"zero": 0, "none": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+                "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12}
+MAX_COUNT = 60                # a bigger answer is not a count
+
+
+def parse_count(answer: str | None) -> int | None:
+    """The number a reply to 'how many ... ? reply with only a number' states, or None."""
+    if not answer:
+        return None
+    head = answer.strip().lower()
+    match = re.search(r"\b(\d{1,3})\b", head)
+    if match:
+        value = int(match.group(1))
+        return value if value <= MAX_COUNT else None
+    word = re.match(r"[a-z]+", head)
+    return NUMBER_WORDS.get(word.group()) if word else None
 
 
 def pick_frames(rows: Sequence[tuple[float, str]], camera_id: str, n: int = FRAMES_PER_CAMERA) -> list[Frame]:

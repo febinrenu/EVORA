@@ -93,3 +93,32 @@ async def test_the_answerer_sends_one_labelled_sheet_to_the_local_model_only(tmp
     assert "A " in call["prompt"] and "B " in call["prompt"] and "C " in call["prompt"] and "D " not in call["prompt"]
     assert await look.LookAnswerer(FakeGateway(None), tmp_path).ask("q", "Gate", frames[:3]) is None
     assert await answerer.ask("q", "Gate", [look.Frame("cam_01", 1.0, "gone.jpg")]) is None    # nothing readable
+
+
+@pytest.mark.parametrize("reply,expected", [
+    ("6", 6), ("  5 ", 5), ("There are 8 chairs.", 8), ("Eight", 8), ("zero", 0), ("None visible", 0),
+    ("No chairs", None), ("no idea", None), ("0", 0), ("about twelve", None), ("", None), (None, None),
+    ("I can't tell", None), ("999", None), ("the 7th", None),
+])
+def test_a_count_is_read_from_a_reply_or_is_nothing(reply, expected):
+    assert look.parse_count(reply) == expected
+
+
+@pytest.mark.asyncio
+async def test_the_model_counts_frame_by_frame_and_a_missing_number_is_none(tmp_path):
+    for i in range(3):
+        cv2.imwrite(str(tmp_path / f"f{i}.jpg"), frame(80))
+    replies = iter(["6", "five", "no idea"])
+
+    class Counting(FakeGateway):
+        async def vision_text(self, image_jpeg, prompt, *, local_only=True, max_tokens=64, model=None):
+            await super().vision_text(image_jpeg, prompt, local_only=local_only, max_tokens=max_tokens, model=model)
+            return next(replies)
+
+    gateway = Counting(None)
+    answerer = look.LookAnswerer(gateway, tmp_path, model="m")
+    frames = [look.Frame("cam_01", float(i), f"f{i}.jpg") for i in range(3)] + [look.Frame("cam_01", 9.0, "gone.jpg")]
+    # "no idea" and an unreadable frame are no number
+    assert await answerer.count("red chairs", frames) == [6, 5, None, None]
+    assert all("How many red chairs are visible" in c["prompt"] and c["local_only"] for c in gateway.calls)
+    assert len(gateway.calls) == 3                                                 # nothing was sent for the missing frame

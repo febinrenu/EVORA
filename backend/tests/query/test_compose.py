@@ -246,3 +246,15 @@ def test_a_colour_nobody_could_read_is_not_counted_as_zero():
 def test_without_concurrency_the_old_count_is_unchanged():
     out = counted(count=3)
     assert out.text.startswith("Counted 3 matching people")
+
+
+def test_a_mixed_per_camera_line_says_which_number_is_only_the_detectors():
+    from evora.query.compose import compose_objects
+    rows = [{"camera_id": "cam_01", "camera_name": "Gate", "typical": 5, "peak": 6, "least": 5, "frames": 12, "seen_in": 12,
+             "breakdown": {}, "vision_counts": [5, 5, 6, 5], "detected": 2},
+            {"camera_id": "cam_02", "camera_name": "Hall", "typical": 1, "peak": 2, "least": 1, "frames": 12, "seen_in": 8,
+             "breakdown": {}}]
+    out = compose_objects(plan(intent="count", noun="chair", attrs=("red",), place=None, action="any", phrase=None), rows,
+                          [evidence()], noun="chair", colour="red")
+    assert "Per camera: Gate 5, Hall 1 (detector only)." in out.text
+    assert out.count == 5 and any("Counted by the local vision model in 4 frames (5, 5, 6, 5)" in n for n in out.notes)

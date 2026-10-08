@@ -14,6 +14,7 @@ from __future__ import annotations
 import inspect
 import json
 import logging
+import statistics
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Sequence
@@ -66,8 +67,8 @@ from evora.query.logic import (
     instant_in_window,
     order_matches,
 )
-from evora.query.look import LookAnswerer, cannot_tell, pick_frames, wants_look, yes_no
-from evora.query.objects import FrameRef, OpenObjectSurveyor, Survey, labels_for
+from evora.query.look import Frame, LookAnswerer, cannot_tell, pick_frames, wants_look, yes_no
+from evora.query.objects import FrameRef, OpenObjectSurveyor, Survey, labels_for, sample_evenly
 from evora.query.planner import Planner, PlanningError, reference_now, workspace_tz
 from evora.query.retrieve import Retriever, SearchScope
 
@@ -76,6 +77,7 @@ log = logging.getLogger("evora.query.router")
 TRACK_PAD_S = 5.0     # evidence window around the best frame of a track
 EVENT_PAD_S = 1.5     # evidence window around a crossing / entry / dwell
 MAX_DESCRIBE_EVIDENCE = 8
+VISION_COUNT_FRAMES = 4       # frames the vision model counts in for an object count
 MAX_LOOK_CAMERAS = 3       # cameras shown to the vision model for one question
 MAX_OBJECT_EVIDENCE = 6   # boxes shown from the clearest frame of a camera
 SAMPLE_FRAMES = 12        # stored frames looked at per camera for an object question
@@ -678,9 +680,58 @@ class Router:
                         evidence=evidence, confidence=_confidence(evidence, None), plan=plan, timings_ms=timings,
                         notes=all_notes)
         yield _event("answer", answer.model_dump(mode="json"))
+        revised = await self._vision_count(plan, noun, colour, surveys, summaries, evidence, tz, ref_now, cameras, notes,
+                                           query_id, timings)
+        if revised is not None:
+            answer = revised
+            yield _event("answer", answer.model_dump(mode="json"))
         timings["ttva"] = _ms(started)
         self._log_query(query_id, text, plan, answer)
         yield _event("done", {"query_id": query_id})
+
+    async def _vision_count(self, plan: QueryPlan, noun: str, colour: str | None, surveys: list[Survey],
+                            summaries: list[dict[str, Any]], evidence: list[Evidence], tz: tzinfo, ref_now: float,
+                            cameras: list[_Camera], notes: list[str], query_id: str,
+                            timings: dict[str, float]) -> Answer | None:
+        """For a count, let the local vision model count in a few frames too and report its number.
+
+        On footage with a known number of people it follows the truth frame by frame, and it reads colour from the whole
+        picture where the detector reads it from a box that holds the floor and the wall as well. The detector's boxes
+        stay as the evidence; the answer says whose number it is. None when it gave too few numbers to use.
+        """
+        generic = noun in ("object", "objects")
+        if self._look is None or plan.intent != "count" or (generic and colour is None) or not surveys:
+            return None  # "how many objects" has no single answer; "how many red objects" does
+        t = time.perf_counter()
+        alike = getattr(self._retriever, "same_place_cameras", None)
+        chosen: list[Survey] = []
+        for sv in surveys:
+            if chosen and alike is not None and sv.camera_id in alike([c.camera_id for c in chosen], self.cfg.same_place):
+                continue  # two angles of one room need one count
+            chosen.append(sv)
+        phrase = f"{colour + ' ' if colour else ''}{pluralize(noun)}"
+        by_camera: dict[str, list[int]] = {}
+        for sv in chosen[:MAX_LOOK_CAMERAS]:
+            frames = [Frame(sv.camera_id, f.ref.t, f.ref.path) for f in sample_evenly(sv.frames, VISION_COUNT_FRAMES)]
+            counts = [c for c in await self._look.count(phrase, frames) if c is not None]
+            if len(counts) >= 2:
+                by_camera[sv.camera_id] = counts
+        rows = []
+        for row in summaries:
+            counts = by_camera.get(row["camera_id"])
+            if counts and statistics.median(counts) >= 1:
+                row = {**row, "detected": row["typical"], "vision_counts": counts,
+                       "typical": int(round(statistics.median(counts))), "peak": max(counts), "least": min(counts)}
+            rows.append(row)
+        if not any("vision_counts" in row for row in rows):
+            return None
+        composed = compose_objects(plan, rows, evidence, noun=noun, colour=colour, tz=tz,
+                                   source_names={c.id: c.source_name for c in cameras if c.source_name}, reference_now=ref_now)
+        validate(composed.sentences, {e.id for e in evidence})
+        timings["vision_count"] = _ms(t)
+        all_notes = list(dict.fromkeys([*notes, *composed.notes, *make_notes(plan, _as_compose_cameras(cameras), evidence)]))
+        return Answer(query_id=query_id, text=composed.text, verdict=composed.verdict, count=composed.count,
+                      evidence=evidence, confidence=_confidence(evidence, None), plan=plan, timings_ms=timings, notes=all_notes)
 
     def _events_for(self, track_ids: list[str]) -> list[EventRec]:
         out: list[EventRec] = []

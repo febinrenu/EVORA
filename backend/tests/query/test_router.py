@@ -900,3 +900,75 @@ async def test_questions_the_tracker_answers_never_reach_the_vision_model(ws):
     router._look = look
     ans = of(await collect(router.answer(GATE_Q, "s2")), "answer")[0]
     assert look.asked == [] and ans["verdict"] == "yes" and ans["text"].startswith("Yes. A red car passed through")
+
+
+class CountingLook:
+    def __init__(self, counts):
+        self.counts, self.phrases = counts, []
+
+    async def ask(self, question, camera_name, frames, tz=None):
+        return None
+
+    async def count(self, phrase, frames):
+        self.phrases.append((phrase, len(frames)))
+        return list(self.counts)
+
+
+def counting_router(ws, tmp_path, plan, detect, counts):
+    router = objects_router(ws, tmp_path, plan, detect)
+    router._look = CountingLook(counts)
+    return router
+
+
+def two_frames_of_chairs(ws, tmp_path):
+    times = [1100.0, 1101.0, 1102.0]
+    for t in times:
+        ws.scene("cam_01", t, E[0])
+    write_frames(tmp_path, "cam_01", times)
+
+
+@pytest.mark.asyncio
+async def test_the_detector_answers_at_once_and_the_vision_models_count_follows_as_the_revised_answer(ws, tmp_path):
+    two_frames_of_chairs(ws, tmp_path)
+    plan = QueryPlan(intent="count", targets=[Target(noun="chair", attributes=["red"], embed_text="a photo of a red chair")],
+                     action="any")
+    detect = detector_returning([[(0.9, BOX)]] * 3)
+    router = counting_router(ws, tmp_path, plan, detect, [6, 5, 5, 5])
+    events = await collect(router.answer("how many red chairs", "s1"))
+    assert types(events).count("answer") == 2 and types(events)[-1] == "done"
+    first, final = of(events, "answer")
+    assert first["count"] == 1 and "About 1 red chair" in first["text"]            # the detector, at once
+    assert final["count"] == 5 and "About 5 red chairs were in view" in final["text"]    # then the model's count
+    assert any("Counted by the local vision model in 4 frames (6, 5, 5, 5)" in n and "detector outlined 1" in n
+               for n in final["notes"])
+    assert [e["bbox"] is not None for e in final["evidence"]] == [True]            # the boxes stay as the evidence
+    assert router._look.phrases == [("red chairs", 3)]
+
+
+@pytest.mark.asyncio
+async def test_without_enough_numbers_from_the_model_the_detector_count_stands(ws, tmp_path):
+    two_frames_of_chairs(ws, tmp_path)
+    plan = QueryPlan(intent="count", targets=[Target(noun="chair", embed_text="a photo of a chair")], action="any")
+    detect = detector_returning([[(0.9, BOX)]] * 3)
+    for counts in ([], [4], [0, 0]):                                                # none, one, or all zeros
+        events = await collect(counting_router(ws, tmp_path, plan, detect_again(), counts).answer("how many chairs", "s"))
+        assert types(events).count("answer") == 1 and of(events, "answer")[0]["count"] == 1
+    del detect
+
+
+def detect_again():
+    return detector_returning([[(0.9, BOX)]] * 3)
+
+
+@pytest.mark.asyncio
+async def test_a_plain_generic_count_is_not_cross_checked_but_a_coloured_one_is(ws, tmp_path):
+    two_frames_of_chairs(ws, tmp_path)
+    objects = QueryPlan(intent="count", targets=[Target(noun="object", embed_text="a photo of an object")], action="any")
+    router = counting_router(ws, tmp_path, objects, detector_returning([[(0.9, BOX)]] * 3), [9, 9, 9, 9])
+    assert types(await collect(router.answer("how many objects", "s1"))).count("answer") == 1
+    assert router._look.phrases == []
+    red = QueryPlan(intent="count", targets=[Target(noun="object", attributes=["red"], embed_text="a photo of a red object")],
+                    action="any")
+    router = counting_router(ws, tmp_path, red, detector_returning([[(0.9, BOX)]] * 3), [4, 4, 5, 4])
+    final = of(await collect(router.answer("how many red objects", "s2")), "answer")[-1]
+    assert final["count"] == 4 and router._look.phrases == [("red objects", 3)]
