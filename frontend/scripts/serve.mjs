@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Serve the static export (dist/) without any dependency, offline:
-//   node scripts/serve.mjs [--port 3000] [--hostname 127.0.0.1]
+//   node scripts/serve.mjs [--port 3000] [--hostname 127.0.0.1] [--dir dist]
 // Used by `npm run start` (and `make up` when the API is not serving dist/).
 // Folders resolve to their index.html (trailingSlash export); range requests
 // are honoured so videos seek and loop.
@@ -9,11 +9,11 @@ import { createServer } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = resolve(fileURLToPath(new URL("../dist", import.meta.url)));
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 };
+const root = resolve(fileURLToPath(new URL(`../${arg("dir", "dist")}`, import.meta.url)));
 const port = Number(arg("port", "3000"));
 const host = arg("hostname", "127.0.0.1");
 

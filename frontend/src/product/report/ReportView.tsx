@@ -20,14 +20,23 @@ const fmt = (v: number | null | undefined, key: string): string => {
 };
 const withN = (m: Metric | null, key: string): string => (m && m.value !== null ? `${fmt(m.value, key)} (n ${m.n})` : "not measured");
 
-export function ReportView() {
-  const [report, setReport] = useState<Report | null | undefined>(undefined);
+export function ReportView({ initial = null }: { initial?: Report | null }) {
+  // start from the report baked in at build time, then take the API's if it has one
+  const [report, setReport] = useState<Report | null | undefined>(initial ?? undefined);
   const [error, setError] = useState<string | null>(null);
+  const [stale, setStale] = useState(false);
   useEffect(() => {
     fetchReport()
-      .then(setReport)
-      .catch((e: unknown) => setError(e instanceof ApiError ? e.message : "The API did not answer."));
-  }, []);
+      .then((live) => {
+        if (live) setReport(live);
+        else if (!initial) setReport(null);
+        else setStale(true);
+      })
+      .catch((e: unknown) => {
+        if (initial) setStale(true);
+        else setError(e instanceof ApiError ? e.message : "The API did not answer.");
+      });
+  }, [initial]);
 
   const r = report ?? null;
   const known: readonly string[] = SPLITS;
@@ -57,6 +66,7 @@ export function ReportView() {
         {r && main ? (
           <>
             <Provenance r={r} />
+            {stale ? <p className="rp-prov">Shown from the copy built into this page; the running API has not published a report.</p> : null}
             {r.supported.length || r.notShown.length ? (
               <div className="rp-claims">
                 {r.supported.length ? (
@@ -290,11 +300,11 @@ function PairedBars({ a, b, bName }: { a?: SystemReport; b?: SystemReport; bName
               <span className="rp-row-label">{LABELS[k]}</span>
               <span className="rp-bars">
                 <span className="rp-track">
-                  <i className="rp-bar is-a" style={{ width: `${(ma?.value ?? 0) * 100}%` }} {...bind(`EVORA, ${LABELS[k]}: ${withN(ma, k)}`)} />
+                  <i role="img" className="rp-bar is-a" style={{ width: `${(ma?.value ?? 0) * 100}%` }} {...bind(`EVORA, ${LABELS[k]}: ${withN(ma, k)}`)} />
                   <span className="rp-val">{fmt(ma?.value, k)}</span>
                 </span>
                 <span className="rp-track">
-                  <i className="rp-bar is-b" style={{ width: `${(mb?.value ?? 0) * 100}%` }} {...bind(`${bName}, ${LABELS[k]}: ${withN(mb, k)}`)} />
+                  <i role="img" className="rp-bar is-b" style={{ width: `${(mb?.value ?? 0) * 100}%` }} {...bind(`${bName}, ${LABELS[k]}: ${withN(mb, k)}`)} />
                   <span className="rp-val">{fmt(mb?.value, k)}</span>
                 </span>
               </span>
@@ -334,6 +344,7 @@ function Ablations({ rows }: { rows: AblationRow[] }) {
                       ) : (
                         <span className="rp-track">
                           <i
+                            role="img"
                             className="rp-bar is-a"
                             style={{ width: `${(v ?? 0) * 100}%` }}
                             {...bind(`${label}: ${LABELS[k]} ${withN(m, k)}${ref !== null && v !== null && !isFull ? `, ${v - ref >= 0 ? "+" : ""}${(v - ref).toFixed(2)} vs full` : ""}`)}
@@ -376,7 +387,7 @@ function Latency({ overall, splits }: { overall: Record<string, EvalFile>; split
             <span className="rp-lat-track">
               {r.p50 !== null && r.p95 !== null ? <i className={`rp-range is-${r.sys === "ours" ? "a" : "b"}`} style={{ left: `${(r.p50 / max) * 100}%`, width: `${((r.p95 - r.p50) / max) * 100}%` }} /> : null}
               {r.p50 !== null ? (
-                <i className={`rp-dot is-${r.sys === "ours" ? "a" : "b"}`} style={{ left: `${(r.p50 / max) * 100}%` }} {...bind(`${systemName(r.sys)}, ${splitName(r.s)}: median ${fmt(r.p50, "ttfa_p50_ms")}, 95th ${fmt(r.p95, "ttfa_p95_ms")} (n ${r.n})`)} />
+                <i role="img" className={`rp-dot is-${r.sys === "ours" ? "a" : "b"}`} style={{ left: `${(r.p50 / max) * 100}%` }} {...bind(`${systemName(r.sys)}, ${splitName(r.s)}: median ${fmt(r.p50, "ttfa_p50_ms")}, 95th ${fmt(r.p95, "ttfa_p95_ms")} (n ${r.n})`)} />
               ) : null}
               <span className="rp-lat-val">
                 {fmt(r.p50, "ttfa_p50_ms")} · {fmt(r.p95, "ttfa_p95_ms")}

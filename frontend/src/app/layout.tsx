@@ -13,11 +13,13 @@ const archivo = localFont({
   declarations: [{ prop: "font-stretch", value: "62% 125%" }],
 });
 
+// metadata face only: not preloaded, so it never competes with Archivo for the first paint
 const geistMono = localFont({
   src: "../fonts/geist-mono.woff2",
   variable: "--font-geist-mono",
   weight: "100 900",
   display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {

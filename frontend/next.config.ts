@@ -7,7 +7,8 @@ const production = process.env.NODE_ENV === "production";
 // its own .next folder so a dev session never breaks the served build.
 const nextConfig: NextConfig = {
   output: "export",
-  distDir: production ? "dist" : ".next",
+  // EVORA_DIST_DIR builds elsewhere (audits) without replacing the served dist/
+  distDir: process.env.EVORA_DIST_DIR ?? (production ? "dist" : ".next"),
   // /app/ -> app/index.html, which plain static serving resolves without rewrites
   trailingSlash: true,
   images: { unoptimized: true },
