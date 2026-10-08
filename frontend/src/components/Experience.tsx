@@ -10,6 +10,7 @@ import { FeedLibrary } from "@/animation/feeds";
 import { evidenceBox, memoryLabels, reconLabels, timelineTicks } from "@/animation/projectors";
 import { buildTextRows } from "@/animation/textRows";
 import { onFrame, runtime } from "@/animation/runtime";
+import { S } from "@/animation/sceneState";
 import { ACTS, type ActId } from "@/lib/config/animation";
 import { detectProfile } from "@/lib/perf/tier";
 import type { Engine } from "@/components/webgl/Engine";
@@ -74,6 +75,8 @@ export function Experience() {
         engine = new Engine({ canvas, spec: profile.spec, mobile, fonts });
         engine.setSize(window.innerWidth, window.innerHeight);
         engine.buildText(buildTextRows(root, fonts.display));
+        // `?debug` exposes the live state for profiling scripts
+        if (new URLSearchParams(window.location.search).has("debug")) Object.assign(window, { __evora: { S, engine } });
         for (const hook of [evidenceBox(root), memoryLabels(root), reconLabels(root), timelineTicks(root)]) engine.addHook(hook);
         const feeds = new FeedLibrary(engine);
         feedsRef.current = feeds;

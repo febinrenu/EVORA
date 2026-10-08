@@ -70,6 +70,8 @@ export class Engine {
   private readonly clear = new Color();
   private readonly v = new Vector3();
   private disposed = false;
+  /** DPR change requested by the governor, applied at the next all-black frame */
+  private pendingDpr: number | null = null;
   /** `?gov=0` pins quality, for profiling */
   private readonly governed = new URLSearchParams(window.location.search).get("gov") !== "0";
 
@@ -121,7 +123,7 @@ export class Engine {
 
     this.governor = new Governor(
       spec.dprCap,
-      (dpr) => this.setDpr(dpr),
+      (dpr) => (this.pendingDpr = dpr),
       (share) => this.universe.setShare(share),
     );
     void this.atlas.load();
@@ -277,6 +279,12 @@ export class Engine {
     const visible = (twinOn || universeOn) && S.blackout < 0.999;
 
     if (!visible) {
+      // resizing the drawing buffer stalls the GPU: only do it while nothing is on screen
+      if (this.pendingDpr !== null) {
+        this.setDpr(this.pendingDpr);
+        this.pendingDpr = null;
+        this.drewBlank = false;
+      }
       // draw black once, then stop touching the GPU until something returns
       if (!this.drewBlank) {
         this.renderer.setRenderTarget(null);

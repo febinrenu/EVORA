@@ -164,7 +164,9 @@ export function timelineTicks(root: HTMLElement): (e: Engine) => void {
     const { width: W } = engine.viewport;
     const { focus, span } = timeWindow(S.universe.zoom);
     scale.domain([focus - span / 2, focus + span / 2]).range([0, W]);
-    const step = STEPS.find((s) => span / s >= 5) ?? 0.25;
+    // the finest unit that still gives labels room to breathe (~140 px apart)
+    let step = STEPS[0];
+    for (const s of STEPS) if ((s * W) / span >= 140) step = s;
     const ms = step < 1;
     const first = Math.ceil((focus - span * 0.55) / step) * step;
     for (let i = 0; i < ticks.length; i++) {

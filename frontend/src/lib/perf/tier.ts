@@ -106,12 +106,14 @@ export class Governor {
     this.overFrames = 0;
     this.times.length = 0;
     this.grace = GOVERNOR.graceFrames;
-    if (this.dprIndex < GOVERNOR.dprSteps.length - 1) {
-      this.dprIndex++;
-      this.onDpr(Math.min(this.dprCap, GOVERNOR.dprSteps[this.dprIndex]));
-    } else if (this.particleIndex < GOVERNOR.particleSteps.length - 1) {
+    // cheapest lever first: fewer particles costs nothing to apply; a DPR
+    // change reallocates the drawing buffer, so the engine defers it
+    if (this.particleIndex < GOVERNOR.particleSteps.length - 1) {
       this.particleIndex++;
       this.onParticles(GOVERNOR.particleSteps[this.particleIndex]);
+    } else if (this.dprIndex < GOVERNOR.dprSteps.length - 1) {
+      this.dprIndex++;
+      this.onDpr(Math.min(this.dprCap, GOVERNOR.dprSteps[this.dprIndex]));
     }
   }
 }

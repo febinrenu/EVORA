@@ -6,8 +6,14 @@ export const massVertex = /* glsl */ `
 varying vec3 vNormal;
 varying vec3 vWorld;
 varying float vDepth;
+varying vec3 vTint;
 void main() {
   vec4 local = vec4(position, 1.0);
+#ifdef USE_COLOR
+  vTint = color;
+#else
+  vTint = vec3(1.0);
+#endif
 #ifdef USE_INSTANCING
   local = instanceMatrix * local;
   vNormal = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * normal);
@@ -34,8 +40,11 @@ uniform vec3 uFogDay;
 varying vec3 vNormal;
 varying vec3 vWorld;
 varying float vDepth;
+varying vec3 vTint;
 
 void main() {
+  // baked batches carry their albedo per vertex; single meshes use uColor
+  vec3 albedo = uColor * vTint;
   vec3 n = normalize(vNormal);
   vec3 sun = normalize(vec3(0.45, 0.85, 0.25));
   float diff = max(dot(n, sun), 0.0);
@@ -43,8 +52,8 @@ void main() {
   // cheap ambient occlusion where walls meet the ground
   float ao = mix(0.62, 1.0, smoothstep(0.0, 2.2, vWorld.y));
 
-  vec3 day = uColor * (0.38 + 0.42 * hemi + 0.6 * diff) * ao;
-  vec3 night = uColor * (0.085 + 0.1 * hemi + 0.06 * diff) * ao + vec3(0.014, 0.02, 0.027);
+  vec3 day = albedo * (0.38 + 0.42 * hemi + 0.6 * diff) * ao;
+  vec3 night = albedo * (0.085 + 0.1 * hemi + 0.06 * diff) * ao + vec3(0.014, 0.02, 0.027);
 
   if (uGrid > 0.5) {
     vec2 g = abs(fract(vWorld.xz / 5.0) - 0.5);
@@ -53,7 +62,7 @@ void main() {
     float major = smoothstep(0.494, 0.5, max(G.x, G.y));
     night += vec3(0.32, 0.5, 0.66) * (line * 0.05 + major * 0.11) * smoothstep(240.0, 30.0, vDepth);
   }
-  vec3 col = mix(night, day, uLook) + uColor * uEmissive * (1.0 - 0.8 * uLook);
+  vec3 col = mix(night, day, uLook) + albedo * uEmissive * (1.0 - 0.8 * uLook);
   float fogN = smoothstep(70.0, 300.0, vDepth);
   float fogD = smoothstep(120.0, 420.0, vDepth);
   col = mix(col, mix(uFogNight, uFogDay, uLook), mix(fogN, fogD, uLook));

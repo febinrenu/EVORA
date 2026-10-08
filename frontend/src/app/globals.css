@@ -102,6 +102,7 @@ button {
   z-index: 2;
   pointer-events: none;
   height: 100lvh;
+  contain: strict;
 }
 .track {
   position: relative;
@@ -114,6 +115,8 @@ button {
   inset: 0;
   visibility: hidden;
   opacity: 0;
+  /* each act lays out and paints on its own, so a change in one never relayouts the others */
+  contain: strict;
 }
 .act[data-act="opening"] {
   visibility: visible;
@@ -1644,7 +1647,7 @@ button {
 }
 .recon-summary {
   position: absolute;
-  left: var(--gutter);
+  right: var(--gutter);
   bottom: calc(var(--gutter) * 3.4);
   width: min(420px, 84vw);
 }
@@ -1852,9 +1855,16 @@ button {
   .rail li + li::before { margin-right: 0.6rem; }
   .meta { flex-direction: column; gap: 0.35rem; }
   .meta span[aria-hidden] { display: none; }
-  .ask { height: 62px; padding: 0 1rem; }
+  .ask { height: auto; min-height: 62px; padding: 0.7rem 1rem; }
   .ask-status { display: none; }
-  .ask-line { white-space: normal; line-height: 1.25; font-size: 0.95rem; }
+  .ask-field { height: 2.6em; }
+  .ask-line { white-space: normal; line-height: 1.3; font-size: 0.95rem; }
+  .legend span + span::before { display: none; }
+  .clarify-grid { grid-template-columns: repeat(6, 1fr); gap: 0.3rem; }
+  .pick-label { font-size: 7.5px; letter-spacing: 0.02em; }
+  .saved { left: var(--gutter); right: var(--gutter); translate: none; flex-wrap: wrap; justify-content: center; gap: 0.35rem 0.7rem; white-space: normal; }
+  .tl-readout { top: auto; bottom: calc(var(--gutter) * 3.4 + 2.2rem); }
+  .tl-caption { max-width: 80vw; }
   .slot { min-width: 0; width: 42vw; padding: 0.6rem 0.7rem; }
   .slot-object { --x: -46vw; --y: 3.6rem; }
   .slot-colour { --x: 2vw; --y: 3.6rem; }

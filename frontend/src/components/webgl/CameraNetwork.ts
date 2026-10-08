@@ -232,6 +232,9 @@ export class CameraNetwork {
       this.q.copy(this.camQ);
       let sx = SLEEVE_W * hover;
       let alpha = inWall ? 1 : 1 - wallAmount;
+      // a sleeve the camera is about to pass through fades instead of filling the frame
+      const near = Math.min(1, Math.max(0, (this.p.distanceTo(camera.position) - 6) / 12));
+      alpha *= near + (1 - near) * wallAmount;
 
       if (inWall && wallAmount > 0) {
         const cx = (slot % cols) - (cols - 1) / 2;

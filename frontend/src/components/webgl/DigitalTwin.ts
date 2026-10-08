@@ -36,6 +36,7 @@ import {
 import { S } from "@/animation/sceneState";
 import { CAR_ROUTE, HOP_U, PERSON_ROUTE, TWIN_CAMS, twinCam } from "@/lib/data/site";
 import { ENTITIES, PLACES, RECON_CAMS } from "@/lib/data/story";
+import { bake } from "./bake";
 import { ribbonGeometry } from "./geometry";
 import { ribbonFragment, ribbonVertex } from "./shaders/lines";
 import { beaconFragment, beaconVertex, cardFragment, cardVertex, edgeFragment, edgeVertex, massFragment, massVertex } from "./shaders/twin";
@@ -57,8 +58,8 @@ export class DigitalTwin {
   private readonly shared: Shared = { uLook: { value: 0 } };
   private readonly disposables: (Geo | Material)[] = [];
   private readonly person = new Group();
-  private readonly ghosts: Group[] = [];
-  private readonly ghostMats: ShaderMaterial[] = [];
+  private ghost: Mesh | null = null;
+  private ghostMat: ShaderMaterial | null = null;
   private readonly ribbonMat: ShaderMaterial;
   private readonly beaconMats: ShaderMaterial[] = [];
   private readonly rings: Mesh[] = [];
@@ -79,9 +80,12 @@ export class DigitalTwin {
     this.buildParking();
     this.buildTrees();
     this.buildPoles();
-    this.buildCar(this.car, this.mass("#B3121F", { emissive: 0.55 }), this.mass("#14181B"), this.mass("#0B0D0F"));
+    this.bakeSite();
+    this.buildCar(this.car, this.mass("#B3121F"), this.mass("#14181B"), this.mass("#0B0D0F"));
+    this.bakeGroup(this.car, this.mass("#FFFFFF", { emissive: 0.55, vertex: true }));
     this.scene.add(this.car);
     this.buildPerson();
+    this.bakeGroup(this.person, this.mass("#FFFFFF", { vertex: true }));
     this.buildGhosts();
 
     this.ribbonMat = this.additive(ribbonVertex, ribbonFragment, { uDraw: { value: 0 }, uAlpha: { value: 0 }, uTime: { value: 0 }, uColor: { value: RED } });
@@ -104,10 +108,11 @@ export class DigitalTwin {
   }
 
   // ---------- material helpers
-  private mass(hex: string, opts: { grid?: boolean; emissive?: number } = {}): ShaderMaterial {
+  private mass(hex: string, opts: { grid?: boolean; emissive?: number; vertex?: boolean } = {}): ShaderMaterial {
     const m = new ShaderMaterial({
       vertexShader: massVertex,
       fragmentShader: massFragment,
+      vertexColors: opts.vertex ?? false,
       uniforms: {
         uColor: { value: new Color(hex) },
         uLook: this.shared.uLook,
@@ -154,25 +159,56 @@ export class DigitalTwin {
     this.disposables.push(geo);
     if (edges) {
       const eg = new EdgesGeometry(geo, 20);
-      const em = new ShaderMaterial({
-        vertexShader: edgeVertex,
-        fragmentShader: edgeFragment,
-        uniforms: { uColor: { value: CYAN }, uLook: this.shared.uLook, uAlpha: { value: 1 } },
-        transparent: true,
-        depthWrite: false,
-      });
-      const lines = new LineSegments(eg, em);
-      mesh.add(lines);
-      this.disposables.push(eg, em);
+      mesh.add(new LineSegments(eg, this.edgeMat));
+      this.disposables.push(eg);
     }
     return mesh;
+  }
+
+  /** One edge material for the whole model: bright at night, nearly gone in daylight. */
+  private readonly edgeMat = new ShaderMaterial({
+    vertexShader: edgeVertex,
+    fragmentShader: edgeFragment,
+    uniforms: { uColor: { value: CYAN }, uLook: this.shared.uLook, uAlpha: { value: 1 } },
+    transparent: true,
+    depthWrite: false,
+  });
+
+  /** Merge everything built so far (except the gridded ground) into two draw calls. */
+  private bakeSite(): void {
+    const statics = this.scene.children.filter((o) => !o.userData.keep);
+    const { solid, edges, spent } = bake(statics, this.mass("#FFFFFF", { vertex: true }), this.edgeMat);
+    if (solid) this.scene.add(solid);
+    if (edges) this.scene.add(edges);
+    this.retire(spent);
+  }
+
+  /** Merge a moving group's parts into one mesh that keeps the group's transform. */
+  private bakeGroup(group: Group, material: ShaderMaterial): void {
+    const parts = [...group.children];
+    const saved = group.matrix.clone();
+    group.position.set(0, 0, 0);
+    group.rotation.set(0, 0, 0);
+    group.updateMatrixWorld(true);
+    const { solid, spent } = bake(parts, material, this.edgeMat);
+    if (solid) group.add(solid);
+    saved.decompose(group.position, group.quaternion, group.scale);
+    this.retire(spent);
+  }
+
+  private retire(spent: BufferGeometry[]): void {
+    for (const g of spent) {
+      g.dispose();
+      const i = this.disposables.indexOf(g);
+      if (i >= 0) this.disposables.splice(i, 1);
+    }
   }
 
   // ---------- site
   private buildGround(): void {
     const g = new PlaneGeometry(520, 380);
     g.rotateX(-Math.PI / 2);
-    this.block(g, this.mass("#5E6467", { grid: true }), 6, 0, -10, false);
+    this.block(g, this.mass("#5E6467", { grid: true }), 6, 0, -10, false).userData.keep = true;
     const asphalt = this.mass("#2A2F33");
     this.block(new BoxGeometry(320, 0.06, 12), asphalt, 0, 0.03, 45, false);
     const drive = new Mesh(ribbonGeometry(CAR_ROUTE, 0.17, 1, 8, 0.05, 220), asphalt);
@@ -329,22 +365,26 @@ export class DigitalTwin {
     this.disposables.push(bodyGeo, headGeo, packGeo);
   }
 
+  /** Onion-skin copies of the sedan at each sighting, baked into one translucent mesh. */
   private buildGhosts(): void {
-    const hops = [HOP_U.CAM_04, HOP_U.CAM_07, HOP_U.CAM_12];
-    for (const u of hops) {
+    const copies = [HOP_U.CAM_04, HOP_U.CAM_07, HOP_U.CAM_12].map((u) => {
       const g = new Group();
-      const mat = this.additive(massVertex, /* glsl */ `
-        precision highp float; uniform vec3 uColor; uniform float uAlpha; varying vec3 vNormal;
-        void main(){ float f = 0.35 + 0.65 * pow(1.0 - abs(normalize(vNormal).y), 2.0); gl_FragColor = vec4(uColor * f * uAlpha, uAlpha); }`, {
-        uColor: { value: RED },
-        uAlpha: { value: 0 },
-      });
-      this.ghostMats.push(mat);
-      this.buildCar(g, mat, mat, mat);
+      this.buildCar(g, this.mass("#FFFFFF"), this.mass("#FFFFFF"), this.mass("#FFFFFF"));
       this.placeOnRoute(g, u);
-      g.visible = false;
-      this.ghosts.push(g);
-      this.overlays.add(g);
+      return g;
+    });
+    this.ghostMat = this.additive(massVertex, /* glsl */ `
+      precision highp float; uniform vec3 uColor; uniform float uAlpha; varying vec3 vNormal;
+      void main(){ float f = 0.35 + 0.65 * pow(1.0 - abs(normalize(vNormal).y), 2.0); gl_FragColor = vec4(uColor * f * uAlpha, uAlpha); }`, {
+      uColor: { value: RED },
+      uAlpha: { value: 0 },
+    });
+    const { solid, spent } = bake(copies, this.ghostMat, this.edgeMat);
+    this.retire(spent);
+    if (solid) {
+      solid.visible = false;
+      this.ghost = solid;
+      this.overlays.add(solid);
     }
   }
 
@@ -506,10 +546,10 @@ export class DigitalTwin {
       ring.uniforms.uAlpha.value = a;
       this.rings[i].scale.setScalar(0.6 + wave * (isGate ? 3.4 : 2.2));
     });
-    this.ghosts.forEach((g, i) => {
-      g.visible = T.ghosts > 0.002;
-      this.ghostMats[i].uniforms.uAlpha.value = T.ghosts * 0.28;
-    });
+    if (this.ghost && this.ghostMat) {
+      this.ghost.visible = T.ghosts > 0.002;
+      this.ghostMat.uniforms.uAlpha.value = T.ghosts * 0.28;
+    }
     camera.getWorldQuaternion(QTMP);
     this.cards.forEach((c, i) => {
       c.visible = T.recon > 0.002;
@@ -529,6 +569,10 @@ export class DigitalTwin {
   dispose(): void {
     for (const d of this.disposables) d.dispose();
     this.disposables.length = 0;
+    this.edgeMat.dispose();
+    this.scene.traverse((o) => {
+      if (o instanceof Mesh || o instanceof LineSegments) o.geometry.dispose();
+    });
   }
 }
 
