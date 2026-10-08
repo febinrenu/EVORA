@@ -23,6 +23,7 @@ from evora.llm.gateway import Gateway
 from evora.llm.prompts import build_planner_messages
 from evora.llm.schemas import LLMError
 from evora.query import fastpath
+from evora.query.fuse import CARRIED, GARMENTS
 from evora.query.timeparse import parse_tz, resolve_window
 
 log = logging.getLogger("evora.query.planner")
@@ -126,13 +127,36 @@ def workspace_tz(db: Database) -> tzinfo:
 _REMEMBERED_OBJECT = re.compile(r"^(my|our|mine|that|this|these|those|his|her|their|the same)\b", re.IGNORECASE)
 
 
+# "when did it happen" asks for a time; it is not a time of day to look up
+_ASKS_FOR_TIME = re.compile(r"^(?:at |on |in )?(?:what|which)\s+(?:time|hour|day|date|moment)s?\b|^when\b", re.IGNORECASE)
+
+
+def _is_time_question(text: str) -> bool:
+    return bool(_ASKS_FOR_TIME.match(text.strip()))
+
+
+def _worn_or_carried(noun: str) -> bool:
+    words = re.findall(r"[a-z]+", noun.lower())
+    return bool(words) and words[-1] in (GARMENTS | CARRIED)
+
+
 def _repair_targets(targets: list[Target]) -> list[Target]:
     """Small models split "green jacket" into its own target, forget classes and drop attributes."""
     fixed: dict[str, Target] = {}
+    # "the brown shirt guy" comes back as a person plus a second target "brown shirt": the shirt describes the person
+    anchor = next((t for t in targets if any(c in DETECTOR_CLASSES for c in t.cls) or t.noun.strip().lower()
+                   in fastpath.PERSON_GENERIC | fastpath.PERSON_SPECIFIC), None)
     for t in targets:
         noun = t.noun.strip().lower()
         if not noun or noun in fastpath.COLOURS:
             continue  # a colour is an attribute, not an object
+        if anchor is not None and t is not anchor and _worn_or_carried(noun):
+            words = re.findall(r"[a-z_]+", f"{noun} {t.embed_text}".lower())
+            colours = (fastpath.COLOURS[w] for w in words if w in fastpath.COLOURS)
+            anchor.attributes = list(dict.fromkeys([*anchor.attributes, *colours]))
+            if noun not in anchor.embed_text.lower():
+                anchor.embed_text = f"{anchor.embed_text} wearing {noun}".strip()
+            continue
         t.cls = [c for c in t.cls if c in DETECTOR_CLASSES]
         if not t.cls:
             if noun in fastpath.PERSON_GENERIC or noun in fastpath.PERSON_SPECIFIC:
@@ -219,13 +243,18 @@ class Planner:
             key = cache_key(text, cameras)
             cached = self._cache.get(key)
             if cached is not None:
-                plan = cached.model_copy(update={"source": "cache"})
+                plan = cached.model_copy(deep=True)
+                plan.source, plan.targets = "cache", _repair_targets(plan.targets)
                 timings["plan_cache"] = _ms(started)
             else:
                 plan = await self._ask_model(text, cameras, notes)
                 self._cache.put(key, plan)
                 timings["plan_llm"] = _ms(started)
 
+        if plan.time is not None and plan.time.phrase and _is_time_question(plan.time.phrase):
+            plan = plan.model_copy(update={"time": None})  # "at what time" asks for an answer, it is not a range
+        asked = [r for r in plan.unresolved if r.role == "time" and _is_time_question(r.text)]
+        plan = plan.model_copy(update={"unresolved": [r for r in plan.unresolved if r not in asked]})
         window, understood = resolve_window(plan.time, reference, tz)
         # models sometimes list "after 8pm" or "last week" as something to look up; those never need memory
         unresolved = [r for r in plan.unresolved if not (r.role == "time" and _is_ordinary_time(r.text, reference, tz))]

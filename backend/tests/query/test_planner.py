@@ -308,3 +308,21 @@ def test_only_possessive_or_pointed_at_objects_are_kept_as_referents_to_remember
     ])
     kept = [r.text for r in sanitize(plan, CAMS).unresolved]
     assert kept == ["my car", "that van", "Our delivery", "the loading dock"]  # places are unaffected
+
+
+def test_a_garment_target_describes_the_person_instead_of_being_a_second_object():
+    plan = model_plan(targets=[
+        Target(noun="guy", cls=["person"], embed_text="a photo of a person"),
+        Target(noun="brown shirt", cls=[], embed_text="a brown shirt"),
+    ])
+    fixed = sanitize(plan, CAMS).targets
+    assert [t.noun for t in fixed] == ["guy"]
+    assert fixed[0].attributes == ["brown"] and "brown shirt" in fixed[0].embed_text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phrase", ["at what time", "what time", "when"])
+async def test_asking_what_time_is_not_a_range_to_clarify(phrase):
+    plan = model_plan(time=TimeWindow(phrase=phrase), unresolved=[Referent(text=phrase, role="time")])
+    res = await Planner(FakeGateway(plan, backend="local")).plan("at what time did the guy enter the room", CAMS, REF, IST)
+    assert res.plan.time is None and res.plan.unresolved == []
