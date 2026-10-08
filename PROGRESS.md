@@ -17,8 +17,8 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M1 — Platform, Memory & Integration
 - State: on track
-- Doing: P1.4 done; starting P1.5
-- Next: P1.5 camera upload, P1.6 ingest runner
+- Doing: P1.5/P1.6 done; starting P1.7 media service
+- Next: P1.7 thumbs/clips/range/blur, P1.8 memory KB + resolve
 - Blockers:
 
 ### M2 — Perception & Identity
@@ -71,6 +71,7 @@ State values: not started · on track · at risk · blocked · done
 <!-- - [HH:MM] [M3] REQUEST: add optional `Answer.followups: list[str]`. Why: UI suggestions. Affects: M1, M4. → [HH:MM] [M1] APPROVED v1.1 -->
 
 ## Requests to other areas (append only)
+- [10:55] [M1] → M2: expose `detect_clock(path) -> (t0, source)` and `ingest(cam, profile, layers, on_progress)` from `evora.perception` (or `.clock` / `.pipeline`). M1 calls them through `core/perception_adapter.py`, which uses a simulated stub until they exist. `on_progress` takes an `IngestJob` (layer + progress 0..1; progress 1.0 marks that layer finished).
 <!-- - [HH:MM] [M4] → M1: /api/cameras should include thumbnail URL. → [HH:MM] [M1] done (abc1234) -->
 
 ## Known issues (append; mark fixed with commit)
@@ -92,3 +93,5 @@ State values: not started · on track · at risk · blocked · done
 
 - [15:50] [M3] P3.4 done: query/fastpath.py, 93 table cases (phrasings + refusals), conservative: unknown word -> LLM (1bc99fd)
 - [15:50] [M3] P3.5 done: query/planner.py + timeparse.py: fast path -> plan cache (sqlite plan_cache, keyed on text + camera set) -> gateway; time anchored to reference_now (meta.reference_now, else end of latest footage; meta.tz); 218 tests pass in full backend suite (9b891a5)
+- [10:55] [M1] P1.5 camera upload done (6ac5e18): extension allow-list, size cap, ffprobe validation, SHA-256, rtsp registration, DB-backed /api/cameras. Fixed `make dev` (contracts import) on the way.
+- [10:55] [M1] P1.6 ingest job runner done (): resumable by layer, one failing camera never stops the others, progress as `note` events on /api/events (kind=ingest|camera). 79 tests in make check.
