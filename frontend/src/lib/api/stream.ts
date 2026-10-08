@@ -48,7 +48,7 @@ export async function postStream(path: string, body: unknown, onMessage: (m: Str
     } catch {
       /* keep the status line */
     }
-    onMessage({ type: "error", data: { message } });
+    onMessage({ type: "error", data: { message, status: res.status } });
     onMessage({ type: "done", data: {} });
     return;
   }
@@ -74,18 +74,48 @@ export interface BusNote {
   [k: string]: unknown;
 }
 
-/** Subscribe to /api/events. EventSource reconnects by itself; returns an unsubscribe. */
-export function subscribeEvents(onNote: (n: BusNote) => void, onState?: (connected: boolean) => void): () => void {
-  const es = new EventSource(apiUrl("/api/events"));
-  es.addEventListener("open", () => onState?.(true));
-  es.addEventListener("error", () => onState?.(false));
-  es.addEventListener("note", (e) => {
-    try {
-      const n: unknown = JSON.parse((e as MessageEvent<string>).data);
-      if (n && typeof n === "object" && "kind" in n) onNote(n as BusNote);
-    } catch {
-      /* ignore malformed notes */
-    }
-  });
-  return () => es.close();
+/**
+ * Subscribe to /api/events. EventSource reconnects by itself after a dropped
+ * connection, but gives up for good when a restarting server answers with an
+ * HTTP error; then it is opened again with a backoff. `onReopen` runs on every
+ * reconnect, so the caller can fetch what it missed. Returns an unsubscribe.
+ */
+export function subscribeEvents(onNote: (n: BusNote) => void, onState?: (connected: boolean) => void, onReopen?: () => void): () => void {
+  const BACKOFF_MS = [1000, 2000, 5000, 10000];
+  let es: EventSource | null = null;
+  let stopped = false;
+  let opened = false;
+  let tries = 0;
+  let timer = 0;
+  const open = () => {
+    const source = new EventSource(apiUrl("/api/events"));
+    es = source;
+    source.addEventListener("open", () => {
+      if (opened) onReopen?.();
+      opened = true;
+      tries = 0;
+      onState?.(true);
+    });
+    source.addEventListener("error", () => {
+      onState?.(false);
+      if (source.readyState === EventSource.CLOSED && !stopped) {
+        source.close();
+        timer = window.setTimeout(open, BACKOFF_MS[Math.min(tries++, BACKOFF_MS.length - 1)]);
+      }
+    });
+    source.addEventListener("note", (e) => {
+      try {
+        const n: unknown = JSON.parse((e as MessageEvent<string>).data);
+        if (n && typeof n === "object" && "kind" in n) onNote(n as BusNote);
+      } catch {
+        /* ignore malformed notes */
+      }
+    });
+  };
+  open();
+  return () => {
+    stopped = true;
+    window.clearTimeout(timer);
+    es?.close();
+  };
 }

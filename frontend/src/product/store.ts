@@ -17,6 +17,14 @@ export interface Case {
   evidence: Evidence[];
   answer?: Answer;
   clarify?: ClarifyRequest;
+  /** the server's reason the last answer to the card was not taken (shown on the card) */
+  clarifyError?: string;
+  /** an answer to the card that the server has not taken yet: the card comes back if it fails */
+  pending?: { req: ClarifyRequest; resp: ClarifyResponse; label: string };
+  /** after the server lost the paused question (a restart), the same answer is sent again when it asks again */
+  replay?: { referent: string; resp: ClarifyResponse; label: string };
+  /** the stream this case listens to; messages from an older one are ignored */
+  stream?: string;
   /** clarifications answered for this question, oldest first */
   resolved: string[];
   verified: Record<string, boolean | null>;
@@ -106,7 +114,13 @@ const isEvidence = (d: Record<string, unknown>): d is Evidence & Record<string, 
 export const useEvora = create<State>()((set, get) => {
   const patch = (id: string, fn: (c: Case) => Case) => set((s) => ({ cases: s.cases.map((c) => (c.id === id ? fn(c) : c)) }));
 
-  const handle = (id: string, started: number) => (m: StreamMessage) => {
+  const caseOf = (id: string) => get().cases.find((c) => c.id === id);
+
+  const handle = (id: string, started: number, stream: string) => (m: StreamMessage) => {
+    const now = caseOf(id);
+    if (!now || now.stream !== stream) return;
+    // anything but an error means the server took the clarify answer
+    if (now.pending && m.type !== "error" && m.type !== "done") patch(id, (c) => ({ ...c, pending: undefined }));
     switch (m.type) {
       case "plan":
         patch(id, (c) => ({ ...c, plan: m.data as unknown as QueryPlan, status: "searching" }));
@@ -138,7 +152,12 @@ export const useEvora = create<State>()((set, get) => {
       }
       case "clarify": {
         const req = m.data as unknown as ClarifyRequest;
-        patch(id, (c) => ({ ...c, clarify: req, queryId: req.query_id, status: "clarify" }));
+        const replay = now.replay;
+        if (replay && replay.referent.toLowerCase() === req.referent.text.toLowerCase()) {
+          // asked again after a restart: the operator already answered this one
+          patch(id, (c) => ({ ...c, replay: undefined, queryId: req.query_id }));
+          sendClarify(id, req, { ...replay.resp, query_id: req.query_id }, replay.label);
+        } else patch(id, (c) => ({ ...c, clarify: req, clarifyError: undefined, replay: undefined, queryId: req.query_id, status: "clarify" }));
         break;
       }
       case "note": {
@@ -148,7 +167,24 @@ export const useEvora = create<State>()((set, get) => {
       }
       case "error": {
         const message = typeof m.data.message === "string" ? m.data.message : "The answer could not be completed.";
-        patch(id, (c) => ({ ...c, error: message, status: c.answer ? c.status : "error" }));
+        const pending = now.pending;
+        if (pending && m.data.status === 410) {
+          // the paused question is gone (the server restarted): ask it again and reuse the answer
+          patch(id, (c) => ({
+            ...c,
+            pending: undefined,
+            replay: { referent: pending.req.referent.text, resp: pending.resp, label: pending.label },
+            resolved: c.resolved.filter((r) => r !== pending.label),
+            status: "planning",
+            plan: undefined,
+            evidence: [],
+            notes: [],
+          }));
+          run(id, "/api/query", { text: now.question, session_id: get().sessionId });
+        } else if (pending) {
+          // the question stays open: show the card again with the server's reason
+          restoreCard(id, pending, message);
+        } else patch(id, (c) => ({ ...c, error: message, status: c.answer ? c.status : "error" }));
         break;
       }
       case "done":
@@ -168,11 +204,40 @@ export const useEvora = create<State>()((set, get) => {
   const answerOf = (id: string, text: string, evidence: Evidence[], path: PathHop[] = []): Answer =>
     ({ query_id: id, text, verdict: evidence.length ? "found" : "not_found", count: evidence.length, evidence, path, confidence: evidence[0]?.score ?? 0, plan: { intent: path.length ? "path" : "list" } }) as unknown as Answer;
 
+  const restoreCard = (id: string, pending: NonNullable<Case["pending"]>, reason: string) =>
+    patch(id, (c) => ({
+      ...c,
+      pending: undefined,
+      clarify: pending.req,
+      clarifyError: reason,
+      status: "clarify",
+      resolved: c.resolved.filter((r) => r !== pending.label),
+    }));
+
   const run = (id: string, path: string, body: unknown) => {
     const started = performance.now();
-    postStream(path, body, handle(id, started)).catch((e: unknown) => {
-      patch(id, (c) => ({ ...c, status: "error", error: e instanceof Error ? `Connection lost: ${e.message}` : "Connection lost." }));
+    const stream = newId();
+    patch(id, (c) => ({ ...c, stream }));
+    postStream(path, body, handle(id, started, stream)).catch((e: unknown) => {
+      const c = caseOf(id);
+      if (!c || c.stream !== stream) return;
+      if (c.pending) restoreCard(id, c.pending, "Not sent: this machine is not answering. Answer again when it is back.");
+      else patch(id, (x) => ({ ...x, status: "error", error: e instanceof Error ? `Connection lost: ${e.message}` : "Connection lost." }));
     });
+  };
+
+  const sendClarify = (id: string, req: ClarifyRequest, resp: ClarifyResponse, label: string) => {
+    patch(id, (c) => ({
+      ...c,
+      clarify: undefined,
+      clarifyError: undefined,
+      status: "searching",
+      pending: { req, resp, label },
+      resolved: [...c.resolved, label],
+    }));
+    run(id, "/api/clarify", resp);
+    // a clarification teaches a place: the ledger should show it
+    window.setTimeout(() => void get().refreshMemory(), 1200);
   };
 
   return {
@@ -207,10 +272,8 @@ export const useEvora = create<State>()((set, get) => {
     },
 
     clarify: (caseId, resp, label) => {
-      patch(caseId, (c) => ({ ...c, clarify: undefined, status: "searching", resolved: [...c.resolved, label] }));
-      run(caseId, "/api/clarify", resp);
-      // a clarification teaches a place: the ledger should show it
-      window.setTimeout(() => void get().refreshMemory(), 1200);
+      const req = caseOf(caseId)?.clarify;
+      if (req) sendClarify(caseId, req, resp, label);
     },
 
     setFocus: (focus) => set({ focus }),

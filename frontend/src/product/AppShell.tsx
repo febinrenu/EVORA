@@ -24,19 +24,23 @@ export function AppShell() {
   useEffect(() => {
     // `?debug` exposes the store for UI tests that must not touch real workspaces
     if (new URLSearchParams(window.location.search).has("debug")) Object.assign(window, { __evoraStore: useEvora });
-    const s = useEvora.getState();
-    void s.refreshHealth();
-    void s.refreshCameras();
-    void s.refreshMemory();
-    void s.refreshWatches();
-    void s.restoreEarlier();
-    endpoints
-      .live()
-      .then((l) => {
-        l.streams.forEach((st) => useEvora.getState().setLive(st.camera_id, st.state));
-        l.analyzers?.forEach((a) => useEvora.getState().setAnalysis(a.camera_id, a.state));
-      })
-      .catch(() => undefined);
+    // everything the event stream would have said: on load, and again after every reconnect
+    const catchUp = () => {
+      const s = useEvora.getState();
+      void s.refreshHealth();
+      void s.refreshCameras();
+      void s.refreshMemory();
+      void s.refreshWatches();
+      endpoints
+        .live()
+        .then((l) => {
+          l.streams.forEach((st) => useEvora.getState().setLive(st.camera_id, st.state));
+          l.analyzers?.forEach((a) => useEvora.getState().setAnalysis(a.camera_id, a.state));
+        })
+        .catch(() => undefined);
+    };
+    catchUp();
+    void useEvora.getState().restoreEarlier();
     const health = window.setInterval(() => void useEvora.getState().refreshHealth(), 15000);
     const off = subscribeEvents(
       (n) => {
@@ -58,6 +62,7 @@ export function AppShell() {
         else if (n.kind === "alert" && n.alert && typeof n.alert === "object") st.pushAlert(n.alert as Alert, n.historical === true);
       },
       (connected) => useEvora.getState().setConnected(connected),
+      catchUp,
     );
     return () => {
       window.clearInterval(health);
