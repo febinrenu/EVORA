@@ -17,8 +17,8 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M1 — Platform, Memory & Integration
 - State: on track
-- Doing: cp0 pushed; starting P1.4
-- Next: P1.4 db/vectors/workspace, P1.5 camera upload
+- Doing: P1.4 done; starting P1.5
+- Next: P1.5 camera upload, P1.6 ingest runner
 - Blockers:
 
 ### M2 — Perception & Identity
@@ -85,3 +85,4 @@ State values: not started · on track · at risk · blocked · done
 - [09:57] [M1] P1.2 contracts v1 + fixtures + generated TS types done (e70d847). CONTRACT v1: pull and code against `contracts/`; use `contracts/fixtures/*.json` for mocks.
 - [09:57] [M1] P1.3 API skeleton done (cea238f): every §5.5 route on :8700 serving fixtures; `make dev`. Tagged cp0.
 - [09:57] [M1] HANDOFF: next is P1.4 (core/db.py, vectors.py, workspace.py), then P1.5 upload. Windows note: `make` via winget ezwinports.make; `uv` via `python -m uv` (Makefile handles both).
+- [10:20] [M1] P1.4 core db/vectors/workspace done (29b0148): migrations from contracts/schema.sql, WAL + one writer per file, LanceDB tables sized from meta dims, workspaces confined to workspaces/. 40 tests in make check.
