@@ -144,7 +144,7 @@ class Router:
     # ------------------------------------------------------------------ public
     async def answer(self, text: str, session_id: str) -> AsyncIterator[StreamEvent]:
         query_id = f"q_{uuid.uuid4().hex[:10]}"
-        started = time.monotonic()
+        started = time.perf_counter()
         cameras = self._cameras()
         ref_now, tz = self._clock()
         try:
@@ -159,7 +159,7 @@ class Router:
             yield ev
 
     async def resume(self, resp: ClarifyResponse) -> AsyncIterator[StreamEvent]:
-        started = time.monotonic()
+        started = time.perf_counter()
         pending = self._clarifier.resume(resp)
         if pending is None:
             yield _event("error", {"message": "That question is no longer waiting for an answer; ask it again.",
@@ -206,14 +206,14 @@ class Router:
             return
 
         # 2. retrieval
-        t = time.monotonic()
+        t = time.perf_counter()
         scope_cams = frozenset(set(plan.camera_ids) | bound.camera_ids)
         found = await self._retriever.search(plan, SearchScope(scope_cams, plan.time, tz))
         timings["retrieve"] = _ms(t)
         notes += [n for n in found.notes if n not in notes]
 
         # 3. logic: does each candidate actually satisfy the action, where and when
-        t = time.monotonic()
+        t = time.perf_counter()
         cands = found.candidates
         if bound.global_ids:
             cands = [c for c in cands if c.track.global_id in bound.global_ids]
@@ -225,7 +225,7 @@ class Router:
         timings["logic"] = _ms(t)
 
         # 4. evidence and answer
-        t = time.monotonic()
+        t = time.perf_counter()
         camera_by_id = {c.id: c for c in cameras}
         hops: list[PathHop] = []
         if plan.intent == "path" and accepted:
@@ -262,7 +262,7 @@ class Router:
         # (time to first answer); if the look sets candidates aside, a revised answer follows (time to verified answer).
         if self._verifier is not None and evidence and self._worth_verifying(plan):
             checked: dict[str, bool | None] = {}
-            t = time.monotonic()
+            t = time.perf_counter()
             try:
                 async for evidence_id, ok in self._verifier.verify(plan, evidence):
                     checked[evidence_id] = ok
@@ -425,7 +425,7 @@ class Router:
                         started: float, cameras: list[_Camera], tz: tzinfo, ref_now: float,
                         bound: _Bound) -> AsyncIterator[StreamEvent]:
         """What happened: a grounded summary of the events in scope, with no retrieval involved."""
-        t = time.monotonic()
+        t = time.perf_counter()
         names = {c.id: c.name for c in cameras}
         camera_by_id = {c.id: c for c in cameras}
         scope = set(plan.camera_ids) | bound.camera_ids
@@ -561,7 +561,7 @@ class Router:
 
 # ---------------------------------------------------------------- module level
 def _ms(since: float) -> float:
-    return round((time.monotonic() - since) * 1000, 2)
+    return round((time.perf_counter() - since) * 1000, 2)
 
 
 def _confidence(evidence: Sequence[Evidence], miss: Evidence | None) -> float:

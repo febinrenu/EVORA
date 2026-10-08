@@ -232,7 +232,7 @@ class Planner:
         reference: float,
         tz: tzinfo = UTC,
     ) -> PlanResult:
-        started = time.monotonic()
+        started = time.perf_counter()
         notes: list[str] = []
         timings: dict[str, float] = {}
 
@@ -283,4 +283,4 @@ class Planner:
 
 
 def _ms(since: float) -> float:
-    return round((time.monotonic() - since) * 1000, 2)
+    return round((time.perf_counter() - since) * 1000, 2)

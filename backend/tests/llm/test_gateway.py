@@ -567,3 +567,16 @@ async def test_the_fallback_works_in_on_prem_mode_because_it_stays_on_this_machi
     fake = FakeOllama({"qwen3.5:4b": ["vision"]})
     gw = gateway_with(fake, onprem=True)
     assert await gw.vision_text(b"x", "p", local_only=False) == "a person"
+
+
+@pytest.mark.asyncio
+async def test_a_reasoning_model_that_answers_in_the_thinking_field_still_gives_an_answer():
+    reply = httpx.Response(200, json={"message": {"content": "", "thinking": '{"answers": ["true", "false"]}'}})
+    rec = Recorder(no_groq, lambda r: reply)
+    assert await make(rec, keys=()).vision_yesno(b"jpeg", ["a?", "b?"]) == [True, False]   # answers may be strings
+
+
+@pytest.mark.asyncio
+async def test_an_empty_reply_without_thinking_is_still_undecided():
+    rec = Recorder(no_groq, lambda r: httpx.Response(200, json={"message": {"content": ""}}))
+    assert await make(rec, keys=()).vision_yesno(b"jpeg", ["a?"]) == [None]

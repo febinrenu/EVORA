@@ -41,9 +41,14 @@ class OllamaClient:
         if resp.status_code != 200:
             raise LLMError(f"ollama returned {resp.status_code}: {resp.text[:200]}")
         try:
-            return str(resp.json()["message"]["content"])
+            message = resp.json()["message"]
+            content = str(message["content"])
         except (KeyError, ValueError) as exc:
             raise LLMError("ollama reply had no message content") from exc
+        if not content.strip() and message.get("thinking"):
+            # reasoning models can put the whole reply in `thinking` when the answer format is constrained
+            return str(message["thinking"])
+        return content
 
     async def chat_json(self, model: str, messages: list[dict], json_schema: dict | None) -> str:
         payload = {

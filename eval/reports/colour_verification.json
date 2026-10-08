@@ -1,0 +1,1022 @@
+{
+  "labels": "..\\data\\share\\colour_label\\labels.json",
+  "queries": [
+    {
+      "camera": "cam_01",
+      "kind": "person",
+      "colour": "black",
+      "split": "judge_sim",
+      "counts": {
+        "tp": 5,
+        "fn": 1,
+        "tn": 0,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 3
+      },
+      "checked": 9,
+      "before": {
+        "n": 7,
+        "hit1": true,
+        "precision": 1.0
+      },
+      "after": {
+        "n": 6,
+        "hit1": true,
+        "precision": 1.0
+      }
+    },
+    {
+      "camera": "cam_01",
+      "kind": "person",
+      "colour": "blue",
+      "split": "judge_sim",
+      "counts": {
+        "tp": 1,
+        "fn": 0,
+        "tn": 1,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 7
+      },
+      "checked": 9,
+      "before": {
+        "n": 3,
+        "hit1": false,
+        "precision": 0.3333333333333333
+      },
+      "after": {
+        "n": 2,
+        "hit1": true,
+        "precision": 0.5
+      }
+    },
+    {
+      "camera": "cam_01",
+      "kind": "person",
+      "colour": "brown",
+      "split": "judge_sim",
+      "counts": {
+        "tp": 0,
+        "fn": 1,
+        "tn": 5,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 3
+      },
+      "checked": 9,
+      "before": {
+        "n": 7,
+        "hit1": false,
+        "precision": 0.14285714285714285
+      },
+      "after": {
+        "n": 1,
+        "hit1": false,
+        "precision": 0.0
+      }
+    },
+    {
+      "camera": "cam_01",
+      "kind": "person",
+      "colour": "grey",
+      "split": "judge_sim",
+      "counts": {
+        "tp": 3,
+        "fn": 2,
+        "tn": 1,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 3
+      },
+      "checked": 9,
+      "before": {
+        "n": 7,
+        "hit1": true,
+        "precision": 0.8571428571428571
+      },
+      "after": {
+        "n": 4,
+        "hit1": true,
+        "precision": 1.0
+      }
+    },
+    {
+      "camera": "cam_01",
+      "kind": "person",
+      "colour": "white",
+      "split": "judge_sim",
+      "counts": {
+        "tp": 0,
+        "fn": 2,
+        "tn": 3,
+        "fp": 1,
+        "undecided": 1,
+        "unlabelled": 2
+      },
+      "checked": 9,
+      "before": {
+        "n": 7,
+        "hit1": false,
+        "precision": 0.2857142857142857
+      },
+      "after": {
+        "n": 2,
+        "hit1": false,
+        "precision": 0.0
+      }
+    },
+    {
+      "camera": "cam_02",
+      "kind": "vehicle",
+      "colour": "blue",
+      "split": "test",
+      "counts": {
+        "tp": 0,
+        "fn": 1,
+        "tn": 0,
+        "fp": 1,
+        "undecided": 0,
+        "unlabelled": 0
+      },
+      "checked": 2,
+      "before": {
+        "n": 2,
+        "hit1": true,
+        "precision": 0.5
+      },
+      "after": {
+        "n": 1,
+        "hit1": false,
+        "precision": 0.0
+      }
+    },
+    {
+      "camera": "cam_02",
+      "kind": "vehicle",
+      "colour": "grey",
+      "split": "test",
+      "counts": {
+        "tp": 1,
+        "fn": 0,
+        "tn": 1,
+        "fp": 1,
+        "undecided": 0,
+        "unlabelled": 0
+      },
+      "checked": 3,
+      "before": {
+        "n": 3,
+        "hit1": true,
+        "precision": 0.3333333333333333
+      },
+      "after": {
+        "n": 2,
+        "hit1": true,
+        "precision": 0.5
+      }
+    },
+    {
+      "camera": "cam_02",
+      "kind": "vehicle",
+      "colour": "white",
+      "split": "test",
+      "counts": {
+        "tp": 1,
+        "fn": 0,
+        "tn": 2,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 0
+      },
+      "checked": 3,
+      "before": {
+        "n": 3,
+        "hit1": true,
+        "precision": 0.3333333333333333
+      },
+      "after": {
+        "n": 1,
+        "hit1": true,
+        "precision": 1.0
+      }
+    },
+    {
+      "camera": "cam_03",
+      "kind": "vehicle",
+      "colour": "black",
+      "split": "dev",
+      "counts": {
+        "tp": 2,
+        "fn": 1,
+        "tn": 5,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 1
+      },
+      "checked": 9,
+      "before": {
+        "n": 8,
+        "hit1": true,
+        "precision": 0.375
+      },
+      "after": {
+        "n": 2,
+        "hit1": true,
+        "precision": 1.0
+      }
+    },
+    {
+      "camera": "cam_03",
+      "kind": "vehicle",
+      "colour": "red",
+      "split": "dev",
+      "counts": {
+        "tp": 3,
+        "fn": 0,
+        "tn": 6,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 0
+      },
+      "checked": 9,
+      "before": {
+        "n": 10,
+        "hit1": true,
+        "precision": 0.3
+      },
+      "after": {
+        "n": 4,
+        "hit1": true,
+        "precision": 0.75
+      }
+    },
+    {
+      "camera": "cam_03",
+      "kind": "vehicle",
+      "colour": "white",
+      "split": "dev",
+      "counts": {
+        "tp": 6,
+        "fn": 0,
+        "tn": 2,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 1
+      },
+      "checked": 9,
+      "before": {
+        "n": 9,
+        "hit1": true,
+        "precision": 0.6666666666666666
+      },
+      "after": {
+        "n": 7,
+        "hit1": true,
+        "precision": 0.8571428571428571
+      }
+    },
+    {
+      "camera": "cam_04",
+      "kind": "person",
+      "colour": "black",
+      "split": "dev",
+      "counts": {
+        "tp": 4,
+        "fn": 1,
+        "tn": 0,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 4
+      },
+      "checked": 9,
+      "before": {
+        "n": 5,
+        "hit1": true,
+        "precision": 1.0
+      },
+      "after": {
+        "n": 4,
+        "hit1": true,
+        "precision": 1.0
+      }
+    },
+    {
+      "camera": "cam_04",
+      "kind": "person",
+      "colour": "blue",
+      "split": "dev",
+      "counts": {
+        "tp": 1,
+        "fn": 1,
+        "tn": 4,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 3
+      },
+      "checked": 9,
+      "before": {
+        "n": 6,
+        "hit1": true,
+        "precision": 0.3333333333333333
+      },
+      "after": {
+        "n": 1,
+        "hit1": true,
+        "precision": 1.0
+      }
+    },
+    {
+      "camera": "cam_04",
+      "kind": "person",
+      "colour": "grey",
+      "split": "dev",
+      "counts": {
+        "tp": 4,
+        "fn": 2,
+        "tn": 0,
+        "fp": 0,
+        "undecided": 1,
+        "unlabelled": 2
+      },
+      "checked": 9,
+      "before": {
+        "n": 8,
+        "hit1": true,
+        "precision": 1.0
+      },
+      "after": {
+        "n": 6,
+        "hit1": true,
+        "precision": 1.0
+      }
+    },
+    {
+      "camera": "cam_04",
+      "kind": "person",
+      "colour": "white",
+      "split": "dev",
+      "counts": {
+        "tp": 2,
+        "fn": 1,
+        "tn": 1,
+        "fp": 2,
+        "undecided": 0,
+        "unlabelled": 3
+      },
+      "checked": 9,
+      "before": {
+        "n": 7,
+        "hit1": true,
+        "precision": 0.42857142857142855
+      },
+      "after": {
+        "n": 5,
+        "hit1": true,
+        "precision": 0.4
+      }
+    },
+    {
+      "camera": "cam_05",
+      "kind": "person",
+      "colour": "black",
+      "split": "dev",
+      "counts": {
+        "tp": 4,
+        "fn": 3,
+        "tn": 0,
+        "fp": 1,
+        "undecided": 0,
+        "unlabelled": 1
+      },
+      "checked": 9,
+      "before": {
+        "n": 9,
+        "hit1": true,
+        "precision": 0.8888888888888888
+      },
+      "after": {
+        "n": 6,
+        "hit1": true,
+        "precision": 0.8333333333333334
+      }
+    },
+    {
+      "camera": "cam_05",
+      "kind": "person",
+      "colour": "blue",
+      "split": "dev",
+      "counts": {
+        "tp": 1,
+        "fn": 1,
+        "tn": 5,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 2
+      },
+      "checked": 9,
+      "before": {
+        "n": 7,
+        "hit1": true,
+        "precision": 0.2857142857142857
+      },
+      "after": {
+        "n": 1,
+        "hit1": true,
+        "precision": 1.0
+      }
+    },
+    {
+      "camera": "cam_05",
+      "kind": "person",
+      "colour": "brown",
+      "split": "dev",
+      "counts": {
+        "tp": 0,
+        "fn": 1,
+        "tn": 6,
+        "fp": 1,
+        "undecided": 0,
+        "unlabelled": 1
+      },
+      "checked": 9,
+      "before": {
+        "n": 9,
+        "hit1": false,
+        "precision": 0.1111111111111111
+      },
+      "after": {
+        "n": 2,
+        "hit1": false,
+        "precision": 0.0
+      }
+    },
+    {
+      "camera": "cam_05",
+      "kind": "person",
+      "colour": "grey",
+      "split": "dev",
+      "counts": {
+        "tp": 4,
+        "fn": 2,
+        "tn": 2,
+        "fp": 1,
+        "undecided": 0,
+        "unlabelled": 0
+      },
+      "checked": 9,
+      "before": {
+        "n": 10,
+        "hit1": true,
+        "precision": 0.7
+      },
+      "after": {
+        "n": 6,
+        "hit1": true,
+        "precision": 0.8333333333333334
+      }
+    },
+    {
+      "camera": "cam_05",
+      "kind": "person",
+      "colour": "pink",
+      "split": "dev",
+      "counts": {
+        "tp": 0,
+        "fn": 1,
+        "tn": 2,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 1
+      },
+      "checked": 4,
+      "before": {
+        "n": 3,
+        "hit1": true,
+        "precision": 0.3333333333333333
+      },
+      "after": {
+        "n": 0,
+        "hit1": null,
+        "precision": null
+      }
+    },
+    {
+      "camera": "cam_05",
+      "kind": "person",
+      "colour": "white",
+      "split": "dev",
+      "counts": {
+        "tp": 0,
+        "fn": 2,
+        "tn": 2,
+        "fp": 4,
+        "undecided": 0,
+        "unlabelled": 1
+      },
+      "checked": 9,
+      "before": {
+        "n": 9,
+        "hit1": false,
+        "precision": 0.2222222222222222
+      },
+      "after": {
+        "n": 5,
+        "hit1": false,
+        "precision": 0.0
+      }
+    },
+    {
+      "camera": "cam_05",
+      "kind": "person",
+      "colour": "yellow",
+      "split": "dev",
+      "counts": {
+        "tp": 0,
+        "fn": 0,
+        "tn": 5,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 1
+      },
+      "checked": 6,
+      "before": {
+        "n": 5,
+        "hit1": false,
+        "precision": 0.0
+      },
+      "after": {
+        "n": 0,
+        "hit1": null,
+        "precision": null
+      }
+    },
+    {
+      "camera": "cam_06",
+      "kind": "person",
+      "colour": "black",
+      "split": "test",
+      "counts": {
+        "tp": 3,
+        "fn": 0,
+        "tn": 1,
+        "fp": 2,
+        "undecided": 0,
+        "unlabelled": 3
+      },
+      "checked": 9,
+      "before": {
+        "n": 7,
+        "hit1": true,
+        "precision": 0.42857142857142855
+      },
+      "after": {
+        "n": 6,
+        "hit1": true,
+        "precision": 0.5
+      }
+    },
+    {
+      "camera": "cam_06",
+      "kind": "person",
+      "colour": "blue",
+      "split": "test",
+      "counts": {
+        "tp": 0,
+        "fn": 1,
+        "tn": 5,
+        "fp": 1,
+        "undecided": 0,
+        "unlabelled": 2
+      },
+      "checked": 9,
+      "before": {
+        "n": 7,
+        "hit1": false,
+        "precision": 0.14285714285714285
+      },
+      "after": {
+        "n": 1,
+        "hit1": false,
+        "precision": 0.0
+      }
+    },
+    {
+      "camera": "cam_06",
+      "kind": "person",
+      "colour": "brown",
+      "split": "test",
+      "counts": {
+        "tp": 1,
+        "fn": 3,
+        "tn": 4,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 1
+      },
+      "checked": 9,
+      "before": {
+        "n": 8,
+        "hit1": false,
+        "precision": 0.5
+      },
+      "after": {
+        "n": 1,
+        "hit1": true,
+        "precision": 1.0
+      }
+    },
+    {
+      "camera": "cam_06",
+      "kind": "person",
+      "colour": "green",
+      "split": "test",
+      "counts": {
+        "tp": 0,
+        "fn": 1,
+        "tn": 4,
+        "fp": 1,
+        "undecided": 0,
+        "unlabelled": 3
+      },
+      "checked": 9,
+      "before": {
+        "n": 7,
+        "hit1": false,
+        "precision": 0.14285714285714285
+      },
+      "after": {
+        "n": 2,
+        "hit1": false,
+        "precision": 0.0
+      }
+    },
+    {
+      "camera": "cam_06",
+      "kind": "person",
+      "colour": "grey",
+      "split": "test",
+      "counts": {
+        "tp": 1,
+        "fn": 2,
+        "tn": 3,
+        "fp": 1,
+        "undecided": 0,
+        "unlabelled": 2
+      },
+      "checked": 9,
+      "before": {
+        "n": 8,
+        "hit1": false,
+        "precision": 0.375
+      },
+      "after": {
+        "n": 3,
+        "hit1": false,
+        "precision": 0.3333333333333333
+      }
+    },
+    {
+      "camera": "cam_06",
+      "kind": "person",
+      "colour": "red",
+      "split": "test",
+      "counts": {
+        "tp": 1,
+        "fn": 0,
+        "tn": 2,
+        "fp": 1,
+        "undecided": 0,
+        "unlabelled": 5
+      },
+      "checked": 9,
+      "before": {
+        "n": 5,
+        "hit1": true,
+        "precision": 0.2
+      },
+      "after": {
+        "n": 3,
+        "hit1": true,
+        "precision": 0.3333333333333333
+      }
+    },
+    {
+      "camera": "cam_06",
+      "kind": "person",
+      "colour": "yellow",
+      "split": "test",
+      "counts": {
+        "tp": 0,
+        "fn": 1,
+        "tn": 1,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 0
+      },
+      "checked": 2,
+      "before": {
+        "n": 2,
+        "hit1": false,
+        "precision": 0.5
+      },
+      "after": {
+        "n": 0,
+        "hit1": null,
+        "precision": null
+      }
+    },
+    {
+      "camera": "cam_07",
+      "kind": "person",
+      "colour": "black",
+      "split": "dev",
+      "counts": {
+        "tp": 4,
+        "fn": 0,
+        "tn": 0,
+        "fp": 0,
+        "undecided": 2,
+        "unlabelled": 3
+      },
+      "checked": 9,
+      "before": {
+        "n": 7,
+        "hit1": true,
+        "precision": 0.8571428571428571
+      },
+      "after": {
+        "n": 7,
+        "hit1": true,
+        "precision": 0.8571428571428571
+      }
+    },
+    {
+      "camera": "cam_07",
+      "kind": "person",
+      "colour": "blue",
+      "split": "dev",
+      "counts": {
+        "tp": 2,
+        "fn": 0,
+        "tn": 2,
+        "fp": 0,
+        "undecided": 3,
+        "unlabelled": 2
+      },
+      "checked": 9,
+      "before": {
+        "n": 8,
+        "hit1": true,
+        "precision": 0.625
+      },
+      "after": {
+        "n": 6,
+        "hit1": true,
+        "precision": 0.8333333333333334
+      }
+    },
+    {
+      "camera": "cam_07",
+      "kind": "person",
+      "colour": "brown",
+      "split": "dev",
+      "counts": {
+        "tp": 2,
+        "fn": 0,
+        "tn": 0,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 2
+      },
+      "checked": 4,
+      "before": {
+        "n": 2,
+        "hit1": true,
+        "precision": 1.0
+      },
+      "after": {
+        "n": 2,
+        "hit1": true,
+        "precision": 1.0
+      }
+    },
+    {
+      "camera": "cam_07",
+      "kind": "person",
+      "colour": "pink",
+      "split": "dev",
+      "counts": {
+        "tp": 2,
+        "fn": 0,
+        "tn": 0,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 0
+      },
+      "checked": 2,
+      "before": {
+        "n": 2,
+        "hit1": true,
+        "precision": 1.0
+      },
+      "after": {
+        "n": 2,
+        "hit1": true,
+        "precision": 1.0
+      }
+    },
+    {
+      "camera": "cam_08",
+      "kind": "vehicle",
+      "colour": "black",
+      "split": "dev",
+      "counts": {
+        "tp": 4,
+        "fn": 2,
+        "tn": 2,
+        "fp": 1,
+        "undecided": 0,
+        "unlabelled": 0
+      },
+      "checked": 9,
+      "before": {
+        "n": 10,
+        "hit1": true,
+        "precision": 0.6
+      },
+      "after": {
+        "n": 6,
+        "hit1": true,
+        "precision": 0.6666666666666666
+      }
+    },
+    {
+      "camera": "cam_08",
+      "kind": "vehicle",
+      "colour": "blue",
+      "split": "dev",
+      "counts": {
+        "tp": 1,
+        "fn": 0,
+        "tn": 7,
+        "fp": 1,
+        "undecided": 0,
+        "unlabelled": 0
+      },
+      "checked": 9,
+      "before": {
+        "n": 10,
+        "hit1": false,
+        "precision": 0.1
+      },
+      "after": {
+        "n": 3,
+        "hit1": true,
+        "precision": 0.3333333333333333
+      }
+    },
+    {
+      "camera": "cam_08",
+      "kind": "vehicle",
+      "colour": "grey",
+      "split": "dev",
+      "counts": {
+        "tp": 1,
+        "fn": 0,
+        "tn": 7,
+        "fp": 1,
+        "undecided": 0,
+        "unlabelled": 0
+      },
+      "checked": 9,
+      "before": {
+        "n": 10,
+        "hit1": false,
+        "precision": 0.1
+      },
+      "after": {
+        "n": 3,
+        "hit1": false,
+        "precision": 0.3333333333333333
+      }
+    },
+    {
+      "camera": "cam_08",
+      "kind": "vehicle",
+      "colour": "orange",
+      "split": "dev",
+      "counts": {
+        "tp": 0,
+        "fn": 0,
+        "tn": 9,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 0
+      },
+      "checked": 9,
+      "before": {
+        "n": 10,
+        "hit1": false,
+        "precision": 0.0
+      },
+      "after": {
+        "n": 1,
+        "hit1": false,
+        "precision": 0.0
+      }
+    },
+    {
+      "camera": "cam_08",
+      "kind": "vehicle",
+      "colour": "red",
+      "split": "dev",
+      "counts": {
+        "tp": 3,
+        "fn": 1,
+        "tn": 5,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 0
+      },
+      "checked": 9,
+      "before": {
+        "n": 10,
+        "hit1": true,
+        "precision": 0.4
+      },
+      "after": {
+        "n": 4,
+        "hit1": true,
+        "precision": 0.75
+      }
+    },
+    {
+      "camera": "cam_08",
+      "kind": "vehicle",
+      "colour": "white",
+      "split": "dev",
+      "counts": {
+        "tp": 8,
+        "fn": 0,
+        "tn": 1,
+        "fp": 0,
+        "undecided": 0,
+        "unlabelled": 0
+      },
+      "checked": 9,
+      "before": {
+        "n": 10,
+        "hit1": true,
+        "precision": 0.9
+      },
+      "after": {
+        "n": 9,
+        "hit1": true,
+        "precision": 1.0
+      }
+    }
+  ],
+  "skipped": 0,
+  "verifier": {
+    "tp": 75,
+    "fn": 34,
+    "tn": 106,
+    "fp": 21,
+    "undecided": 7,
+    "unlabelled": 62,
+    "yes_on_positives": 0.6881,
+    "n_positives": 109,
+    "no_on_negatives": 0.8346,
+    "n_negatives": 127
+  },
+  "effect": {
+    "n": 36,
+    "n_queries": 39,
+    "lost_all_labelled": 3,
+    "hit1_before": 0.6667,
+    "hit1_after": 0.7222,
+    "precision_before": 0.4852,
+    "precision_after": 0.6004
+  },
+  "effect_by_kind": {
+    "person": {
+      "n": 24,
+      "n_queries": 27,
+      "lost_all_labelled": 3,
+      "hit1_before": 0.625,
+      "hit1_after": 0.7083,
+      "precision_before": 0.5358,
+      "precision_after": 0.601
+    },
+    "vehicle": {
+      "n": 12,
+      "n_queries": 12,
+      "lost_all_labelled": 0,
+      "hit1_before": 0.75,
+      "hit1_after": 0.75,
+      "precision_before": 0.384,
+      "precision_after": 0.5992
+    }
+  }
+}

@@ -45,6 +45,17 @@ def percentile(values: list[float], q: float) -> float:
     return ordered[max(0, math.ceil(q * len(ordered)) - 1)]
 
 
+def answered(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rows that produced an answer. A question that stopped to ask for a clarification has no answer time."""
+    return [r for r in rows if not r.get("asked") and not r.get("error")]
+
+
+def condition(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    done = answered(rows)
+    return {"rows": rows, "n_asked": sum(1 for r in rows if r.get("asked")), "n_errors": sum(1 for r in rows if r.get("error")),
+            "by_route": summarise(done), "by_stage": stage_summary(done), "no_network_share": no_network_share(rows)}
+
+
 def summarise(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Group {source, ttfa_ms} rows by planner route: n, median and p95 of time to first answer."""
     by_source: dict[str, list[float]] = defaultdict(list)
@@ -57,13 +68,35 @@ def summarise(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     }
 
 
+NETWORK_ROUTES = {"llm", "groq"}  # planner routes that leave the machine (the local model and the cache do not)
+
+
+def stage_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Median and p95 of every stage the router timed (plan, retrieve, logic, compose, verify, ...), with n."""
+    by_stage: dict[str, list[float]] = defaultdict(list)
+    for r in rows:
+        for stage, ms in (r.get("stages") or {}).items():
+            by_stage[stage].append(float(ms))
+    return {st: {"n": len(v), "p50_ms": round(statistics.median(v), 1), "p95_ms": round(percentile(v, 0.95), 1)}
+            for st, v in sorted(by_stage.items())}
+
+
+def no_network_share(rows: list[dict[str, Any]]) -> float | None:
+    """Share of questions answered without any outbound call: planned by the fast path, the cache or the local model,
+    and not sent to the cloud for anything else. (Verification uses the local vision model by default.)"""
+    if not rows:
+        return None
+    return round(sum(1 for r in rows if (r.get("source") or "") not in NETWORK_ROUTES) / len(rows), 4)
+
+
 async def _run(system: Any, questions: list[str]) -> list[dict[str, Any]]:
     rows = []
     for i, text in enumerate(questions):
         item = SimpleNamespace(id=f"lat_{i}", text=text, first_time_requires_clarify=[], clarify_answer=None)
         result = await system.run(item)
+        stages = dict(result.answer.timings_ms) if result.answer is not None else {}
         rows.append({"text": text, "source": result.plan_source, "ttfa_ms": result.ttfa_ms, "ttva_ms": result.ttva_ms,
-                     "asked": result.asked_clarify, "error": result.error})
+                     "asked": result.asked_clarify, "error": result.error, "stages": stages})
     return rows
 
 
@@ -79,18 +112,31 @@ def _keyless_gateway() -> Any:
     return Gateway(GatewayConfig.from_env(os.environ), KeyPool([]), httpx.AsyncClient())
 
 
+def eval_phrasing(limit: int = 12) -> list[str]:
+    """The first distinct questions of the main evaluation set: phrased so that the fast path parses them."""
+    import yaml
+
+    path = Path(__file__).resolve().parent / "queries" / "meva_capabilities.yaml"
+    if not path.is_file():
+        return []
+    texts = [item["text"] for item in yaml.safe_load(path.read_text(encoding="utf-8"))]
+    return list(dict.fromkeys(texts))[:limit]
+
+
 async def measure(workspace: str, root: Path | None, questions: list[str]) -> dict[str, Any]:
     from eval.systems import build_ours
 
     out: dict[str, Any] = {"questions": len(questions), "conditions": {}}
     system = build_ours(workspace, root)
     try:
+        fast = await _run(system, eval_phrasing())
+        out["conditions"]["fastpath"] = condition(fast)
         cold = await _run(system, questions)
         warm = await _run(system, questions)  # the plans are cached now
     finally:
         await system.aclose()
-    out["conditions"]["cloud"] = {"rows": cold, "by_route": summarise(cold)}
-    out["conditions"]["cache"] = {"rows": warm, "by_route": summarise(warm)}
+    out["conditions"]["cloud"] = condition(cold)
+    out["conditions"]["cache"] = condition(warm)
 
     # no cloud keys: the same gateway code, an empty key pool, so the local model has to plan
     local_system = build_ours(workspace, root, gateway=_keyless_gateway())
@@ -100,7 +146,7 @@ async def measure(workspace: str, root: Path | None, questions: list[str]) -> di
         local = await _run(local_system, fresh)
     finally:
         await local_system.aclose()
-    out["conditions"]["local"] = {"rows": local, "by_route": summarise(local)}
+    out["conditions"]["local"] = condition(local)
     return out
 
 
@@ -116,6 +162,10 @@ def main(argv: list[str] | None = None) -> int:
     for cond, data in result["conditions"].items():
         for route, s in data["by_route"].items():
             print(f"{cond:6s} {route:10s} n={s['n']:2d} p50 {s['p50_ms']:8.1f} ms  p95 {s['p95_ms']:8.1f} ms")
+        for stage, s in data["by_stage"].items():
+            print(f"{cond:6s}   stage {stage:9s} n={s['n']:2d} p50 {s['p50_ms']:8.1f} ms  p95 {s['p95_ms']:8.1f} ms")
+        print(f"{cond:6s}   asked a clarification instead of answering: {data['n_asked']}; no outbound call: "
+              f"{data['no_network_share']}")
     print(f"wrote {args.out}")
     return 0
 

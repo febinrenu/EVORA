@@ -134,12 +134,12 @@ class Retriever:
         if len(plan.targets) > 1:
             result.notes.append("Only the first object in the question was searched.")
         target = plan.targets[0]
-        started = time.monotonic()
+        started = time.perf_counter()
         variants = await expand(target, self.cfg.expansion, self._gateway)
-        result.timings_ms["expand"] = round((time.monotonic() - started) * 1000, 2)
-        started = time.monotonic()
+        result.timings_ms["expand"] = round((time.perf_counter() - started) * 1000, 2)
+        started = time.perf_counter()
         await asyncio.to_thread(self._search_sync, plan, scope, variants, result)
-        result.timings_ms["retrieve"] = round((time.monotonic() - started) * 1000, 2)
+        result.timings_ms["retrieve"] = round((time.perf_counter() - started) * 1000, 2)
         return result
 
     # ----------------------------------------------------------------- internals

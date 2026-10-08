@@ -134,7 +134,7 @@ class Gateway:
                 return None
             tried.add(idx)
             headers = {"Authorization": f"Bearer {self._pool.key(idx)}"}
-            started = time.monotonic()
+            started = time.perf_counter()
             try:
                 resp = await self._client.post(
                     f"{GROQ_BASE_URL}{path}", headers=headers, timeout=self._cfg.timeout_s, **request
@@ -145,7 +145,7 @@ class Gateway:
                           error=type(exc).__name__)
                 continue
             self._pool.update_from_headers(idx, model, resp.headers)
-            latency_ms = round((time.monotonic() - started) * 1000)
+            latency_ms = round((time.perf_counter() - started) * 1000)
             if resp.status_code == 429:
                 self._pool.record_rate_limited(idx, model, _retry_after(resp))
                 self._log(task=task, backend="groq", model=model, key=self._pool.label(idx), ok=False,
@@ -233,18 +233,18 @@ class Gateway:
         json_schema = schema.model_json_schema()
         last_error = ""
         for _ in range(2):
-            started = time.monotonic()
+            started = time.perf_counter()
             text = await self._ollama.chat_json(model, messages, json_schema)
             try:
                 result = _validated(schema, text)
             except (ValidationError, ValueError) as exc:
                 last_error = str(exc)
                 self._log(task=task, backend="ollama", model=model, ok=False,
-                          latency_ms=round((time.monotonic() - started) * 1000))
+                          latency_ms=round((time.perf_counter() - started) * 1000))
                 messages = _repair_messages(messages, text, last_error)
                 continue
             self._log(task=task, backend="ollama", model=model, ok=True,
-                      latency_ms=round((time.monotonic() - started) * 1000))
+                      latency_ms=round((time.perf_counter() - started) * 1000))
             return result
         raise LLMError(f"local model gave no valid {schema.__name__}: {last_error[:200]}")
 
@@ -394,7 +394,7 @@ class Gateway:
         """
         if not image_jpeg or not prompt.strip():
             return None
-        started = time.monotonic()
+        started = time.perf_counter()
         budget = max_tokens + VISION_REASONING_HEADROOM
         try:
             try:
@@ -405,7 +405,7 @@ class Gateway:
                 raw = await self._ollama.vision_text(self._vision_model, image_jpeg, prompt, budget)
             text = _answer_only(raw)
             self._log(task="vision_text", backend="ollama", model=self._vision_model, ok=text is not None,
-                      latency_ms=round((time.monotonic() - started) * 1000))
+                      latency_ms=round((time.perf_counter() - started) * 1000))
             if text is not None or local_only or self._onprem():
                 return text
         except LLMError as exc:

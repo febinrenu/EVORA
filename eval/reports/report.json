@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-09T00:37:11+0530",
-  "code_commit": "4a52358",
+  "generated_at": "2026-10-09T00:58:26+0530",
+  "code_commit": "59a1a2f",
   "frozen": {
     "code_commit": "9325b7e",
     "frozen_before": [
@@ -4645,6 +4645,50 @@
             "hit@1": 0.2904,
             "mrr": 0.5173
           }
+        }
+      }
+    },
+    "colour_verification": {
+      "what": "The visual check (a small local vision model) against human colour labels, through the full router. Accuracy counts only labelled tracks the check looked at; the effect compares the labelled evidence before and after candidates the check said no to are set aside. Same caveats as the colour retrieval set: a sample of labelled tracks, small n, one footage set.",
+      "verifier": {
+        "tp": 75,
+        "fn": 34,
+        "tn": 106,
+        "fp": 21,
+        "undecided": 7,
+        "unlabelled": 62,
+        "yes_on_positives": 0.6881,
+        "n_positives": 109,
+        "no_on_negatives": 0.8346,
+        "n_negatives": 127
+      },
+      "effect": {
+        "n": 36,
+        "n_queries": 39,
+        "lost_all_labelled": 3,
+        "hit1_before": 0.6667,
+        "hit1_after": 0.7222,
+        "precision_before": 0.4852,
+        "precision_after": 0.6004
+      },
+      "effect_by_kind": {
+        "person": {
+          "n": 24,
+          "n_queries": 27,
+          "lost_all_labelled": 3,
+          "hit1_before": 0.625,
+          "hit1_after": 0.7083,
+          "precision_before": 0.5358,
+          "precision_after": 0.601
+        },
+        "vehicle": {
+          "n": 12,
+          "n_queries": 12,
+          "lost_all_labelled": 0,
+          "hit1_before": 0.75,
+          "hit1_after": 0.75,
+          "precision_before": 0.384,
+          "precision_after": 0.5992
         }
       }
     }

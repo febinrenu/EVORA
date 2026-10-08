@@ -142,6 +142,9 @@ def build_extended(reports_dir: Path) -> dict[str, Any]:
     colour = _colour_retrieval(reports_dir)
     if colour:
         out["colour_retrieval"] = colour
+    verification = _colour_verification(reports_dir)
+    if verification:
+        out["colour_verification"] = verification
     return out
 
 
@@ -155,6 +158,19 @@ def _colour_retrieval(reports_dir: Path) -> dict[str, Any] | None:
                 "and with a random order of the same tracks. The colour model was tuned on part of these labels, and the "
                 "labels cover a sample of tracks, so read this as an upper-leaning estimate on small n.",
         "all": data["all"], "by_kind": data["by_kind"], "by_split": data["by_split"],
+    }
+
+
+def _colour_verification(reports_dir: Path) -> dict[str, Any] | None:
+    data = _load(reports_dir / "colour_verification.json")
+    if not data:
+        return None
+    return {
+        "what": "The visual check (a small local vision model) against human colour labels, through the full router. "
+                "Accuracy counts only labelled tracks the check looked at; the effect compares the labelled evidence "
+                "before and after candidates the check said no to are set aside. Same caveats as the colour retrieval "
+                "set: a sample of labelled tracks, small n, one footage set.",
+        "verifier": data["verifier"], "effect": data["effect"], "effect_by_kind": data["effect_by_kind"],
     }
 
 
