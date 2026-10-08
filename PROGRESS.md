@@ -17,8 +17,8 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M1 — Platform, Memory & Integration
 - State: on track
-- Doing: P1.5/P1.6 done; starting P1.7 media service
-- Next: P1.7 thumbs/clips/range/blur, P1.8 memory KB + resolve
+- Doing: P1.7 done; starting P1.8 memory KB + resolve
+- Next: P1.8, P1.9 wire /api/query and /api/clarify to M3's router
 - Blockers:
 
 ### M2 — Perception & Identity
@@ -68,9 +68,13 @@ State values: not started · on track · at risk · blocked · done
 - [HH:MM] [M1] DECISION: project name evora, Python package `evora`. Why: short, local, meaningful. Impact: none.
 
 ## Contract change requests (append only)
+- [11:40] [M1] REQUEST (self-approved, additive): table `evidence` in schema.sql and `POST /api/media/unblur`; media routes accept `?unblur=<token>` and answer with header `X-Evora-Blur`. Why: media routes must resolve an evidence id; unblur must be audited. Affects: M3 (register evidence), M4 (blur header). → [11:40] [M1] APPROVED v1.1 (07c7e79)
 <!-- - [HH:MM] [M3] REQUEST: add optional `Answer.followups: list[str]`. Why: UI suggestions. Affects: M1, M4. → [HH:MM] [M1] APPROVED v1.1 -->
 
 ## Requests to other areas (append only)
+- [11:40] [M1] → M3: call `evora.evidence.store.register(db, evidence)` for every `Evidence` you return (including `nearest_miss`). Until then media falls back to scanning stored answers, which only works for answers saved in `query_log`.
+- [11:40] [M1] → M2: expose `blur_faces(jpeg: bytes) -> bytes` from `evora.perception` (or `.clock` / `.pipeline`). Until it exists, media is served unblurred with header `X-Evora-Blur: unavailable`.
+- [11:40] [M1] → M4: show a visible warning when a media response has `X-Evora-Blur: unavailable`; the unblur flow is `POST /api/media/unblur {reason}` then `?unblur=<token>` (5 minute token, audited).
 - [10:55] [M1] → M2: expose `detect_clock(path) -> (t0, source)` and `ingest(cam, profile, layers, on_progress)` from `evora.perception` (or `.clock` / `.pipeline`). M1 calls them through `core/perception_adapter.py`, which uses a simulated stub until they exist. `on_progress` takes an `IngestJob` (layer + progress 0..1; progress 1.0 marks that layer finished).
 <!-- - [HH:MM] [M4] → M1: /api/cameras should include thumbnail URL. → [HH:MM] [M1] done (abc1234) -->
 
@@ -99,3 +103,5 @@ State values: not started · on track · at risk · blocked · done
 - [16:30] [M3] P3.8 done: query/compose.py deterministic answers, dual timestamps (clock + offset into file), notes for unindexed/IR cameras, evidence-id validator; 27 tests (358a46e)
 - [16:30] [M3] P3.10 done: eval/queries.py + metrics.py + harness.py (all section 9.3 metrics, PROGRESS scoreboard rows) and baseline/b0_frames.py core with injected embedder; 54 tests (01af89e, 764ff52, 7369acd)
 - [16:30] [M3] NOTE: ours/b0 systems are not yet registered in eval/harness.py build_system (needs P3.6 retrieval, P3.9 router and an indexed workspace). No new contract changes needed so far.
+- [11:40] [M1] CONTRACT v1.1: evidence table + unblur endpoint (07c7e79). Pull and regenerate nothing: TS types are unchanged.
+- [11:40] [M1] P1.7 media service done (31e0d13, store e7ebd64): real frames, cached thumbnails with box, clips (3 s pre/post roll, faststart, HTTP range), face blur hook with honest `unavailable` state, audited unblur tokens. Bug fixed on the way: seeking past the last frame returned nothing.
