@@ -14,6 +14,7 @@ from evora.core.cameras import CameraNotFound, get_camera, list_cameras
 from evora.core.db import Database
 from evora.memory.kb import FactNotFound, KnowledgeBase, normalize
 from evora.memory.resolve import Ambiguous, Resolution
+from evora.memory.tod import TodError, parse_tod_range
 
 _TOD = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 _FILLER = {"the", "one", "camera", "cam", "it", "is", "that", "this", "a", "an", "at", "in", "of", "on"}
@@ -192,6 +193,11 @@ class Clarifier:
 
     def _bind_time(self, ref: Referent, resp: ClarifyResponse) -> MemoryFact:
         after, before = resp.tod_after, resp.tod_before
+        if not after and not before and resp.text:  # typed: "8pm to 6am"
+            try:
+                after, before = parse_tod_range(resp.text)
+            except TodError as exc:
+                raise ClarifyError(str(exc)) from None
         if not after or not before or not _TOD.match(after) or not _TOD.match(before):
             raise ClarifyError("give the hours as HH:MM to HH:MM")
         return self._remember(ref, {"tod_after": after, "tod_before": before})

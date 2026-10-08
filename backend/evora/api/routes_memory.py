@@ -24,6 +24,7 @@ class FactPatch(BaseModel):
     canonical: str | None = Field(default=None, min_length=1, max_length=120)
     aliases: list[str] | None = None
     binding: dict[str, Any] | None = None
+    confirm_aliases: list[str] = []   # turn guessed aliases into confirmed ones
 
 
 def make_router(ctx: AppContext) -> APIRouter:
@@ -52,8 +53,11 @@ def make_router(ctx: AppContext) -> APIRouter:
             fact = kb.get(fid)
             if fact.superseded_by:
                 raise HTTPException(409, "this fact was already replaced by a newer one")
+            for alias in body.confirm_aliases:
+                kb.confirm_alias(fid, alias)
             if body.canonical is not None or body.aliases is not None:
                 fact = kb.update(fid, body.canonical, body.aliases)
+            fact = kb.get(fid)
             if body.binding is not None and body.binding != fact.binding:  # a new binding is a correction
                 fact = kb.supersede(fid, body.binding, "correction")
                 audit.record(ctx.db, "memory_correct", {"old": fid, "new": fact.id})

@@ -68,3 +68,17 @@ def test_facts_survive_an_app_restart(tmp_path, monkeypatch):
     second = TestClient(create_app(workspaces_root=tmp_path / "ws", embedder=FakeEmbedder()))
     facts = second.get("/api/memory").json()
     assert [f["id"] for f in facts] == [fid] and facts[0]["aliases"] == ["front gate"]
+
+
+def test_confirming_a_guessed_alias_over_the_api(client):
+    import asyncio
+
+    from contracts.models import Referent
+
+    fact = add(client).json()
+    ctx = client.app.state.ctx
+    asyncio.run(ctx.memory.resolve(Referent(text="front gate", role="place")))  # learns a guess
+    listed = client.get("/api/memory").json()[0]
+    assert listed["inferred_aliases"] == ["front gate"]
+    body = client.patch(f"/api/memory/{fact['id']}", json={"confirm_aliases": ["front gate"]}).json()
+    assert body["inferred_aliases"] == [] and body["aliases"] == ["front gate"]

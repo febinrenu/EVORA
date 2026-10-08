@@ -105,19 +105,28 @@ class KnowledgeBase:
 
     # --- rows ---
     @staticmethod
-    def _to_fact(row: sqlite3.Row) -> MemoryFact:
+    def _to_fact(row: sqlite3.Row, inferred: list[str]) -> MemoryFact:
         return MemoryFact(
             id=row["id"], kind=row["kind"], canonical=row["canonical"], aliases=json.loads(row["aliases"]),
-            binding=json.loads(row["binding"]), source=row["source"], created_at=row["created_at"],
-            last_used_at=row["last_used_at"], use_count=row["use_count"] or 0, superseded_by=row["superseded_by"],
+            inferred_aliases=inferred, binding=json.loads(row["binding"]), source=row["source"],
+            created_at=row["created_at"], last_used_at=row["last_used_at"], use_count=row["use_count"] or 0,
+            superseded_by=row["superseded_by"],
         )
+
+    @staticmethod
+    def _inferred(c: sqlite3.Connection) -> dict[str, list[str]]:
+        out: dict[str, list[str]] = {}
+        for r in c.execute("SELECT fact_id, alias FROM memory_inferred ORDER BY created_at, alias"):
+            out.setdefault(r["fact_id"], []).append(r["alias"])
+        return out
 
     def get(self, fact_id: str) -> MemoryFact:
         with self.db.read() as c:
             row = c.execute("SELECT * FROM memory_facts WHERE id=?", (fact_id,)).fetchone()
+            inferred = self._inferred(c).get(fact_id, [])
         if row is None:
             raise FactNotFound(fact_id)
-        return self._to_fact(row)
+        return self._to_fact(row, inferred)
 
     def list(self, kind: str | None = None, include_superseded: bool = False) -> list[MemoryFact]:
         sql, args = "SELECT * FROM memory_facts WHERE 1=1", []
@@ -126,7 +135,8 @@ class KnowledgeBase:
         if not include_superseded:
             sql += " AND superseded_by IS NULL"
         with self.db.read() as c:
-            return [self._to_fact(r) for r in c.execute(sql + " ORDER BY created_at, id", args)]
+            inferred = self._inferred(c)
+            return [self._to_fact(r, inferred.get(r["id"], [])) for r in c.execute(sql + " ORDER BY created_at, id", args)]
 
     def find_exact(self, kind: str, phrase: str) -> list[MemoryFact]:
         target = normalize(phrase)
@@ -150,15 +160,33 @@ class KnowledgeBase:
         self._index(fact, self._phrases(fact))
         return fact
 
-    def add_alias(self, fact_id: str, phrase: str) -> bool:
-        """Remember another way of saying the same thing. Returns False when it was already known."""
+    def add_alias(self, fact_id: str, phrase: str, inferred: bool = False) -> bool:
+        """Remember another way of saying the same thing. `inferred` marks a silent guess by the resolver.
+
+        Returns False when the phrase was already known.
+        """
         fact = self.get(fact_id)
         if not normalize(phrase) or normalize(phrase) in self._phrases(fact):
             return False
         with self.db.write() as c:
             c.execute("UPDATE memory_facts SET aliases=? WHERE id=?", (json.dumps([*fact.aliases, phrase.strip()]), fact_id))
+            if inferred:
+                c.execute(
+                    "INSERT OR IGNORE INTO memory_inferred(fact_id, alias, created_at) VALUES(?,?,?)",
+                    (fact_id, phrase.strip(), time.time()),
+                )
         self._index(fact, [normalize(phrase)])
         return True
+
+    def confirm_alias(self, fact_id: str, phrase: str) -> bool:
+        """The user accepts a guessed alias as correct. Returns False if it was not a guess."""
+        target = normalize(phrase)
+        fact = self.get(fact_id)
+        guesses = [a for a in fact.inferred_aliases if normalize(a) == target]
+        with self.db.write() as c:
+            for a in guesses:
+                c.execute("DELETE FROM memory_inferred WHERE fact_id=? AND alias=?", (fact_id, a))
+        return bool(guesses)
 
     def update(
         self, fact_id: str, canonical: str | None = None, aliases: list[str] | None = None,
@@ -174,6 +202,12 @@ class KnowledgeBase:
                  json.dumps(aliases if aliases is not None else fact.aliases),
                  json.dumps(binding if binding is not None else fact.binding), fact_id),
             )
+        if aliases is not None:
+            keep = {normalize(a) for a in aliases}
+            with self.db.write() as c:
+                for a in fact.inferred_aliases:
+                    if normalize(a) not in keep:
+                        c.execute("DELETE FROM memory_inferred WHERE fact_id=? AND alias=?", (fact_id, a))
         updated = self.get(fact_id)
         self._unindex(fact_id)
         self._index(updated, self._phrases(updated))
@@ -198,7 +232,9 @@ class KnowledgeBase:
         if old.superseded_by:
             raise KBError("fact was already superseded")
         self._unindex(fact_id)
-        new = self.create(old.kind, old.canonical, new_binding, source, old.aliases)
+        guessed = {normalize(a) for a in old.inferred_aliases}  # learned under the binding that was just corrected
+        kept = [a for a in old.aliases if normalize(a) not in guessed]
+        new = self.create(old.kind, old.canonical, new_binding, source, kept)
         with self.db.write() as c:
             c.execute("UPDATE memory_facts SET superseded_by=? WHERE id=?", (new.id, fact_id))
         return self.get(new.id)

@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from typing import ClassVar
 
 from contracts.models import CameraInfo, MemoryFact, Referent
 
@@ -20,16 +21,23 @@ class Bound:
     fact: MemoryFact
     via: str  # exact | embedding | equivalence | camera
     persisted: bool = True
+    status: ClassVar[str] = "bound"
+
+    @property
+    def facts(self) -> list[MemoryFact]:
+        return [self.fact]
 
 
 @dataclass(frozen=True)
 class Ambiguous:
     facts: list[MemoryFact] = field(default_factory=list)
+    status: ClassVar[str] = "ambiguous"
 
 
 @dataclass(frozen=True)
 class Unknown:
-    pass
+    status: ClassVar[str] = "unknown"
+    facts: ClassVar[list[MemoryFact]] = []
 
 
 Resolution = Bound | Ambiguous | Unknown
@@ -45,7 +53,7 @@ class Resolver:
 
     def _bound(self, fact: MemoryFact, via: str, phrase: str | None = None) -> Bound:
         if phrase is not None:
-            self.kb.add_alias(fact.id, phrase)  # the next paraphrase of this is an exact hit
+            self.kb.add_alias(fact.id, phrase, inferred=True)  # next time this phrasing is an exact hit
         self.kb.touch(fact.id)
         return Bound(self.kb.get(fact.id), via)
 
