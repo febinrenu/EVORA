@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-09T00:14:12+0530",
-  "code_commit": "22858de",
+  "generated_at": "2026-10-09T00:37:11+0530",
+  "code_commit": "4a52358",
   "frozen": {
     "code_commit": "9325b7e",
     "frozen_before": [
@@ -4550,6 +4550,103 @@
         "judge_sim",
         "test"
       ]
+    },
+    "colour_retrieval": {
+      "what": "Asking for a colour on one camera, scored against human colour labels over the labelled tracks only: does the first labelled track returned have the colour? Compared with attribute grounding switched off and with a random order of the same tracks. The colour model was tuned on part of these labels, and the labels cover a sample of tracks, so read this as an upper-leaning estimate on small n.",
+      "all": {
+        "n": 39,
+        "attributes_on": {
+          "hit@1": 0.641,
+          "mrr": 0.7539
+        },
+        "attributes_off": {
+          "hit@1": 0.6667,
+          "mrr": 0.7878
+        },
+        "chance": {
+          "hit@1": 0.3019,
+          "mrr": 0.4883
+        }
+      },
+      "by_kind": {
+        "person": {
+          "n": 27,
+          "attributes_on": {
+            "hit@1": 0.5926,
+            "mrr": 0.7195
+          },
+          "attributes_off": {
+            "hit@1": 0.6296,
+            "mrr": 0.7553
+          },
+          "chance": {
+            "hit@1": 0.325,
+            "mrr": 0.5044
+          }
+        },
+        "vehicle": {
+          "n": 12,
+          "attributes_on": {
+            "hit@1": 0.75,
+            "mrr": 0.8313
+          },
+          "attributes_off": {
+            "hit@1": 0.75,
+            "mrr": 0.8611
+          },
+          "chance": {
+            "hit@1": 0.25,
+            "mrr": 0.4519
+          }
+        }
+      },
+      "by_split": {
+        "dev": {
+          "n": 24,
+          "attributes_on": {
+            "hit@1": 0.75,
+            "mrr": 0.814
+          },
+          "attributes_off": {
+            "hit@1": 0.7917,
+            "mrr": 0.8497
+          },
+          "chance": {
+            "hit@1": 0.3042,
+            "mrr": 0.4836
+          }
+        },
+        "judge_sim": {
+          "n": 5,
+          "attributes_on": {
+            "hit@1": 0.4,
+            "mrr": 0.5733
+          },
+          "attributes_off": {
+            "hit@1": 0.6,
+            "mrr": 0.7667
+          },
+          "chance": {
+            "hit@1": 0.3142,
+            "mrr": 0.4525
+          }
+        },
+        "test": {
+          "n": 10,
+          "attributes_on": {
+            "hit@1": 0.5,
+            "mrr": 0.7
+          },
+          "attributes_off": {
+            "hit@1": 0.4,
+            "mrr": 0.65
+          },
+          "chance": {
+            "hit@1": 0.2904,
+            "mrr": 0.5173
+          }
+        }
+      }
     }
   },
   "capabilities_evaluated": [

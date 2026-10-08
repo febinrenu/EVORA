@@ -139,7 +139,23 @@ def build_extended(reports_dir: Path) -> dict[str, Any]:
                  for sy in sorted(v)} for sp, v in caps.items() if "object" in spec.get("capability", {})}
         entry["splits"] = sorted(overall)
         out[name] = entry
+    colour = _colour_retrieval(reports_dir)
+    if colour:
+        out["colour_retrieval"] = colour
     return out
+
+
+def _colour_retrieval(reports_dir: Path) -> dict[str, Any] | None:
+    data = _load(reports_dir / "colour_retrieval.json")
+    if not data:
+        return None
+    return {
+        "what": "Asking for a colour on one camera, scored against human colour labels over the labelled tracks only: "
+                "does the first labelled track returned have the colour? Compared with attribute grounding switched off "
+                "and with a random order of the same tracks. The colour model was tuned on part of these labels, and the "
+                "labels cover a sample of tracks, so read this as an upper-leaning estimate on small n.",
+        "all": data["all"], "by_kind": data["by_kind"], "by_split": data["by_split"],
+    }
 
 
 def build_report(reports_dir: Path = REPORTS_DIR, frozen_file: Path = FROZEN_FILE) -> dict[str, Any]:

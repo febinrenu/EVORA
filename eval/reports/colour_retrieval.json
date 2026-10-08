@@ -1,0 +1,567 @@
+{
+  "labels": "..\\data\\share\\colour_label\\labels.json",
+  "queries": [
+    {
+      "camera": "cam_01",
+      "kind": "person",
+      "colour": "black",
+      "split": "judge_sim",
+      "n_judged": 51,
+      "n_positive": 47,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.9215686274509803,
+      "chance_rr": 0.9599837935174069
+    },
+    {
+      "camera": "cam_01",
+      "kind": "person",
+      "colour": "blue",
+      "split": "judge_sim",
+      "n_judged": 40,
+      "n_positive": 8,
+      "attributes_on": 2,
+      "attributes_off": 1,
+      "chance_hit1": 0.2,
+      "chance_rr": 0.40865112632223827
+    },
+    {
+      "camera": "cam_01",
+      "kind": "person",
+      "colour": "brown",
+      "split": "judge_sim",
+      "n_judged": 41,
+      "n_positive": 1,
+      "attributes_on": 5,
+      "attributes_off": 2,
+      "chance_hit1": 0.024390243902439025,
+      "chance_rr": 0.10494959226436136
+    },
+    {
+      "camera": "cam_01",
+      "kind": "person",
+      "colour": "grey",
+      "split": "judge_sim",
+      "n_judged": 40,
+      "n_positive": 14,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.35,
+      "chance_rr": 0.5695455545643222
+    },
+    {
+      "camera": "cam_01",
+      "kind": "person",
+      "colour": "white",
+      "split": "judge_sim",
+      "n_judged": 40,
+      "n_positive": 3,
+      "attributes_on": 6,
+      "attributes_off": 3,
+      "chance_hit1": 0.075,
+      "chance_rr": 0.21935866096866125
+    },
+    {
+      "camera": "cam_02",
+      "kind": "vehicle",
+      "colour": "blue",
+      "split": "test",
+      "n_judged": 3,
+      "n_positive": 1,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.3333333333333333,
+      "chance_rr": 0.6111111111111112
+    },
+    {
+      "camera": "cam_02",
+      "kind": "vehicle",
+      "colour": "grey",
+      "split": "test",
+      "n_judged": 3,
+      "n_positive": 1,
+      "attributes_on": 1,
+      "attributes_off": 2,
+      "chance_hit1": 0.3333333333333333,
+      "chance_rr": 0.6111111111111112
+    },
+    {
+      "camera": "cam_02",
+      "kind": "vehicle",
+      "colour": "white",
+      "split": "test",
+      "n_judged": 3,
+      "n_positive": 1,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.3333333333333333,
+      "chance_rr": 0.6111111111111112
+    },
+    {
+      "camera": "cam_03",
+      "kind": "vehicle",
+      "colour": "black",
+      "split": "dev",
+      "n_judged": 12,
+      "n_positive": 3,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.25,
+      "chance_rr": 0.4809632034632035
+    },
+    {
+      "camera": "cam_03",
+      "kind": "vehicle",
+      "colour": "red",
+      "split": "dev",
+      "n_judged": 12,
+      "n_positive": 3,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.25,
+      "chance_rr": 0.4809632034632035
+    },
+    {
+      "camera": "cam_03",
+      "kind": "vehicle",
+      "colour": "white",
+      "split": "dev",
+      "n_judged": 12,
+      "n_positive": 6,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.5,
+      "chance_rr": 0.702752009894867
+    },
+    {
+      "camera": "cam_04",
+      "kind": "person",
+      "colour": "black",
+      "split": "dev",
+      "n_judged": 31,
+      "n_positive": 23,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.7419354838709677,
+      "chance_rr": 0.8597705266714042
+    },
+    {
+      "camera": "cam_04",
+      "kind": "person",
+      "colour": "blue",
+      "split": "dev",
+      "n_judged": 29,
+      "n_positive": 9,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.3103448275862069,
+      "chance_rr": 0.5330557091699634
+    },
+    {
+      "camera": "cam_04",
+      "kind": "person",
+      "colour": "grey",
+      "split": "dev",
+      "n_judged": 31,
+      "n_positive": 17,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.5483870967741935,
+      "chance_rr": 0.7327183625018638
+    },
+    {
+      "camera": "cam_04",
+      "kind": "person",
+      "colour": "white",
+      "split": "dev",
+      "n_judged": 29,
+      "n_positive": 5,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.1724137931034483,
+      "chance_rr": 0.375664092850745
+    },
+    {
+      "camera": "cam_05",
+      "kind": "person",
+      "colour": "black",
+      "split": "dev",
+      "n_judged": 22,
+      "n_positive": 13,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.5909090909090909,
+      "chance_rr": 0.7638833436085759
+    },
+    {
+      "camera": "cam_05",
+      "kind": "person",
+      "colour": "blue",
+      "split": "dev",
+      "n_judged": 19,
+      "n_positive": 6,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.3157894736842105,
+      "chance_rr": 0.5418884244901494
+    },
+    {
+      "camera": "cam_05",
+      "kind": "person",
+      "colour": "brown",
+      "split": "dev",
+      "n_judged": 19,
+      "n_positive": 2,
+      "attributes_on": 4,
+      "attributes_off": 4,
+      "chance_hit1": 0.10526315789473684,
+      "chance_rr": 0.28308218412707575
+    },
+    {
+      "camera": "cam_05",
+      "kind": "person",
+      "colour": "grey",
+      "split": "dev",
+      "n_judged": 20,
+      "n_positive": 11,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.55,
+      "chance_rr": 0.7356485434929708
+    },
+    {
+      "camera": "cam_05",
+      "kind": "person",
+      "colour": "pink",
+      "split": "dev",
+      "n_judged": 19,
+      "n_positive": 1,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.05263157894736842,
+      "chance_rr": 0.18672313984966749
+    },
+    {
+      "camera": "cam_05",
+      "kind": "person",
+      "colour": "white",
+      "split": "dev",
+      "n_judged": 19,
+      "n_positive": 2,
+      "attributes_on": 4,
+      "attributes_off": 4,
+      "chance_hit1": 0.10526315789473684,
+      "chance_rr": 0.28308218412707575
+    },
+    {
+      "camera": "cam_05",
+      "kind": "person",
+      "colour": "yellow",
+      "split": "dev",
+      "n_judged": 19,
+      "n_positive": 1,
+      "attributes_on": 17,
+      "attributes_off": 17,
+      "chance_hit1": 0.05263157894736842,
+      "chance_rr": 0.18672313984966749
+    },
+    {
+      "camera": "cam_06",
+      "kind": "person",
+      "colour": "black",
+      "split": "test",
+      "n_judged": 18,
+      "n_positive": 6,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.3333333333333333,
+      "chance_rr": 0.5592806514752214
+    },
+    {
+      "camera": "cam_06",
+      "kind": "person",
+      "colour": "blue",
+      "split": "test",
+      "n_judged": 19,
+      "n_positive": 7,
+      "attributes_on": 2,
+      "attributes_off": 2,
+      "chance_hit1": 0.3684210526315789,
+      "chance_rr": 0.5910905846158285
+    },
+    {
+      "camera": "cam_06",
+      "kind": "person",
+      "colour": "brown",
+      "split": "test",
+      "n_judged": 18,
+      "n_positive": 8,
+      "attributes_on": 2,
+      "attributes_off": 2,
+      "chance_hit1": 0.4444444444444444,
+      "chance_rr": 0.6561824984284877
+    },
+    {
+      "camera": "cam_06",
+      "kind": "person",
+      "colour": "green",
+      "split": "test",
+      "n_judged": 18,
+      "n_positive": 3,
+      "attributes_on": 4,
+      "attributes_off": 4,
+      "chance_hit1": 0.16666666666666666,
+      "chance_rr": 0.37408276466180873
+    },
+    {
+      "camera": "cam_06",
+      "kind": "person",
+      "colour": "grey",
+      "split": "test",
+      "n_judged": 19,
+      "n_positive": 7,
+      "attributes_on": 4,
+      "attributes_off": 4,
+      "chance_hit1": 0.3684210526315789,
+      "chance_rr": 0.5910905846158285
+    },
+    {
+      "camera": "cam_06",
+      "kind": "person",
+      "colour": "red",
+      "split": "test",
+      "n_judged": 18,
+      "n_positive": 1,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.05555555555555555,
+      "chance_rr": 0.1941726710109063
+    },
+    {
+      "camera": "cam_06",
+      "kind": "person",
+      "colour": "yellow",
+      "split": "test",
+      "n_judged": 18,
+      "n_positive": 3,
+      "attributes_on": 2,
+      "attributes_off": 2,
+      "chance_hit1": 0.16666666666666666,
+      "chance_rr": 0.37408276466180873
+    },
+    {
+      "camera": "cam_07",
+      "kind": "person",
+      "colour": "black",
+      "split": "dev",
+      "n_judged": 8,
+      "n_positive": 6,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.75,
+      "chance_rr": 0.869047619047619
+    },
+    {
+      "camera": "cam_07",
+      "kind": "person",
+      "colour": "blue",
+      "split": "dev",
+      "n_judged": 9,
+      "n_positive": 5,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.5555555555555556,
+      "chance_rr": 0.7456349206349205
+    },
+    {
+      "camera": "cam_07",
+      "kind": "person",
+      "colour": "brown",
+      "split": "dev",
+      "n_judged": 8,
+      "n_positive": 2,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.25,
+      "chance_rr": 0.49081632653061225
+    },
+    {
+      "camera": "cam_07",
+      "kind": "person",
+      "colour": "pink",
+      "split": "dev",
+      "n_judged": 10,
+      "n_positive": 2,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.2,
+      "chance_rr": 0.4286596119929454
+    },
+    {
+      "camera": "cam_08",
+      "kind": "vehicle",
+      "colour": "black",
+      "split": "dev",
+      "n_judged": 27,
+      "n_positive": 6,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.2222222222222222,
+      "chance_rr": 0.43857911452329507
+    },
+    {
+      "camera": "cam_08",
+      "kind": "vehicle",
+      "colour": "blue",
+      "split": "dev",
+      "n_judged": 27,
+      "n_positive": 1,
+      "attributes_on": 2,
+      "attributes_off": 2,
+      "chance_hit1": 0.037037037037037035,
+      "chance_rr": 0.14412802789822526
+    },
+    {
+      "camera": "cam_08",
+      "kind": "vehicle",
+      "colour": "grey",
+      "split": "dev",
+      "n_judged": 27,
+      "n_positive": 1,
+      "attributes_on": 3,
+      "attributes_off": 3,
+      "chance_hit1": 0.037037037037037035,
+      "chance_rr": 0.14412802789822526
+    },
+    {
+      "camera": "cam_08",
+      "kind": "vehicle",
+      "colour": "orange",
+      "split": "dev",
+      "n_judged": 27,
+      "n_positive": 1,
+      "attributes_on": 7,
+      "attributes_off": 1,
+      "chance_hit1": 0.037037037037037035,
+      "chance_rr": 0.14412802789822526
+    },
+    {
+      "camera": "cam_08",
+      "kind": "vehicle",
+      "colour": "red",
+      "split": "dev",
+      "n_judged": 27,
+      "n_positive": 4,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.14814814814814814,
+      "chance_rr": 0.34302056998645825
+    },
+    {
+      "camera": "cam_08",
+      "kind": "vehicle",
+      "colour": "white",
+      "split": "dev",
+      "n_judged": 27,
+      "n_positive": 14,
+      "attributes_on": 1,
+      "attributes_off": 1,
+      "chance_hit1": 0.5185185185185185,
+      "chance_rr": 0.7113229981183271
+    }
+  ],
+  "all": {
+    "n": 39,
+    "attributes_on": {
+      "hit@1": 0.641,
+      "mrr": 0.7539
+    },
+    "attributes_off": {
+      "hit@1": 0.6667,
+      "mrr": 0.7878
+    },
+    "chance": {
+      "hit@1": 0.3019,
+      "mrr": 0.4883
+    }
+  },
+  "by_kind": {
+    "person": {
+      "n": 27,
+      "attributes_on": {
+        "hit@1": 0.5926,
+        "mrr": 0.7195
+      },
+      "attributes_off": {
+        "hit@1": 0.6296,
+        "mrr": 0.7553
+      },
+      "chance": {
+        "hit@1": 0.325,
+        "mrr": 0.5044
+      }
+    },
+    "vehicle": {
+      "n": 12,
+      "attributes_on": {
+        "hit@1": 0.75,
+        "mrr": 0.8313
+      },
+      "attributes_off": {
+        "hit@1": 0.75,
+        "mrr": 0.8611
+      },
+      "chance": {
+        "hit@1": 0.25,
+        "mrr": 0.4519
+      }
+    }
+  },
+  "by_split": {
+    "dev": {
+      "n": 24,
+      "attributes_on": {
+        "hit@1": 0.75,
+        "mrr": 0.814
+      },
+      "attributes_off": {
+        "hit@1": 0.7917,
+        "mrr": 0.8497
+      },
+      "chance": {
+        "hit@1": 0.3042,
+        "mrr": 0.4836
+      }
+    },
+    "judge_sim": {
+      "n": 5,
+      "attributes_on": {
+        "hit@1": 0.4,
+        "mrr": 0.5733
+      },
+      "attributes_off": {
+        "hit@1": 0.6,
+        "mrr": 0.7667
+      },
+      "chance": {
+        "hit@1": 0.3142,
+        "mrr": 0.4525
+      }
+    },
+    "test": {
+      "n": 10,
+      "attributes_on": {
+        "hit@1": 0.5,
+        "mrr": 0.7
+      },
+      "attributes_off": {
+        "hit@1": 0.4,
+        "mrr": 0.65
+      },
+      "chance": {
+        "hit@1": 0.2904,
+        "mrr": 0.5173
+      }
+    }
+  }
+}
