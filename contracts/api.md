@@ -33,3 +33,5 @@ FastAPI on `:8700`, UI dev server on `:5173`.
 **SSE order for a query:** `plan` → (`clarify` and stop) **or** `evidence`* → `answer` → `verified`* → `done`. The UI must render `answer` before `verified` arrives.
 
 **v1.1 notes.** Media responses carry `X-Evora-Blur: applied | off | unavailable`. `unavailable` means blur was requested but the face-blur model is not installed; the UI should warn. Schema adds table `evidence` (see `schema.sql`); M3 registers every `Evidence` it returns via `evora.evidence.store.register`.
+
+**v1.2 notes.** `MemoryFact.inferred_aliases` lists aliases the system learned silently so the Known places ledger can mark them as guesses. `PATCH /api/memory/{id}` accepts `confirm_aliases: string[]` to turn a guess into a confirmed alias. Changing a fact's binding is a correction and drops its guessed aliases.

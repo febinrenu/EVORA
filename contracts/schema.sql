@@ -90,3 +90,10 @@ CREATE TABLE IF NOT EXISTS evidence(
   t_start REAL NOT NULL, t_end REAL NOT NULL, t_peak REAL NOT NULL,
   bbox TEXT, track_id TEXT, created_at REAL NOT NULL
 );
+
+-- v1.2 (additive): aliases the resolver learned silently; a user correction drops these first
+CREATE TABLE IF NOT EXISTS memory_inferred(
+  fact_id TEXT NOT NULL REFERENCES memory_facts(id) ON DELETE CASCADE,
+  alias TEXT NOT NULL, created_at REAL NOT NULL,
+  PRIMARY KEY(fact_id, alias)
+);

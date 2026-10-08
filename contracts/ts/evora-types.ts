@@ -176,6 +176,7 @@ export interface MemoryFact {
   kind: "place" | "object" | "time";
   canonical: string;
   aliases?: string[];
+  inferred_aliases?: string[];
   binding: {
     [k: string]: unknown;
   };

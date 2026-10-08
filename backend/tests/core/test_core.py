@@ -43,10 +43,10 @@ def test_unknown_workspace(root):
 def test_db_migrates_and_is_idempotent(root):
     ws = wsmod.create("a", root)
     d = dbmod.open_db(ws.db_path)
-    assert d.get_meta("schema_version") == "1.1"
+    assert d.get_meta("schema_version") == "1.2"
     dbmod.close_all()
     d2 = dbmod.open_db(ws.db_path)
-    assert d2.get_meta("schema_version") == "1.1"
+    assert d2.get_meta("schema_version") == "1.2"
     with d2.read() as c:
         assert c.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert c.execute("PRAGMA foreign_keys").fetchone()[0] == 1

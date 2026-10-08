@@ -98,6 +98,7 @@ class ClarifyResponse(BaseModel):
 class MemoryFact(BaseModel):
     id: str; kind: Literal["place", "object", "time"]
     canonical: str; aliases: list[str] = []
+    inferred_aliases: list[str] = []     # v1.2: subset of aliases the system learned silently (not user-confirmed)
     binding: dict
     source: Literal["clarification", "statement", "correction", "import"]
     created_at: Epoch; last_used_at: Epoch | None = None; use_count: int = 0

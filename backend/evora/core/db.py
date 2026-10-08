@@ -10,7 +10,7 @@ from pathlib import Path
 from evora.core.config import REPO_ROOT
 
 SCHEMA_SQL = REPO_ROOT / "contracts" / "schema.sql"
-SCHEMA_VERSION = "1.1"
+SCHEMA_VERSION = "1.2"
 SCHEMA_MAJOR = SCHEMA_VERSION.split(".")[0]
 
 _writers: dict[Path, Database] = {}

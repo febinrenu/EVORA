@@ -999,6 +999,13 @@
           },
           "type": "array"
         },
+        "inferred_aliases": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "binding": {
           "additionalProperties": true,
           "type": "object"
