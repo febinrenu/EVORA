@@ -18,8 +18,6 @@ from dataclasses import dataclass
 from itertools import combinations
 
 import numpy as np
-from scipy.optimize import linear_sum_assignment
-from scipy.stats import binom
 
 from evora.core.db import Database, open_db
 from evora.core.vectors import open_store
@@ -117,6 +115,8 @@ def gaps_look_like_chance(matched: list[tuple[float, bool]], null: np.ndarray, s
     Counts how many matched gaps fall in a window around their mean and compares with the share of
     all candidate gaps that fall in the same window (one-sided binomial test).
     """
+    from scipy.stats import binom
+
     gaps = np.array([g for g, _ in matched])
     centre, half = robust_centre_spread(gaps, st)
     inside = int(np.sum(np.abs(gaps - centre) <= half))
@@ -173,6 +173,8 @@ def link_tracks(
     tracks: list[T], st: IngestSettings, links: dict[tuple[str, str], Link] | None = None,
 ) -> tuple[list[list[T]], dict[tuple[str, str], Link]]:
     """Groups of tracks judged to be the same identity, and the topology that was used."""
+    from scipy.optimize import linear_sum_assignment
+
     groups: dict[str, list[T]] = defaultdict(list)
     for t in tracks:
         groups[t.camera_id].append(t)
