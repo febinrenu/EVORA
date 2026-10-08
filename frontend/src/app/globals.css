@@ -491,6 +491,11 @@ button {
   text-align: center;
 }
 .title {
+  /* the wipe that hands the title to the particles: 0 shows it all, 1 none */
+  --sweep: 0;
+  /* the particle shader reads the same edge (uWipe, a = sweep*1.35-0.25, b = sweep*1.35) */
+  -webkit-mask-image: linear-gradient(90deg, transparent calc(var(--sweep) * 135% - 25%), #000 calc(var(--sweep) * 135%));
+  mask-image: linear-gradient(90deg, transparent calc(var(--sweep) * 135% - 25%), #000 calc(var(--sweep) * 135%));
   display: flex;
   flex-direction: column;
   align-items: center;

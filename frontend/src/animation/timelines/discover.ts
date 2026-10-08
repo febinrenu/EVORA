@@ -8,25 +8,34 @@ export function opening(c: Ctx): void {
   actLayer(c, { first: true });
   const title = el(c, "title");
 
+  tl.set(S.universe, { sweep: 1 }, at(c, 0));
   tl.to(el(c, "cue"), { autoAlpha: 0, duration: dur(c, 0.15) }, at(c, 0.02));
   tl.to(el(c, "meta"), { autoAlpha: 0, y: -10, duration: dur(c, 0.3) }, at(c, 0.08));
-  // The DOM title holds still while particles sitting exactly on its glyphs fade
-  // in under it, then it fades out: two identical shapes, so the swap is not seen.
-  // Moving the DOM letters first would put two different shapes on screen.
-  tl.to(S.universe, { alpha: 1, duration: dur(c, 0.22), ease: "sine.inOut" }, at(c, 0.3));
-  tl.to(title, { autoAlpha: 0, duration: dur(c, 0.26), ease: "sine.inOut" }, at(c, 0.4));
-  // only then do the letters let go: they loosen, burst and drift as the camera backs away
-  tl.to(S.universe, { wText: 0, duration: dur(c, 1.6), ease: "power2.inOut" }, at(c, 0.72));
-  tl.to(S.universe, { burst: 1, duration: dur(c, 0.7), ease: "power2.out" }, at(c, 0.78));
-  tl.to(S.universe, { burst: 0, duration: dur(c, 1.2), ease: "power2.inOut" }, at(c, 1.48));
-  tl.to(S.universe, { reveal: 1, duration: dur(c, 1.5), ease: "power1.in" }, at(c, 0.9));
-  cam(c, { pos: [0, 22, 168], look: [0, 0, 0] }, 0.8, 2.4, "power2.inOut");
+  // The particles come up hidden under the solid title, on exactly the same
+  // glyphs. Then the title is wiped away left to right while, under the wipe,
+  // the same letters turn to dust and blow off in the same order: the type never
+  // doubles and never crossfades into grain.
+  tl.to(S.universe, { alpha: 1, duration: dur(c, 0.12), ease: "none" }, at(c, 0.2));
+  // one wipe, two readers: the CSS mask on the title and the particle shader
+  const wipe = { duration: dur(c, 0.9), ease: "sine.inOut" };
+  tl.fromTo(title, { "--sweep": 0 }, { "--sweep": 1, ...wipe, immediateRender: false }, at(c, 0.3));
+  tl.fromTo(S.universe, { wipe: 0 }, { wipe: 1, ...wipe, immediateRender: false }, at(c, 0.3));
+  tl.set(title, { autoAlpha: 0 }, at(c, 1.25));
+  // what the wipe has let go settles into the field; this brings the stragglers home
+  tl.to(S.universe, { wText: 0, duration: dur(c, 1.3), ease: "sine.inOut" }, at(c, 0.85));
+  // the dust settles into the field as the camera backs away and the universe fills in
+  tl.to(S.universe, { burst: 0.45, duration: dur(c, 0.8), ease: "sine.out" }, at(c, 1.0));
+  tl.to(S.universe, { burst: 0, duration: dur(c, 1.1), ease: "sine.inOut" }, at(c, 1.8));
+  tl.to(S.universe, { reveal: 1, duration: dur(c, 1.6), ease: "power1.in" }, at(c, 1.0));
+  cam(c, { pos: [0, 22, 168], look: [0, 0, 0] }, 1.0, 2.2, "power2.inOut");
   line(c, el(c, "fragment"), 2.2, 2.95);
 }
 
 export function universe(c: Ctx): void {
   const { tl } = c;
   actLayer(c);
+  // the counts form and leave in random order
+  tl.set(S.universe, { sweep: 0 }, at(c, 0));
   cam(c, { pos: [-86, 9, 52], look: [10, 0, 0] }, 0, 1.6);
   cam(c, { pos: [-12, 2, 24], look: [60, -4, -10] }, 1.6, 2.6);
   cam(c, { pos: [64, 16, 40], look: [-10, 0, -8] }, 4.2, 2.0);

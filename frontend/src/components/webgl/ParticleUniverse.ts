@@ -72,6 +72,9 @@ export class ParticleUniverse {
         uW2: { value: new Vector2(0, 0) },
         uReveal: { value: 0 },
         uBurst: { value: 0 },
+        uSweep: { value: 0 },
+        uWipe: { value: 0 },
+        uTitleBox: { value: new Vector2(0.2, 0.8) },
         uDrift: { value: 1 },
         uHighlightClass: { value: -1 },
         uHighlight: { value: 0 },
@@ -125,6 +128,9 @@ export class ParticleUniverse {
     u.uW2.value.set(U.wTimeline, U.wRecon);
     u.uReveal.value = U.reveal;
     u.uBurst.value = U.burst;
+    u.uSweep.value = U.sweep;
+    u.uWipe.value = U.wipe;
+    u.uTitleBox.value.set(U.titleL, U.titleR);
     u.uDrift.value = U.drift;
     u.uHighlightClass.value = U.highlightClass;
     u.uHighlight.value = U.highlight;

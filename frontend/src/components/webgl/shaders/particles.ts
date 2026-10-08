@@ -31,6 +31,9 @@ uniform vec3 uW1;          // lattice, network, funnel
 uniform vec2 uW2;          // timeline, recon
 uniform float uReveal;
 uniform float uBurst;
+uniform float uSweep;
+uniform float uWipe;
+uniform vec2 uTitleBox;
 uniform float uDrift;
 uniform float uHighlightClass;
 uniform float uHighlight;
@@ -131,6 +134,7 @@ void main() {
   pos += burstDir * uBurst * (4.0 + 30.0 * aSeed.x * aSeed.x);
 
   float textW = 0.0;
+  float wipeShow = 1.0;
   if (isText && uWText > 0.0) {
     vec4 ta = textAt(uTextA);
     vec4 tb = textAt(uTextB);
@@ -139,8 +143,24 @@ void main() {
     // particles swirl between glyphs instead of sliding straight across
     float arc = sin(m * 3.14159) * (0.04 + 0.08 * aSeed.y);
     sp += vec2(cos(s * TAU), sin(s * TAU)) * arc;
-    vec3 v = vec3(sp.x * viewW, sp.y * uViewH, -uHudDepth + (ta.z - 0.5) * 0.6);
     textW = stag(uWText, s);
+    if (uSweep > 0.5) {
+      // The opening: the DOM title is wiped left to right by a CSS mask with the
+      // same numbers as here, so a mote shows only where its solid letter has
+      // just gone, and lets go from that edge with a little ragged delay.
+      float ut = (sp.x + 0.5 - uTitleBox.x) / max(uTitleBox.y - uTitleBox.x, 1e-3);
+      float a = uWipe * 1.35 - 0.25;
+      float b = uWipe * 1.35;
+      wipeShow = 1.0 - clamp((ut - a) / (b - a), 0.0, 1.0);
+      // behind the edge the letter holds as dust for a moment, then drifts off
+      float rel = clamp((a - ut) / 0.9 - 0.25 * aSeed.w, 0.0, 1.0);
+      textW = min(textW, 1.0 - rel * rel * (3.0 - 2.0 * rel));
+    }
+    // while it loosens, each mote is carried on a soft wind with a slow curl
+    float loose = (1.0 - textW) * textW * 4.0 * uSweep;
+    vec2 wind = vec2(0.10 + 0.16 * aSeed.y, 0.035 + 0.07 * (aSeed.z - 0.35));
+    wind += 0.018 * vec2(sin(s * 41.0 + uTime * 0.7), cos(s * 29.0 + uTime * 0.55));
+    vec3 v = vec3((sp.x + wind.x * loose) * viewW, (sp.y + wind.y * loose) * uViewH, -uHudDepth + (ta.z - 0.5) * 0.6);
     pos = mix(pos, toWorld(v), textW);
   }
 
@@ -159,7 +179,8 @@ void main() {
   // --- appearance
   float survivor = 1.0 - fail;
   float depthScale = clamp(uHudDepth / max(-mv.z, 1.0), 0.18, 2.0);
-  float size = uSize * (0.75 + aSeed.y * 1.1) * depthScale;
+  // in a glyph every mote is the same size, so the type reads solid, not grainy
+  float size = uSize * mix(0.75 + aSeed.y * 1.1, 1.3, textW * textW) * depthScale;
   size *= mix(1.0, 1.0 + max(uStage - 1.0, 0.0) * 0.9 * survivor, w3);
   size *= mix(1.0, 1.25, textW);
   float hl = uHighlightClass < -0.5 ? 0.0 : (abs(cls - uHighlightClass) < 0.5 ? 1.0 : -1.0);
@@ -179,7 +200,8 @@ void main() {
   float reveal = isText ? 1.0 : smoothstep(s - 0.06, s, uReveal);
   float alpha = uAlpha * reveal * mix(1.0, survivor, w3);
   alpha *= mix(1.0, 1.0 - smoothstep(0.62, 0.8, abs(tx) / viewW), w4);
-  alpha *= 0.55 + 0.45 * aSeed.w;
+  alpha *= mix(0.55 + 0.45 * aSeed.w, 1.0, textW * textW);
+  alpha *= wipeShow;
   // particles brushing past the lens fade instead of flaring across the type
   alpha *= mix(smoothstep(3.0, 22.0, -mv.z), 1.0, textW);
 

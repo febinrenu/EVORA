@@ -47,6 +47,13 @@ export const S = {
     reveal: 0,
     /** scatter impulse used while text breaks apart */
     burst: 0,
+    /** text lets go left to right on a wind (the opening title) instead of in random order */
+    sweep: 0,
+    /** the wipe across the DOM title, 0..1, the same value as its CSS --sweep */
+    wipe: 0,
+    /** the DOM title's left and right edge as viewport fractions (measured with the glyphs) */
+    titleL: 0.2,
+    titleR: 0.8,
     drift: 1,
     /** class highlighted by the current number, -1 none */
     highlightClass: -1,

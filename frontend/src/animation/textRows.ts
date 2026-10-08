@@ -4,6 +4,7 @@
 import { COUNT_BEATS } from "@/lib/data/story";
 import { formatInt } from "@/lib/math";
 import type { TextLine, TextRowSpec } from "@/components/webgl/TextTargets";
+import { S } from "@/animation/sceneState";
 
 let measure: CanvasRenderingContext2D | null = null;
 
@@ -26,6 +27,10 @@ export function buildTextRows(root: HTMLElement, family: string): TextRowSpec[] 
     const fontSize = parseFloat(style.fontSize);
     const spacing = parseFloat(style.letterSpacing) || 0;
     const upper = style.textTransform === "uppercase";
+    // the wipe across the DOM title is measured in its own box; the particles need the same box
+    const box = title.getBoundingClientRect();
+    S.universe.titleL = box.left / W;
+    S.universe.titleR = box.right / W;
     title.querySelectorAll<HTMLElement>("[data-line]").forEach((ln) => {
       // measure the visible glyph run, not the screen-reader copy; a zero-size
       // probe on the baseline tells us exactly where the DOM sets the glyphs
