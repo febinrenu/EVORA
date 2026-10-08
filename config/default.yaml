@@ -36,3 +36,36 @@ jobs:
   workers: 0            # 0 = auto (cpu cores / 4, at least 1)
   default_layers: [L0, L1, L2, L3]
   stub_tick_s: 0.05     # used only while the perception pipeline is not installed
+ingest:                 # perception pipeline (M2); keys and defaults mirror backend/evora/perception/settings.py
+  motion_gate: true     # false = fixed sampling rate (ablation C6)
+  fps_floor: 1.0
+  fps_ceil: 8.0
+  fixed_fps: 4.0
+  motion_proxy_px: 160
+  motion_pixel_delta: 18
+  motion_active_frac: 0.02
+  max_width: 1280
+  scene_every_s: 2.0
+  scene_jpeg_width: 640
+  detector: yolo26n.pt
+  det_conf: 0.25
+  det_imgsz: 640
+  tracker: bytetrack.yaml
+  track_lost_s: 5.0
+  min_track_obs: 3
+  crop_k: 4
+  crop_pad: 0.08
+  crop_jpeg_quality: 88
+  crop_max_side: 256
+  point_hz: 4.0
+  image_model: google/siglip2-base-patch16-224
+  embed_batch: 32
+retrieval:              # query side (M3); keys and defaults mirror backend/evora/query/retrieve.py
+  unit: track           # track | frame (ablation C1)
+  attributes: true      # ablation C2
+  expansion: "off"      # off | lexicon | llm
+  weights: {image: 0.55, attributes: 0.25, caption: 0.10, scene: 0.10}
+  calibration: {midpoint: 0.18, scale: 0.04}
+  ann_k: 400
+  scene_k: 300
+  pool_limit: 100

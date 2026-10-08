@@ -1,10 +1,13 @@
 UV ?= $(shell command -v uv >/dev/null 2>&1 && echo uv || echo python -m uv)
 BACKEND = $(UV) --directory backend
 
-.PHONY: setup dev check test test-e2e eval ablate types types-check models doctor offline-test up
+.PHONY: setup setup-perception dev check test test-e2e eval ablate types types-check models doctor offline-test up
 
 setup:
 	$(BACKEND) sync
+
+setup-perception:
+	$(BACKEND) sync --extra perception --extra embed
 
 dev:
 	$(BACKEND) run uvicorn evora.api.app:create_app --factory --reload --host 127.0.0.1 --port 8700
