@@ -71,7 +71,8 @@ ingest:                 # perception pipeline (M2); keys and defaults mirror bac
   scene_jpeg_width: 640
   detector: yolo26n.pt
   det_conf: 0.25
-  det_imgsz: 0          # 0 = automatic from the frame width (perception/track.py detector_size)
+  det_imgsz: 0          # 0 = automatic: the frame width rounded to 32, at most det_imgsz_max (1280). A fixed 640 shrank
+                        # 1080p people to about 18 px and missed most of them; the cpu profile keeps 640 for speed
   tracker: bytetrack.yaml
   track_lost_s: 5.0
   min_track_obs: 3

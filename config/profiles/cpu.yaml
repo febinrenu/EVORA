@@ -1,2 +1,4 @@
 profile: cpu
 device: cpu
+ingest:
+  det_imgsz: 640        # a 1280 input costs about 4x per frame; without a GPU, indexing speed wins
