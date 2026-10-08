@@ -137,3 +137,27 @@ def test_the_post_freeze_fix_is_recorded_with_where_the_original_results_are():
     frozen = json.loads(rp.FROZEN_FILE.read_text())
     fix = frozen["post_freeze_fixes"][0]
     assert "no threshold or weight changed" in fix["kind"] and fix["original_results"] == "eval/reports/frozen_v1"
+
+
+def test_extended_sets_are_pooled_with_their_n_and_reasks_are_summed(tmp_path):
+    for folder, files in {
+        "sparse": {"eval_dev_capabilities.json": {"ours": {"object": cap_report(
+            4, **{"hit@1": (0.5, 4), "timestamp_error_s": (2.0, 3)})}},
+                   "eval_test_capabilities.json": {"ours": {"object": cap_report(2, **{"hit@1": (1.0, 2)})}},
+                   "eval_dev.json": {"ours": cap_report(4)}, "eval_test.json": {"ours": cap_report(2)}},
+        "conversations": {"eval_dev.json": {"ours": cap_report(
+            10, ask_precision=(0.75, 4), ask_recall=(1.0, 3), reask_count=(1.0, 10))},
+                          "eval_test.json": {"ours": cap_report(
+                              5, ask_precision=(1.0, 2), ask_recall=(1.0, 2), reask_count=(0.0, 5))}},
+    }.items():
+        (tmp_path / folder).mkdir()
+        for name, data in files.items():
+            (tmp_path / folder / name).write_text(json.dumps(data))
+    ext = rp.build_extended(tmp_path)
+    low = ext["low_chance_object"]["pooled"]["ours"]
+    assert low["object.hit@1"] == {"value": pytest.approx(0.6667, abs=1e-3), "n": 6, "splits": ["dev", "test"]}
+    assert ext["low_chance_object"]["timestamp_error_s_by_split"]["dev"]["ours"]["value"] == 2.0  # kept per split
+    ask = ext["conversations"]["pooled"]["ours"]
+    assert ask["ask_precision"]["value"] == pytest.approx((0.75 * 4 + 1.0 * 2) / 6, abs=1e-3)
+    assert ask["reask_count"] == {"value": 1.0, "n": 15, "splits": ["dev", "test"]}   # a sum over 15 queries
+    assert rp.build_extended(tmp_path / "nowhere") == {}

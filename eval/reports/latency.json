@@ -1,0 +1,329 @@
+{
+  "questions": 12,
+  "conditions": {
+    "cloud": {
+      "rows": [
+        {
+          "text": "Has any car turned up on G328 in the first couple of minutes?",
+          "source": "llm",
+          "ttfa_ms": 3644.316100000651,
+          "ttva_ms": 3644.316100000651,
+          "asked": true,
+          "error": null
+        },
+        {
+          "text": "Anybody walking about on G299 between ten past and quarter past ten?",
+          "source": "llm",
+          "ttfa_ms": 1545.5494999987422,
+          "ttva_ms": 1547.2589999990305,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Show me when a vehicle shows up on G423",
+          "source": "llm",
+          "ttfa_ms": 971.5754000008019,
+          "ttva_ms": 973.0562999993708,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Any people hanging around G300 near 10:12?",
+          "source": "llm",
+          "ttfa_ms": 751.0337999992771,
+          "ttva_ms": 752.5322999990749,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Was somebody in dark clothing seen on G419?",
+          "source": "llm",
+          "ttfa_ms": 1042.2146999990218,
+          "ttva_ms": 1044.0622000005533,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Find the earliest time somebody appears on G421",
+          "source": "llm",
+          "ttfa_ms": 1524.92809999967,
+          "ttva_ms": 1524.92809999967,
+          "asked": true,
+          "error": null
+        },
+        {
+          "text": "Is there any activity on G299 at 10:13?",
+          "source": "llm",
+          "ttfa_ms": 1218.5525000004418,
+          "ttva_ms": 1220.091200000752,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Did someone cross the view of G423 around 10:14?",
+          "source": "llm",
+          "ttfa_ms": 1032.2596000005433,
+          "ttva_ms": 1034.4256999997015,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Were there pedestrians on G328 early on?",
+          "source": "llm",
+          "ttfa_ms": 1627.020200001425,
+          "ttva_ms": 1627.020200001425,
+          "asked": true,
+          "error": null
+        },
+        {
+          "text": "Tell me about vehicles on G300",
+          "source": "llm",
+          "ttfa_ms": 1783.2653000004939,
+          "ttva_ms": 1784.8482000008516,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "What happened on G419 between 10:11 and 10:12?",
+          "source": "llm",
+          "ttfa_ms": 1799.9343999999837,
+          "ttva_ms": 1801.414699999441,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Anything moving on G421 in the last minute of the clip?",
+          "source": "llm",
+          "ttfa_ms": 831.0385999993741,
+          "ttva_ms": 832.594199999221,
+          "asked": false,
+          "error": null
+        }
+      ],
+      "by_route": {
+        "llm": {
+          "n": 12,
+          "p50_ms": 1371.7,
+          "p95_ms": 3644.3,
+          "max_ms": 3644.3
+        }
+      }
+    },
+    "cache": {
+      "rows": [
+        {
+          "text": "Has any car turned up on G328 in the first couple of minutes?",
+          "source": "cache",
+          "ttfa_ms": 11.488800000734045,
+          "ttva_ms": 11.488800000734045,
+          "asked": true,
+          "error": null
+        },
+        {
+          "text": "Anybody walking about on G299 between ten past and quarter past ten?",
+          "source": "cache",
+          "ttfa_ms": 444.5297999991453,
+          "ttva_ms": 446.63740000032703,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Show me when a vehicle shows up on G423",
+          "source": "cache",
+          "ttfa_ms": 12.195900000733673,
+          "ttva_ms": 13.892100001612562,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Any people hanging around G300 near 10:12?",
+          "source": "cache",
+          "ttfa_ms": 14.49759999923117,
+          "ttva_ms": 16.122899998663343,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Was somebody in dark clothing seen on G419?",
+          "source": "cache",
+          "ttfa_ms": 238.35850000068604,
+          "ttva_ms": 240.30190000121365,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Find the earliest time somebody appears on G421",
+          "source": "cache",
+          "ttfa_ms": 13.041899999734596,
+          "ttva_ms": 13.041899999734596,
+          "asked": true,
+          "error": null
+        },
+        {
+          "text": "Is there any activity on G299 at 10:13?",
+          "source": "cache",
+          "ttfa_ms": 8.13919999927748,
+          "ttva_ms": 9.638699999413802,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Did someone cross the view of G423 around 10:14?",
+          "source": "cache",
+          "ttfa_ms": 178.1898999997793,
+          "ttva_ms": 180.6639999995241,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Were there pedestrians on G328 early on?",
+          "source": "cache",
+          "ttfa_ms": 11.070800001107273,
+          "ttva_ms": 11.070800001107273,
+          "asked": true,
+          "error": null
+        },
+        {
+          "text": "Tell me about vehicles on G300",
+          "source": "cache",
+          "ttfa_ms": 178.85560000104306,
+          "ttva_ms": 180.4520000005141,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "What happened on G419 between 10:11 and 10:12?",
+          "source": "cache",
+          "ttfa_ms": 9.026399999129353,
+          "ttva_ms": 10.666700000001583,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Anything moving on G421 in the last minute of the clip?",
+          "source": "cache",
+          "ttfa_ms": 7.904099998995662,
+          "ttva_ms": 9.451399999306886,
+          "asked": false,
+          "error": null
+        }
+      ],
+      "by_route": {
+        "cache": {
+          "n": 12,
+          "p50_ms": 12.6,
+          "p95_ms": 444.5,
+          "max_ms": 444.5
+        }
+      }
+    },
+    "local": {
+      "rows": [
+        {
+          "text": "Has any car turned up on G328 in the first couple of minutes today?",
+          "source": "local_llm",
+          "ttfa_ms": 3879.975799998647,
+          "ttva_ms": 3881.9758999998157,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Anybody walking about on G299 between ten past and quarter past ten today?",
+          "source": "local_llm",
+          "ttfa_ms": 3129.245099999025,
+          "ttva_ms": 3130.9451999986777,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Show me when a vehicle shows up on G423 today?",
+          "source": "local_llm",
+          "ttfa_ms": 2370.7976000005146,
+          "ttva_ms": 2372.407500000918,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Any people hanging around G300 near 10:12 today?",
+          "source": "local_llm",
+          "ttfa_ms": 2802.3465999995096,
+          "ttva_ms": 2803.9733999994496,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Was somebody in dark clothing seen on G419 today?",
+          "source": "local_llm",
+          "ttfa_ms": 2544.663299999229,
+          "ttva_ms": 2546.463799999401,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Find the earliest time somebody appears on G421 today?",
+          "source": "local_llm",
+          "ttfa_ms": 2466.391099998873,
+          "ttva_ms": 2468.193299999257,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Is there any activity on G299 at 10:13 today?",
+          "source": "local_llm",
+          "ttfa_ms": 2082.956700000068,
+          "ttva_ms": 2084.487000000081,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Did someone cross the view of G423 around 10:14 today?",
+          "source": "local_llm",
+          "ttfa_ms": 2852.653800000553,
+          "ttva_ms": 2854.2825000004086,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Were there pedestrians on G328 early on today?",
+          "source": "local_llm",
+          "ttfa_ms": 2630.1655999996,
+          "ttva_ms": 2631.917999999132,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Tell me about vehicles on G300 today?",
+          "source": "local_llm",
+          "ttfa_ms": 4951.370000000679,
+          "ttva_ms": 4957.663900000625,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "What happened on G419 between 10:11 and 10:12 today?",
+          "source": "local_llm",
+          "ttfa_ms": 5921.308999999383,
+          "ttva_ms": 5931.59039999955,
+          "asked": false,
+          "error": null
+        },
+        {
+          "text": "Anything moving on G421 in the last minute of the clip today?",
+          "source": "local_llm",
+          "ttfa_ms": 2986.4572000005865,
+          "ttva_ms": 2988.571200001388,
+          "asked": false,
+          "error": null
+        }
+      ],
+      "by_route": {
+        "local_llm": {
+          "n": 12,
+          "p50_ms": 2827.5,
+          "p95_ms": 5921.3,
+          "max_ms": 5921.3
+        }
+      }
+    }
+  }
+}

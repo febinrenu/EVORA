@@ -1,0 +1,10 @@
+System: ours
+
+| Capability | n | Hit@1 | Hit@5 | MRR | Cam acc | Ts err (s) | Neg prec | Count acc | Count MAE | Within 1 |
+|---|---|---|---|---|---|---|---|---|---|---|
+
+Not evaluated (no reliable ground truth in the available data):
+- count: MEVA labels only actors in annotated activities (parked cars and bystanders are unlabelled), so annotated counts are lower bounds and exact counts cannot be scored
+- colour: no colour labels in MEVA; needs the blind human labels from scripts/colour_label_tool.py
+- carrying: no bag-carrying ground truth: MEVA's carried objects are class 'other', one bag actor in 6 cameras
+- path: no cross-camera identity ground truth (MEVA actor ids are per clip and camera)

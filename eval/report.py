@@ -53,6 +53,25 @@ SUPPORTED = [
 ]
 
 
+# result sets beyond the main one: each has its own folder under eval/reports and its own reading caveat
+EXTENDED = {
+    "low_chance_object": {
+        "dir": "sparse",
+        "what": "The same kind of object question, kept only for 1-minute windows where MEVA's annotated actors fill at "
+                "most half of the window, so a random moment is less likely to be right. Cameras keep their split. "
+                "These windows overlap the main set: this re-weights it toward harder chance, it is not new footage.",
+        "capability": {"object": ["hit@1", "hit@5", "mrr"]},
+    },
+    "conversations": {
+        "dir": "conversations",
+        "what": "Questions that name an invented place instead of a camera. The first mention must trigger one "
+                "clarification, later ones (including three fixed rewordings of the name) must not, and answers must "
+                "come from the camera the place was bound to.",
+        "overall": ["ask_precision", "ask_recall", "reask_count"],
+    },
+}
+
+
 def _load(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
@@ -77,6 +96,50 @@ def pool(per_split: dict[str, dict[str, Any]], system: str, capability: str, met
             n_total += m["n"]
             used.append(split)
     return {"value": round(total / n_total, 4) if n_total else None, "n": int(n_total), "splits": used}
+
+
+def _pool_overall(per_split: dict[str, dict[str, Any]], system: str, metric: str) -> dict[str, Any]:
+    """Pool a whole-split metric over splits. Rates are weighted by n; `reask_count` is a count, so it is summed
+    (n stays the number of queries it was counted over)."""
+    total = n_total = 0.0
+    used: list[str] = []
+    for split, systems in per_split.items():
+        m = (((systems.get(system) or {}).get("metrics") or {}).get(metric))
+        if m and m.get("value") is not None and m.get("n"):
+            total += m["value"] if metric == "reask_count" else m["value"] * m["n"]
+            n_total += m["n"]
+            used.append(split)
+    if metric == "reask_count":
+        return {"value": round(total, 4) if n_total else None, "n": int(n_total), "splits": used}
+    return {"value": round(total / n_total, 4) if n_total else None, "n": int(n_total), "splits": used}
+
+
+def build_extended(reports_dir: Path) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for name, spec in EXTENDED.items():
+        folder = reports_dir / spec["dir"]
+        if not folder.is_dir():
+            continue
+        caps = {sp: _load(folder / f"eval_{sp}_capabilities.json") or {} for sp in SPLITS}
+        overall = {sp: _load(folder / f"eval_{sp}.json") or {} for sp in SPLITS}
+        caps = {k: v for k, v in caps.items() if v}
+        overall = {k: v for k, v in overall.items() if v}
+        entry: dict[str, Any] = {"what": spec["what"], "pooled": {}}
+        for system in sorted({sy for v in overall.values() for sy in v}):
+            rows: dict[str, Any] = {}
+            for cap, metrics in spec.get("capability", {}).items():
+                for metric in metrics:
+                    rows[f"{cap}.{metric}"] = pool(caps, system, cap, metric)
+            for metric in spec.get("overall", []):
+                rows[metric] = _pool_overall(overall, system, metric)
+            entry["pooled"][system] = {k: v for k, v in rows.items() if v["value"] is not None}
+        # medians cannot be pooled across splits: keep the localisation error per split, next to its n
+        entry["timestamp_error_s_by_split"] = {
+            sp: {sy: ((((v.get(sy) or {}).get("object") or {}).get("metrics") or {}).get("timestamp_error_s"))
+                 for sy in sorted(v)} for sp, v in caps.items() if "object" in spec.get("capability", {})}
+        entry["splits"] = sorted(overall)
+        out[name] = entry
+    return out
 
 
 def build_report(reports_dir: Path = REPORTS_DIR, frozen_file: Path = FROZEN_FILE) -> dict[str, Any]:
@@ -131,6 +194,7 @@ def build_report(reports_dir: Path = REPORTS_DIR, frozen_file: Path = FROZEN_FIL
         "pooled": pooled,
         "pooled_as_first_frozen": pooled_v1,
         "ablations": ablations,
+        "extended": build_extended(reports_dir),
         "capabilities_evaluated": [c for c in evaluated if not c.startswith("activity")],
         "diagnostics": [c for c in evaluated if c.startswith("activity")],
         "not_evaluated": {c: why for c, why in UNSUPPORTED_CAPABILITIES.items() if c not in evaluated},

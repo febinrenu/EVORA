@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-08T21:53:34+0530",
-  "code_commit": "4688ade",
+  "generated_at": "2026-10-09T00:14:12+0530",
+  "code_commit": "22858de",
   "frozen": {
     "code_commit": "9325b7e",
     "frozen_before": [
@@ -4369,6 +4369,189 @@
       "n_queries": null
     }
   ],
+  "extended": {
+    "low_chance_object": {
+      "what": "The same kind of object question, kept only for 1-minute windows where MEVA's annotated actors fill at most half of the window, so a random moment is less likely to be right. Cameras keep their split. These windows overlap the main set: this re-weights it toward harder chance, it is not new footage.",
+      "pooled": {
+        "b0": {
+          "object.hit@1": {
+            "value": 1.0,
+            "n": 18,
+            "splits": [
+              "dev",
+              "test",
+              "judge_sim"
+            ]
+          },
+          "object.hit@5": {
+            "value": 1.0,
+            "n": 18,
+            "splits": [
+              "dev",
+              "test",
+              "judge_sim"
+            ]
+          },
+          "object.mrr": {
+            "value": 1.0,
+            "n": 18,
+            "splits": [
+              "dev",
+              "test",
+              "judge_sim"
+            ]
+          }
+        },
+        "null": {
+          "object.hit@1": {
+            "value": 0.3333,
+            "n": 18,
+            "splits": [
+              "dev",
+              "test",
+              "judge_sim"
+            ]
+          },
+          "object.hit@5": {
+            "value": 0.9445,
+            "n": 18,
+            "splits": [
+              "dev",
+              "test",
+              "judge_sim"
+            ]
+          },
+          "object.mrr": {
+            "value": 0.574,
+            "n": 18,
+            "splits": [
+              "dev",
+              "test",
+              "judge_sim"
+            ]
+          }
+        },
+        "ours": {
+          "object.hit@1": {
+            "value": 0.5556,
+            "n": 18,
+            "splits": [
+              "dev",
+              "test",
+              "judge_sim"
+            ]
+          },
+          "object.hit@5": {
+            "value": 0.7222,
+            "n": 18,
+            "splits": [
+              "dev",
+              "test",
+              "judge_sim"
+            ]
+          },
+          "object.mrr": {
+            "value": 0.6389,
+            "n": 18,
+            "splits": [
+              "dev",
+              "test",
+              "judge_sim"
+            ]
+          }
+        }
+      },
+      "timestamp_error_s_by_split": {
+        "dev": {
+          "b0": {
+            "value": 5.2973,
+            "n": 11
+          },
+          "null": {
+            "value": 12.3356,
+            "n": 11
+          },
+          "ours": {
+            "value": 1.114,
+            "n": 11
+          }
+        },
+        "test": {
+          "b0": {
+            "value": 3.1425,
+            "n": 6
+          },
+          "null": {
+            "value": 18.0655,
+            "n": 6
+          },
+          "ours": {
+            "value": 4.899,
+            "n": 3
+          }
+        },
+        "judge_sim": {
+          "b0": {
+            "value": 3.2127,
+            "n": 1
+          },
+          "null": {
+            "value": 19.8462,
+            "n": 1
+          },
+          "ours": {
+            "value": 0.781,
+            "n": 1
+          }
+        }
+      },
+      "splits": [
+        "dev",
+        "judge_sim",
+        "test"
+      ]
+    },
+    "conversations": {
+      "what": "Questions that name an invented place instead of a camera. The first mention must trigger one clarification, later ones (including three fixed rewordings of the name) must not, and answers must come from the camera the place was bound to.",
+      "pooled": {
+        "ours": {
+          "ask_precision": {
+            "value": 0.8571,
+            "n": 7,
+            "splits": [
+              "dev",
+              "test",
+              "judge_sim"
+            ]
+          },
+          "ask_recall": {
+            "value": 1.0,
+            "n": 6,
+            "splits": [
+              "dev",
+              "test",
+              "judge_sim"
+            ]
+          },
+          "reask_count": {
+            "value": 1.0,
+            "n": 30,
+            "splits": [
+              "dev",
+              "test",
+              "judge_sim"
+            ]
+          }
+        }
+      },
+      "timestamp_error_s_by_split": {},
+      "splits": [
+        "dev",
+        "judge_sim",
+        "test"
+      ]
+    }
+  },
   "capabilities_evaluated": [
     "negative",
     "object"

@@ -179,3 +179,23 @@ def test_cli_writes_a_file_the_harness_loads(root, tmp_path, capsys):
     assert all(i.split == "dev" for i in items if "G340" in i.tags)  # the pinned camera
     assert m.main(["--annotations", str(root), "--date", "2018-03-09", "--start", "09-00-00",
                    "--camera-map", str(cmap), "--out", str(tmp_path / "none.yaml")]) == 2
+
+
+def test_coverage_is_the_share_of_the_window_actors_occupy_counting_overlaps_once():
+    assert m.coverage([(0.0, 30.0)]) == pytest.approx(0.5)
+    assert m.coverage([(0.0, 20.0), (10.0, 30.0)]) == pytest.approx(0.5)      # the overlap is not counted twice
+    assert m.coverage([(0.0, 10.0), (40.0, 50.0)]) == pytest.approx(20 / 60)
+    assert m.coverage([]) == 0.0
+
+
+def test_max_coverage_keeps_only_windows_where_chance_is_weak(root):
+    persons = find(build(root, max_coverage=0.2), "object", "person")
+    assert starts(persons) == [60]                      # 10 s of 60; the 20 s window at 0-60 is 0.33
+    both = find(build(root, max_coverage=0.5), "object", "person")
+    assert starts(both) == [0, 60]
+    assert find(build(root), "object", "person")        # default keeps every window, as before
+
+
+def test_negatives_can_be_left_out(root):
+    assert not [i for i in build(root, cams=("G340", "G341"), with_negatives=False) if "negative" in i["id"]]
+    assert [i for i in build(root, cams=("G340", "G341")) if "negative" in i["id"]]

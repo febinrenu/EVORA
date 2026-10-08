@@ -115,6 +115,20 @@ def hits_in_window(actors: list[Actor], w0: int, w1: int) -> list[tuple[int, int
     return sorted(out)
 
 
+def coverage(hits: list[tuple[int, int]], window_s: int = WINDOW_S) -> float:
+    """Share of the window that annotated actors occupy (union of their appearances). Low coverage means a random
+    moment in the window is unlikely to land on an actor, which is what makes chance a weak baseline."""
+    total, current = 0.0, None
+    for a, b in sorted(hits):
+        if current is None or a > current[1]:
+            total += (current[1] - current[0]) if current else 0.0
+            current = [a, b]
+        else:
+            current[1] = max(current[1], b)
+    total += (current[1] - current[0]) if current else 0.0
+    return total / window_s
+
+
 def distinct_in_window(actors: list[Actor], w0: int, w1: int) -> int:
     return sum(1 for a in actors if any(min(b / FPS, w1) - max(s / FPS, w0) >= MIN_PRESENCE_S for s, b in a.segments()))
 
@@ -128,7 +142,8 @@ def _iso(base: datetime, seconds: float) -> str:
 
 
 def build_items(root: Path, date: str, start: str, tz: timezone, camera_map: dict[str, str], workspace: str,
-                per_kind: int = 4) -> list[dict[str, Any]]:
+                per_kind: int = 4, max_actors: int = MAX_ACTORS, max_coverage: float = 1.0,
+                with_negatives: bool = True) -> list[dict[str, Any]]:
     """Object, negative and count queries for every mapped camera of one annotated window."""
     items: list[dict[str, Any]] = []
     for clip, activity_path in window_clips(activity_files(root), date, start):
@@ -153,10 +168,11 @@ def build_items(root: Path, date: str, start: str, tz: timezone, camera_map: dic
         for cls, (singular, _plural) in CLASSES.items():
             pool = [a for a in actors.values() if a.cls == cls]
             rows = [(w0, w1, hits_in_window(pool, w0, w1), distinct_in_window(pool, w0, w1)) for w0, w1 in wins]
-            positives = sorted((r for r in rows if 1 <= len(r[2]) and 1 <= r[3] <= MAX_ACTORS), key=lambda r: r[3])
+            positives = sorted((r for r in rows if 1 <= len(r[2]) and 1 <= r[3] <= max_actors
+                               and coverage(r[2]) <= max_coverage), key=lambda r: (coverage(r[2]), r[3]))
             # "nothing there" only for a class with no annotated actor anywhere in the clip: a window that is merely
             # empty of annotated actors may still hold an unlabelled one (a parked car, a bystander)
-            empties = [] if pool else rows
+            empties = [] if pool or not with_negatives else rows
             def when(w0: int, w1: int, clip=clip, base=base) -> str:
                 return f"on {clip.camera} between {_hhmm(base, w0)} and {_hhmm(base, w1)}"
 
@@ -214,11 +230,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dev-cameras", default="", help="MEVA camera codes pinned to dev, e.g. G328,G419 (the ones "
                         "already examined while debugging; everything else is balanced over test and judge_sim)")
     parser.add_argument("--per-kind", type=int, default=4, help="windows per camera, class and capability")
+    parser.add_argument("--max-actors", type=int, default=MAX_ACTORS)
+    parser.add_argument("--max-coverage", type=float, default=1.0,
+                        help="keep only windows where annotated actors fill at most this share of the window")
+    parser.add_argument("--no-negatives", action="store_true")
+    parser.add_argument("--splits-from", type=Path, default=None,
+                        help="a frozen.json: use its splits_by_camera instead of balancing (cameras keep their split)")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
 
     cmap = json.loads(args.camera_map.read_text(encoding="utf-8"))
-    items = build_items(args.annotations, args.date, args.start, parse_tz(args.tz), cmap, args.workspace, args.per_kind)
+    items = build_items(args.annotations, args.date, args.start, parse_tz(args.tz), cmap, args.workspace, args.per_kind,
+                        args.max_actors, args.max_coverage, not args.no_negatives)
     if not items:
         print("No ground truth could be built (no annotated clip for those cameras).", file=sys.stderr)
         return 2
@@ -226,8 +249,17 @@ def main(argv: list[str] | None = None) -> int:
     for part in args.splits.split(","):
         name, _, weight = part.partition(":")
         ratios[name] = float(weight)
-    pinned = {c.strip(): "dev" for c in args.dev_cameras.split(",") if c.strip()}
-    counts = assign_by_camera(items, ratios, pinned)
+    if args.splits_from is not None:
+        fixed = json.loads(args.splits_from.read_text(encoding="utf-8"))["splits_by_camera"]
+        owner = {cam: split for split, cams in fixed.items() for cam in cams}
+        counts = dict.fromkeys(fixed, 0)
+        for it in items:
+            cam = next(t for t in it["tags"] if re.fullmatch(r"G\d+", t))
+            it["split"] = owner.get(cam, "dev")  # an unlisted camera was never held out: it can only be dev
+            counts[it["split"]] = counts.get(it["split"], 0) + 1
+    else:
+        pinned = {c.strip(): "dev" for c in args.dev_cameras.split(",") if c.strip()}
+        counts = assign_by_camera(items, ratios, pinned)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text("# generated by scripts/meva_capability_queries.py; ground truth from MEVA object annotations\n"
                         + yaml.safe_dump(items, sort_keys=False, allow_unicode=True, width=120), encoding="utf-8")
