@@ -7,8 +7,9 @@ from evora.api.app import create_app
 
 
 @pytest.fixture()
-def client():
-    return TestClient(create_app())
+def client(tmp_path, monkeypatch):
+    monkeypatch.setenv("evora_WORKSPACE", "routes")
+    return TestClient(create_app(workspaces_root=tmp_path / "ws"))
 
 
 def sse_types(resp) -> list[str]:
@@ -17,15 +18,7 @@ def sse_types(resp) -> list[str]:
 
 def test_health(client):
     body = client.get("/api/health").json()
-    assert body["ok"] and body["workspace"] == "own-campus"
-
-
-def test_cameras_and_frame(client):
-    cams = client.get("/api/cameras").json()
-    assert [c["id"] for c in cams] == ["cam_01", "cam_02", "cam_03"]
-    r = client.get("/api/cameras/cam_01/frame", params={"t": 1790000005})
-    assert r.headers["content-type"] == "image/jpeg" and r.content[:2] == b"\xff\xd8"
-    assert client.get("/api/cameras/nope/frame", params={"t": 1}).status_code == 404
+    assert body["ok"] and body["workspace"] == "routes"
 
 
 def test_query_sse_order(client):

@@ -1,19 +1,21 @@
 """FastAPI app for contract v1. Every route returns fixtures until its owner wires the real service."""
 from __future__ import annotations
 
-import asyncio
 import base64
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from contracts.models import ClarifyResponse, MemoryFact, Zone
-from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
-from sse_starlette.sse import EventSourceResponse
+from fastapi.responses import Response
 
-from evora.api import fixtures
-from evora.api.sse import heartbeat, stream_events
+from evora.api import fixtures, routes_cameras, routes_ingest
+from evora.api.context import AppContext
+from evora.api.sse import stream_events
 from evora.core.config import load_config
+from evora.core.jobs import IngestFn
 
 # 1x1 JPEG standing in for thumbnails and frames in the skeleton
 _JPEG = base64.b64decode(
@@ -22,9 +24,19 @@ _JPEG = base64.b64decode(
 )
 
 
-def create_app() -> FastAPI:
+def create_app(workspaces_root: Path | None = None, ingest_fn: IngestFn | None = None) -> FastAPI:
     cfg = load_config()
-    app = FastAPI(title="evora", version="0.1.0")
+    ctx = AppContext.build(cfg, workspaces_root, ingest_fn)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        yield
+        ctx.runner.shutdown(wait=False)
+
+    app = FastAPI(title="evora", version="0.1.0", lifespan=lifespan)
+    app.state.ctx = ctx
+    app.include_router(routes_cameras.make_router(ctx))
+    app.include_router(routes_ingest.make_router(ctx))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cfg["server"]["cors_origins"],
@@ -34,13 +46,13 @@ def create_app() -> FastAPI:
     state: dict[str, Any] = {
         "settings": {"onprem": False, "blur_faces": True, "reference_now": None},
         "memory": [dict(f) for f in fixtures.load("memory_facts")],
-        "workspaces": [{"slug": "own-campus", "name": "own-campus", "active": True}],
+        "workspaces": [{"slug": ctx.ws.slug, "name": ctx.ws.slug, "active": True}],
     }
 
     # --- health, workspaces ---
     @app.get("/api/health")
     def health():
-        return {**fixtures.load("health"), "onprem": state["settings"]["onprem"]}
+        return {**fixtures.load("health"), "workspace": ctx.ws.slug, "onprem": state["settings"]["onprem"]}
 
     @app.get("/api/workspaces")
     def workspaces():
@@ -62,49 +74,6 @@ def create_app() -> FastAPI:
         for w in state["workspaces"]:
             w["active"] = w["slug"] == slug
         return state["workspaces"]
-
-    # --- cameras ---
-    def _cam(cid: str) -> dict:
-        for c in fixtures.load("cameras"):
-            if c["id"] == cid:
-                return c
-        raise HTTPException(404, "unknown camera")
-
-    @app.get("/api/cameras")
-    def cameras():
-        return fixtures.load("cameras")
-
-    @app.post("/api/cameras")
-    async def add_cameras(request: Request, files: list[UploadFile] | None = File(default=None)):
-        if files is None and "json" in request.headers.get("content-type", ""):
-            body = await request.json()
-            if not body.get("uri"):
-                raise HTTPException(422, "uri required")
-        return [{**c, "status": "pending", "layers": []} for c in fixtures.load("cameras")[:1]]
-
-    @app.patch("/api/cameras/{cid}")
-    def patch_camera(cid: str, body: dict):
-        return {**_cam(cid), **{k: v for k, v in body.items() if k in {"name", "t0", "site_xy"}}}
-
-    @app.get("/api/cameras/{cid}/frame")
-    def frame(cid: str, t: float = Query(...)):
-        _cam(cid)
-        return Response(_JPEG, media_type="image/jpeg")
-
-    @app.get("/api/cameras/{cid}/live.mjpg")
-    async def live(cid: str):
-        _cam(cid)
-
-        async def gen():
-            for _ in range(3):
-                yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + _JPEG + b"\r\n"
-                await asyncio.sleep(0.5)
-
-        return StreamingResponse(gen(), media_type="multipart/x-mixed-replace; boundary=frame")
-
-    @app.post("/api/ingest")
-    def ingest(body: dict):
-        return fixtures.load("ingest_jobs")
 
     # --- query, clarify ---
     @app.post("/api/query")
@@ -206,10 +175,6 @@ def create_app() -> FastAPI:
     def ack(aid: str):
         return {**fixtures.load("alert"), "id": aid, "acknowledged": True}
 
-    @app.get("/api/events")
-    async def events():
-        return EventSourceResponse(heartbeat(5.0))
-
     # --- settings, voice, report, dev ---
     @app.post("/api/settings")
     def settings(body: dict):
@@ -231,5 +196,3 @@ def create_app() -> FastAPI:
 
     return app
 
-
-app = create_app()

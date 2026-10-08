@@ -7,7 +7,7 @@ setup:
 	$(BACKEND) sync
 
 dev:
-	$(BACKEND) run uvicorn evora.api.app:app --reload --host 127.0.0.1 --port 8700
+	$(BACKEND) run uvicorn evora.api.app:create_app --factory --reload --host 127.0.0.1 --port 8700
 
 types:
 	$(BACKEND) run python ../scripts/gen_types.py ../contracts/ts/schema.json
