@@ -93,5 +93,5 @@ State values: not started · on track · at risk · blocked · done
 
 - [15:50] [M3] P3.4 done: query/fastpath.py, 93 table cases (phrasings + refusals), conservative: unknown word -> LLM (1bc99fd)
 - [15:50] [M3] P3.5 done: query/planner.py + timeparse.py: fast path -> plan cache (sqlite plan_cache, keyed on text + camera set) -> gateway; time anchored to reference_now (meta.reference_now, else end of latest footage; meta.tz); 218 tests pass in full backend suite (9b891a5)
-- [10:55] [M1] P1.5 camera upload done (6ac5e18): extension allow-list, size cap, ffprobe validation, SHA-256, rtsp registration, DB-backed /api/cameras. Fixed `make dev` (contracts import) on the way.
-- [10:55] [M1] P1.6 ingest job runner done (): resumable by layer, one failing camera never stops the others, progress as `note` events on /api/events (kind=ingest|camera). 79 tests in make check.
+- [10:55] [M1] P1.5 camera upload done (1d565b9): extension allow-list, size cap, ffprobe validation, SHA-256, rtsp registration, DB-backed /api/cameras. Fixed `make dev` (contracts import) on the way.
+- [10:55] [M1] P1.6 ingest job runner done (1d2d26c): resumable by layer, one failing camera never stops the others, progress as `note` events on /api/events (kind=ingest|camera). 257 tests in make check after merging M3.
