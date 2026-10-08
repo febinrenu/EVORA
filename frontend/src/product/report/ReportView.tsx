@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { ApiError } from "@/lib/api/client";
 import { CAPABILITY, LABELS, SPLITS, fetchReport, metric, splitName, systemName, value, type AblationRow, type EvalFile, type Metric, type Report, type SystemReport } from "./data";
+import { ExtraChecks } from "./Extended";
 
 const RATIOS = ["hit@1", "hit@5", "mrr", "camera_accuracy", "negative_precision"] as const;
 const TABLE = ["hit@1", "hit@5", "mrr", "camera_accuracy", "timestamp_error_s", "negative_precision", "reask_count", "ttfa_p50_ms"] as const;
@@ -97,6 +98,7 @@ export function ReportView({ initial = null }: { initial?: Report | null }) {
               <p className="rp-lead">Same footage, same parsed time window and camera filter for every system; only retrieval differs. n is the number of questions a metric applies to.</p>
               <ResultsTable overall={r.overall} splits={splits} />
             </section>
+            <ExtraChecks extended={r.extended} />
             {Object.keys(r.capabilities).length ? (
               <section className="rp-section" aria-labelledby="rp-caps">
                 <h2 id="rp-caps">By capability</h2>

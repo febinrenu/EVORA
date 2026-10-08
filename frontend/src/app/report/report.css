@@ -410,3 +410,35 @@
 .rp-table thead th:nth-child(-n + 3) {
   text-align: left;
 }
+
+/* extra checks: plain tables, every number with its n */
+.rp-extra {
+  margin-top: 1.6rem;
+}
+.rp-extra .rp-lead {
+  font-size: 0.875rem;
+}
+.rp-extra .rp-table thead th {
+  text-align: right;
+}
+.rp-extra .rp-table thead th:first-child {
+  text-align: left;
+}
+.rp-extra .rp-table td {
+  text-align: right;
+}
+.rp-n {
+  margin-left: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--g48);
+}
+.rp-gap {
+  margin-top: 0.8rem;
+}
+.rp-caption {
+  caption-side: top;
+  text-align: left;
+  padding: 0.55rem 0.75rem 0.2rem;
+  font-size: 0.8125rem;
+  color: var(--g48);
+}

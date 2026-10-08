@@ -45,12 +45,14 @@ export interface Report {
   supported: string[];
   notShown: string[];
   limits: string[];
+  /** M3's extra checks (low-chance windows, conversations, colour); shown only next to the main results */
+  extended: Record<string, unknown>;
 }
 
 export const SPLITS = ["test", "dev", "judge_sim"] as const;
 
 type Raw = Record<string, unknown>;
-const obj = (v: unknown): Raw => (v && typeof v === "object" && !Array.isArray(v) ? (v as Raw) : {});
+export const obj = (v: unknown): Raw => (v && typeof v === "object" && !Array.isArray(v) ? (v as Raw) : {});
 const list = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 
 /** Normalise whatever /api/report returns; null when nothing has been measured. */
@@ -77,6 +79,7 @@ export function normalise(raw: unknown): Report | null {
       supported: list(r.supported_claims),
       notShown: list(r.not_shown),
       limits: list(r.limits),
+      extended: obj(r.extended),
     };
   }
   // older shape: {eval: file | {split: file}, ablations: {label: {switch, skipped, report}}}
@@ -90,7 +93,7 @@ export function normalise(raw: unknown): Report | null {
     const rep = obj(rr.report);
     return { label, switch: (rr.switch as AblationRow["switch"]) ?? null, skipped: typeof rr.skipped === "string" ? rr.skipped : null, metrics: (rep.metrics as AblationRow["metrics"]) ?? null, n_queries: typeof rep.n_queries === "number" ? rep.n_queries : null };
   });
-  return { generatedAt: null, commit: null, frozen: null, overall, capabilities: {}, pooled: {}, ablations, evaluated: [], notEvaluated: {}, supported: [], notShown: [], limits: [] };
+  return { generatedAt: null, commit: null, frozen: null, overall, capabilities: {}, pooled: {}, ablations, evaluated: [], notEvaluated: {}, supported: [], notShown: [], limits: [], extended: {} };
 }
 
 export const metric = (m: Record<string, Metric> | undefined | null, key: string): Metric | null => m?.[key] ?? null;
