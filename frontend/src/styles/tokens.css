@@ -1,0 +1,43 @@
+/* EVORA tokens. One colour, one meaning:
+   chinagraph = the match, cyan = links/paths/focus, marker = memory. */
+:root {
+  --void: #06080a;
+  --panel: #0e1418;
+  --bone: #dce3e7;
+  --bone-8: rgb(220 227 231 / 0.08);
+  --bone-16: rgb(220 227 231 / 0.16);
+  --bone-32: rgb(220 227 231 / 0.32);
+  --bone-48: rgb(220 227 231 / 0.48);
+  --bone-72: rgb(220 227 231 / 0.72);
+  --chinagraph: #f05a66;
+  --chinagraph-ink: #c8102e;
+  --cyan: #86b6e0;
+  --marker: #e9b308;
+  --lightbox: #e8edef;
+  --diffuser: #f6f8f9;
+  --graphite: #2b3137;
+
+  /* 0 = unlit glass, 1 = the light table (finale and /app) */
+  --lights: 0;
+  --bg: color-mix(in oklab, var(--void), var(--lightbox) calc(var(--lights) * 100%));
+  --ink: color-mix(in oklab, var(--bone), var(--graphite) calc(var(--lights) * 100%));
+  --ink-48: color-mix(in oklab, var(--bone-48), rgb(43 49 55 / 0.6) calc(var(--lights) * 100%));
+  --ink-16: color-mix(in oklab, var(--bone-16), rgb(43 49 55 / 0.16) calc(var(--lights) * 100%));
+  --match: color-mix(in oklab, var(--chinagraph), var(--chinagraph-ink) calc(var(--lights) * 100%));
+
+  --font-display: var(--font-archivo), "Archivo", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  /* type scale */
+  --t-micro: 0.6875rem; /* 11px mono labels */
+  --t-small: 0.8125rem;
+  --t-body: 1rem;
+  --t-lead: clamp(1.25rem, 1rem + 1.1vw, 2rem);
+  --t-statement: clamp(1.75rem, 1.1rem + 3vw, 4.25rem);
+  --t-display: clamp(3rem, 0.6rem + 9.6vw, 12.5rem);
+  --t-mega: clamp(3.6rem, 0.4rem + 12.4vw, 16rem);
+
+  --gutter: clamp(1rem, 0.6rem + 1.6vw, 2.25rem);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
