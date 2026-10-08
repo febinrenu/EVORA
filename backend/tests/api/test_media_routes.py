@@ -194,6 +194,7 @@ def test_cache_removes_least_recently_used_first(env):
     _age(next(thumbs.glob("ev_b_*")), 200)
     env.client.get(f"/api/media/thumb/{ids[2]}.jpg")  # over the cap: the oldest (a) goes
     assert sorted(p.name.split("_raw")[0] for p in thumbs.glob("*.jpg")) == ["ev_b", "ev_c"]
+    _age(next(thumbs.glob("ev_c_*")), 100)  # explicit ages: two files touched within one clock tick would tie
     env.client.get(f"/api/media/thumb/{ids[1]}.jpg")  # a hit on b makes it recent
     env.client.get(f"/api/media/thumb/{ids[3]}.jpg")  # now c is the oldest
     assert sorted(p.name.split("_raw")[0] for p in thumbs.glob("*.jpg")) == ["ev_b", "ev_d"]

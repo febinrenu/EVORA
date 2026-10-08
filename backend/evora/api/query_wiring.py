@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from contracts.models import ClarifyResponse, Evidence, QueryPlan
 
 from evora.core import cameras as cams
-from evora.core import perception_adapter
+from evora.core import live_sessions, perception_adapter
 from evora.core.media_service import MediaError
 from evora.core.vectors import open_store
 from evora.memory.clarify import ClarifyOutcome
@@ -109,5 +109,7 @@ def build_router(ctx: AppContext, gateway: Any, clarifier: ClarifierAdapter, pla
         ctx.db, planner, retriever, ctx.memory.resolver, clarifier,
         Verifier(gateway, CropSource(ctx)), RouterConfig(), reference_override=lambda: ctx.settings["reference_now"],
         gateway=gateway,  # `describe` answers are phrased by the grounded model instead of the plain summary
+        # a looped replay-as-live camera shows its real position in the file, not wall clock minus t0
+        file_offset=lambda camera_id, duration_s, t: live_sessions.file_offset(ctx.db, camera_id, duration_s, t),
     )
 

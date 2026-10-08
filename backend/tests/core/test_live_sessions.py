@@ -146,3 +146,13 @@ def test_the_restream_records_its_sessions(tmp_path, monkeypatch):
         assert ended == ["cam_01"]
     finally:
         mgr.shutdown()
+
+
+def test_the_router_maps_replayed_live_times_to_the_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("evora_WORKSPACE", "routerwire")
+    ctx = TestClient(create_app(workspaces_root=tmp_path / "ws", gateway=object())).app.state.ctx
+    hook = ctx.router._file_offset
+    assert hook is not None and hook("cam_01", 10.0, 103.0) is None, "no session yet: the router keeps t - t0"
+    ls.begin(ctx.db, "cam_01", 100.0, 1.0)
+    assert hook("cam_01", 10.0, 103.0) == pytest.approx(3.0)
+    assert hook("cam_01", 10.0, 112.0) == pytest.approx(2.0), "looped once"
