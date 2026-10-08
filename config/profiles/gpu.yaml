@@ -2,3 +2,5 @@ profile: gpu
 device: cuda
 jobs:
   workers: 2
+ingest:
+  fps_floor: 4.0      # at 1 fps ByteTrack cannot follow a distant walker (it moves more than its own width between frames): MEVA G423 12 -> 57 people

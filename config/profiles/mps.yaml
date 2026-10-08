@@ -1,2 +1,4 @@
 profile: mps
 device: mps
+ingest:
+  fps_floor: 4.0      # see gpu.yaml

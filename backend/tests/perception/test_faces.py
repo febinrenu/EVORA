@@ -44,7 +44,7 @@ def test_image_without_faces_keeps_its_pixels():
 
 def test_missing_model_raises_instead_of_returning_unblurred(tmp_path, monkeypatch):
     monkeypatch.setenv("EVORA_MODELS_DIR", str(tmp_path))
-    monkeypatch.setattr(faces, "_detector", None)
+    monkeypatch.setattr(faces, "_local", __import__("threading").local())
     with pytest.raises(faces.FaceBlurUnavailable):
         faces.blur_frame(np.zeros((32, 32, 3), dtype=np.uint8))
 
@@ -52,3 +52,31 @@ def test_missing_model_raises_instead_of_returning_unblurred(tmp_path, monkeypat
 def test_garbage_bytes_are_rejected():
     with pytest.raises(ValueError):
         faces.blur_faces(b"not an image")
+
+
+def test_threads_blur_at_the_same_time_with_their_own_detector():
+    import threading
+
+    import numpy as np
+
+    from evora.perception import faces
+
+    if not faces.model_path().is_file():
+        import pytest
+
+        pytest.skip("YuNet model not downloaded")
+    seen, errors = [], []
+
+    def work(size):
+        try:
+            frame = np.zeros((size, size * 2, 3), dtype=np.uint8)
+            for _ in range(3):
+                assert faces.blur_frame(frame).shape == frame.shape
+            seen.append(id(faces._local.detector))
+        except Exception as exc:  # noqa: BLE001 - the test reports any failure below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=work, args=(s,)) for s in (240, 360, 480, 720)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert not errors and len(set(seen)) == 4  # four threads, four detectors, different frame sizes at once

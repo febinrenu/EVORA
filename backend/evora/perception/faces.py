@@ -32,8 +32,7 @@ class FaceBlurUnavailable(RuntimeError):
     """The YuNet model is not present, so frames cannot be blurred."""
 
 
-_lock = threading.Lock()
-_detector: cv2.FaceDetectorYN | None = None
+_local = threading.local()   # an OpenCV detector keeps its input size, so each thread owns one and clips blur in parallel
 
 
 def model_path() -> Path:
@@ -42,21 +41,21 @@ def model_path() -> Path:
 
 
 def _get_detector(width: int, height: int) -> cv2.FaceDetectorYN:
-    global _detector
-    if _detector is None:
+    detector = getattr(_local, "detector", None)
+    if detector is None:
         path = model_path()
         if not path.is_file():
             raise FaceBlurUnavailable(f"face model missing: {path} (run scripts/models_download.py --only yunet)")
-        _detector = cv2.FaceDetectorYN.create(str(path), "", (width, height), SCORE_THRESHOLD, NMS_THRESHOLD, TOP_K)
-    _detector.setInputSize((width, height))
-    return _detector
+        detector = cv2.FaceDetectorYN.create(str(path), "", (width, height), SCORE_THRESHOLD, NMS_THRESHOLD, TOP_K)
+        _local.detector = detector
+    detector.setInputSize((width, height))
+    return detector
 
 
 def detect_faces(frame: np.ndarray) -> list[tuple[int, int, int, int]]:
     """Face boxes as pixel (x, y, w, h) in `frame`."""
     h, w = frame.shape[:2]
-    with _lock:
-        _, faces = _get_detector(w, h).detect(frame)
+    _, faces = _get_detector(w, h).detect(frame)
     if faces is None:
         return []
     return [(int(f[0]), int(f[1]), int(f[2]), int(f[3])) for f in faces]

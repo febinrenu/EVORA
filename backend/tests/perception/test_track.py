@@ -85,3 +85,15 @@ def test_detector_size_follows_the_frame_width(width, expected):
 
     assert detector_size(width, IngestSettings()) == expected
     assert detector_size(width, IngestSettings(det_imgsz=512)) == 512        # an explicit setting always wins
+
+
+def test_tracker_starts_small_distant_people_and_keeps_them_for_the_lost_time():
+    from evora.perception.settings import IngestSettings
+    from evora.perception.track import build_tracker, tracker_overrides
+
+    cfg = IngestSettings()
+    tracker, args = build_tracker(cfg.tracker, tracker_overrides(cfg))
+    assert args.new_track_thresh == cfg.track_new_thresh and args.track_high_thresh == cfg.track_high_thresh
+    assert args.track_buffer >= cfg.track_lost_s * cfg.fps_ceil          # frames at the busiest rate cover track_lost_s
+    stock, stock_args = build_tracker(cfg.tracker)
+    assert stock_args.new_track_thresh == 0.25

@@ -6,6 +6,7 @@ ingested at the same time cannot mix up each other's track ids.
 from __future__ import annotations
 
 import itertools
+import math
 import threading
 from dataclasses import dataclass
 
@@ -25,8 +26,21 @@ class TrackedBox:
     xyxy: tuple[float, float, float, float]   # pixels in the processed frame
 
 
-def build_tracker(tracker_cfg: str):
-    """A fresh Ultralytics tracker (ByteTrack by default) from a tracker yaml name."""
+def tracker_overrides(cfg: IngestSettings) -> dict[str, float | int]:
+    """Our own start and buffer values on top of the stock yaml.
+
+    The stock file starts a track only from a box scoring 0.25, which drops small, distant people (they score 0.15 to
+    0.25). The buffer is counted in processed frames: it must last at least `track_lost_s` at the busiest sampling rate.
+    """
+    return {
+        "track_high_thresh": cfg.track_high_thresh,
+        "new_track_thresh": cfg.track_new_thresh,
+        "track_buffer": max(30, int(math.ceil(cfg.track_lost_s * cfg.fps_ceil))),
+    }
+
+
+def build_tracker(tracker_cfg: str, overrides: dict[str, float | int] | None = None):
+    """A fresh Ultralytics tracker (ByteTrack by default) from a tracker yaml name, with optional value overrides."""
     from evora.perception.lap_shim import install_if_missing
 
     install_if_missing()          # before Ultralytics imports `lap` (it would try to pip install it)
@@ -34,7 +48,7 @@ def build_tracker(tracker_cfg: str):
     from ultralytics.utils import YAML, IterableSimpleNamespace
     from ultralytics.utils.checks import check_yaml
 
-    cfg = IterableSimpleNamespace(**YAML.load(check_yaml(tracker_cfg)))
+    cfg = IterableSimpleNamespace(**{**YAML.load(check_yaml(tracker_cfg)), **(overrides or {})})
     tracker = TRACKER_MAP[cfg.tracker_type](args=cfg)
     # Ultralytics numbers tracks from one counter shared by every tracker in the process, and creating a tracker
     # resets it. Give this tracker its own counter so cameras ingested at the same time cannot collide.
@@ -63,7 +77,7 @@ def detector_size(width: int, cfg: IngestSettings) -> int:
 class FrameTracker:
     def __init__(self, det: LoadedDetector, cfg: IngestSettings):
         self.det, self.cfg = det, cfg
-        self._tracker, tracker_cfg = build_tracker(cfg.tracker)
+        self._tracker, tracker_cfg = build_tracker(cfg.tracker, tracker_overrides(cfg))
         # ByteTrack uses low-confidence boxes to keep existing tracks alive, so the detector must report them
         self._conf = min(cfg.det_conf, float(getattr(tracker_cfg, "track_low_thresh", cfg.det_conf)))
 
