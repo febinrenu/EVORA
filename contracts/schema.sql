@@ -83,3 +83,10 @@ CREATE TABLE IF NOT EXISTS alerts(id TEXT PRIMARY KEY, sq_id TEXT, t REAL, camer
 CREATE TABLE IF NOT EXISTS ingest_jobs(id TEXT PRIMARY KEY, camera_id TEXT, state TEXT, layer TEXT, progress REAL, rate REAL, error TEXT, updated_at REAL);
 CREATE TABLE IF NOT EXISTS query_log(id TEXT PRIMARY KEY, text TEXT, plan TEXT, answer TEXT, timings TEXT, created_at REAL);
 CREATE TABLE IF NOT EXISTS audit_log(id TEXT PRIMARY KEY, actor TEXT, action TEXT, detail TEXT, t REAL);
+
+-- v1.1 (additive): evidence registry so media routes can resolve an evidence id to camera, window and box
+CREATE TABLE IF NOT EXISTS evidence(
+  id TEXT PRIMARY KEY, camera_id TEXT NOT NULL REFERENCES cameras(id),
+  t_start REAL NOT NULL, t_end REAL NOT NULL, t_peak REAL NOT NULL,
+  bbox TEXT, track_id TEXT, created_at REAL NOT NULL
+);

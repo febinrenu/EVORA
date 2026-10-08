@@ -20,6 +20,7 @@ FastAPI on `:8700`, UI dev server on `:5173`.
 | `GET /api/tracks/{id}/similar?k=20` | — | `Evidence[]` (query by example) |
 | `GET /api/globals/{gid}/path` | — | `PathHop[]` |
 | `GET /api/media/thumb/{evidence_id}.jpg` · `GET /api/media/clip/{evidence_id}.mp4` | range requests | rendered on demand, cached, faces blurred by default |
+| `POST /api/media/unblur` (v1.1) | `{reason}` | `{token, expires_at}`: 5-minute token; pass `?unblur=<token>` on media and frame routes. Audited. |
 | `POST /api/evidence/{id}/pack` | — | zip (clip, frames, provenance JSON, SHA-256 manifest) |
 | `POST /api/standing` · `GET /api/standing` · `PATCH /api/standing/{id}` | `{text}` | `StandingQuery` (compiled) |
 | `GET /api/alerts` · `POST /api/alerts/{id}/ack` | — | `Alert[]` |
@@ -30,3 +31,5 @@ FastAPI on `:8700`, UI dev server on `:5173`.
 | `POST /api/dev/gt` | `{query, camera_id, window}` | appends a ground-truth item (dev builds only) |
 
 **SSE order for a query:** `plan` → (`clarify` and stop) **or** `evidence`* → `answer` → `verified`* → `done`. The UI must render `answer` before `verified` arrives.
+
+**v1.1 notes.** Media responses carry `X-Evora-Blur: applied | off | unavailable`. `unavailable` means blur was requested but the face-blur model is not installed; the UI should warn. Schema adds table `evidence` (see `schema.sql`); M3 registers every `Evidence` it returns via `evora.evidence.store.register`.

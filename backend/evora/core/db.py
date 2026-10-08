@@ -10,7 +10,8 @@ from pathlib import Path
 from evora.core.config import REPO_ROOT
 
 SCHEMA_SQL = REPO_ROOT / "contracts" / "schema.sql"
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "1.1"
+SCHEMA_MAJOR = SCHEMA_VERSION.split(".")[0]
 
 _writers: dict[Path, Database] = {}
 _registry_lock = threading.Lock()
@@ -39,8 +40,10 @@ class Database:
             row = self._conn.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
             if row is None:
                 self._conn.execute("INSERT INTO meta(key, value) VALUES('schema_version', ?)", (SCHEMA_VERSION,))
-            elif row["value"].split(".")[0] != SCHEMA_VERSION:
+            elif row["value"].split(".")[0] != SCHEMA_MAJOR:
                 raise RuntimeError(f"workspace schema {row['value']} is not compatible with v{SCHEMA_VERSION}")
+            elif row["value"] != SCHEMA_VERSION:  # same major: additive tables were just created above
+                self._conn.execute("UPDATE meta SET value=? WHERE key='schema_version'", (SCHEMA_VERSION,))
 
     @contextmanager
     def write(self) -> Iterator[sqlite3.Connection]:
