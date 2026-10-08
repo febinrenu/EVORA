@@ -145,7 +145,10 @@ class ReplayManager:
         log_file.parent.mkdir(parents=True, exist_ok=True)
         flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         with log_file.open("ab") as fh:
-            return subprocess.Popen(args, stdout=fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, creationflags=flags)
+            return subprocess.Popen(
+                args, stdout=fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, creationflags=flags,
+                cwd=log_file.parent,  # MediaMTX writes auto.crt and auto.key next to where it starts: keep them in the workspace
+            )
 
     @staticmethod
     def _kill(proc: ProcessLike | None) -> None:

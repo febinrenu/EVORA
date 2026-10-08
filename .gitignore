@@ -13,3 +13,8 @@ __pycache__/
 .mypy_cache/
 node_modules/
 frontend/dist/
+
+# certificates MediaMTX generates next to where it is started
+auto.crt
+auto.key
+*.pem
