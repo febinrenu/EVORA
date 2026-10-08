@@ -8,6 +8,8 @@ import httpx
 
 from evora.llm.schemas import LLMError
 
+MAX_NEW_TOKENS = 700  # plans and yes/no lists are short; a hard cap keeps a runaway model from stalling a query
+
 
 class OllamaClient:
     def __init__(self, host: str, client: httpx.AsyncClient, timeout_s: float = 120.0) -> None:
@@ -33,7 +35,8 @@ class OllamaClient:
             "messages": messages,
             "stream": False,
             "format": json_schema if json_schema is not None else "json",
-            "options": {"temperature": 0},
+            "think": False,  # reasoning models otherwise spend the whole budget thinking and cut the JSON off
+            "options": {"temperature": 0, "num_predict": MAX_NEW_TOKENS},
         }
         return await self._chat(payload)
 
@@ -45,6 +48,7 @@ class OllamaClient:
             ],
             "stream": False,
             "format": "json",
-            "options": {"temperature": 0},
+            "think": False,
+            "options": {"temperature": 0, "num_predict": MAX_NEW_TOKENS},
         }
         return await self._chat(payload)

@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, tzinfo
 from typing import Protocol
 
-from contracts.models import QueryPlan, Referent
+from contracts.models import QueryPlan, Referent, Target
 from pydantic import ValidationError
 
 from evora.core.db import Database
@@ -111,15 +111,44 @@ def workspace_tz(db: Database) -> tzinfo:
     return parse_tz(db.get_meta("tz"))
 
 
-def sanitize(plan: QueryPlan, cameras: Sequence[CameraLike]) -> QueryPlan:
-    """Enforce the rules the prompt asks for, whatever the model returned."""
+def _repair_targets(targets: list[Target]) -> list[Target]:
+    """Small models split "green jacket" into its own target, forget classes and drop attributes."""
+    fixed: dict[str, Target] = {}
+    for t in targets:
+        noun = t.noun.strip().lower()
+        if not noun or noun in fastpath.COLOURS:
+            continue  # a colour is an attribute, not an object
+        t.cls = [c for c in t.cls if c in DETECTOR_CLASSES]
+        if not t.cls:
+            if noun in fastpath.PERSON_GENERIC or noun in fastpath.PERSON_SPECIFIC:
+                t.cls = ["person"]
+            elif noun in fastpath.VEHICLES:
+                t.cls = list(fastpath.VEHICLES[noun][1])
+        if not t.attributes:
+            words = re.findall(r"[a-z_]+", t.embed_text.lower())
+            t.attributes = list(dict.fromkeys(fastpath.COLOURS[w] for w in words if w in fastpath.COLOURS))
+        fixed.setdefault(noun, t)
+    return list(fixed.values())
+
+
+def sanitize(plan: QueryPlan, cameras: Sequence[CameraLike], question: str | None = None) -> QueryPlan:
+    """Enforce the rules the prompt asks for, whatever the model returned.
+
+    With `question`, a camera id is kept only if the question actually names that camera; models
+    sometimes invent one for a place they cannot map.
+    """
     known = {c.id for c in cameras}
     by_name = {fastpath.norm_name(c.name): c.id for c in cameras}
     plan = plan.model_copy(deep=True)
 
     camera_ids = [c for c in plan.camera_ids if c in known]
-    for target in plan.targets:
-        target.cls = [c for c in target.cls if c in DETECTOR_CLASSES]
+    if question is not None:
+        asked = fastpath.norm_name(question)
+        named = {c.id for c in cameras
+                 if fastpath.norm_name(c.name) and re.search(r"\b" + re.escape(fastpath.norm_name(c.name)) + r"\b", asked)
+                 or c.id.lower() in question.lower()}
+        camera_ids = [c for c in camera_ids if c in named]
+    plan.targets = _repair_targets(plan.targets)
     plan.limit = max(1, min(plan.limit, MAX_LIMIT))
 
     # a place that is really a camera name is a camera filter, not something to ask about
@@ -193,7 +222,7 @@ class Planner:
         source = "llm" if backend == "groq" else "local_llm"
         if source == "local_llm":
             notes.append("Planned with the local model (cloud planner unavailable or off).")
-        return sanitize(plan.model_copy(update={"source": source}), cameras)
+        return sanitize(plan.model_copy(update={"source": source}), cameras, text)
 
 
 def _ms(since: float) -> float:

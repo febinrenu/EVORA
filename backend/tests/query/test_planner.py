@@ -197,3 +197,33 @@ def test_workspace_tz_from_meta(db):
     assert workspace_tz(db).utcoffset(None).total_seconds() == 0
     db.set_meta("tz", "+05:30")
     assert workspace_tz(db).utcoffset(None).total_seconds() == 19800
+
+
+def test_sanitize_repairs_what_small_models_get_wrong():
+    plan = model_plan(targets=[
+        Target(noun="woman", cls=[], attributes=[], embed_text="a photo of a woman in a green jacket"),
+        Target(noun="green", cls=["person"], embed_text="green"),     # a colour posing as an object
+        Target(noun="woman", cls=["person"], embed_text="duplicate"),  # same noun twice
+        Target(noun="car", cls=["spaceship"], embed_text="a photo of a car"),
+    ])
+    fixed = sanitize(plan, CAMS).targets
+    assert [t.noun for t in fixed] == ["woman", "car"]
+    assert fixed[0].cls == ["person"] and fixed[0].attributes == ["green"]
+    assert fixed[1].cls == ["car"] and fixed[1].attributes == []  # an invalid class is replaced from the noun
+
+
+def test_sanitize_drops_cameras_the_question_never_named():
+    plan = model_plan(camera_ids=["cam_01", "cam_02"])
+    assert sanitize(plan, CAMS, "alert me if anyone enters the server room").camera_ids == []
+    assert sanitize(plan, CAMS, "what happened at the gate and in the Lobby camera?").camera_ids == ["cam_01", "cam_02"]
+    assert sanitize(plan, CAMS, "look at cam_02 please").camera_ids == ["cam_02"]
+    assert sanitize(plan, CAMS).camera_ids == ["cam_01", "cam_02"]  # no question given: only unknown ids are dropped
+
+
+@pytest.mark.asyncio
+async def test_an_invented_camera_in_a_model_plan_does_not_survive_planning():
+    plan = model_plan(camera_ids=["cam_01"], place=Referent(text="server room", role="place"),
+                      unresolved=[Referent(text="server room", role="place")])
+    res = await Planner(FakeGateway(plan, backend="local")).plan("alert me if anyone enters the server room", CAMS,
+                                                                 REF, IST)
+    assert res.plan.camera_ids == [] and [r.text for r in res.plan.unresolved] == ["server room"]
