@@ -6,14 +6,32 @@ import pytest
 
 from evora.core import db as dbmod
 
+REAL_PERCEPTION_PREFIXES = ("evora.perception", "evora.reid")
+HEAVY = ("ingest", "live_ingest", "query_embedder", "link_global_ids", "similar_tracks")  # need torch, models or a GPU
+
 
 @pytest.fixture(autouse=True)
-def _simulated_ingest(monkeypatch):
-    """Platform tests must not run the real (slow, GPU) pipeline even when the perception stack is installed."""
+def _simulated_perception(request, monkeypatch):
+    """Platform tests must not load the real (slow, GPU) perception stack, even when it is installed.
+
+    The heavy functions the adapter would find in `evora.perception` or `evora.reid` are treated as absent, so the same tests give
+    the same answer with and without the stack. Fakes that tests install themselves are untouched. A test that wants
+    the real functions says so with `@pytest.mark.real_perception`.
+    """
+    if request.node.get_closest_marker("real_perception"):
+        yield
+        return
     from evora.core import perception_adapter
 
     real_find = perception_adapter._find
-    monkeypatch.setattr(perception_adapter, "_find", lambda name: None if name == "ingest" else real_find(name))
+
+    def find(name):
+        fn = real_find(name)
+        if name in HEAVY and fn is not None and getattr(fn, "__module__", "").startswith(REAL_PERCEPTION_PREFIXES):
+            return None
+        return fn
+
+    monkeypatch.setattr(perception_adapter, "_find", find)
     yield
 
 

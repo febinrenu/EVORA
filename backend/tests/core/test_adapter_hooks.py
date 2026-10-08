@@ -22,6 +22,7 @@ def install(monkeypatch, name, **functions):
     monkeypatch.setattr(adapter, "MODULES", (name,))
 
 
+@pytest.mark.real_perception
 def test_the_real_functions_are_found_where_the_other_members_put_them():
     assert adapter._find("recompute_events").__module__ == "evora.perception.events"
     assert adapter._find("link_global_ids").__module__ == "evora.reid.associate"

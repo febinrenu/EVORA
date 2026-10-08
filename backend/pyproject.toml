@@ -27,6 +27,7 @@ perception = [
   "torchvision>=0.18",
   "ultralytics>=8.3",
   "transformers>=4.45",
+  "clip @ git+https://github.com/ultralytics/CLIP.git",
   "boxmot>=10",
 ]
 
@@ -36,6 +37,9 @@ dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6", "mypy>=1.10", "types-py
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["evora"]
@@ -55,3 +59,4 @@ ignore = ["E701", "E702"]
 testpaths = ["tests"]
 pythonpath = [".", ".."]
 asyncio_mode = "auto"
+markers = ["real_perception: use the real perception functions instead of treating them as absent"]
