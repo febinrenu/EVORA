@@ -8,7 +8,7 @@ How to use this file:
 - Times in IST, 24-hour, `[HH:MM]`. Member tags: `[M1]` `[M2]` `[M3]` `[M4]`.
 - Task IDs follow the plan (P1.x, P2.x, P3.x, P4.x).
 
-Team: M1 Adhu (Platform, Memory & Integration) · M2 ________ (Perception & Identity) · M3 ________ (Reasoning, Retrieval & Science) · M4 ________ (Experience)
+Team: M1 Adhu (Platform, Memory & Integration) · M2 Johann (Perception & Identity) · M3 ________ (Reasoning, Retrieval & Science) · M4 ________ (Experience)
 Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 12:45 · Submit: start + 15:00
 
 ---
@@ -22,10 +22,10 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 - Blockers:
 
 ### M2 — Perception & Identity
-- State: not started
-- Doing:
-- Next: P2.1–P2.3
-- Blockers:
+- State: on track
+- Doing: P2.4-P2.10 perception pipeline (decode, clock, motion, detect, track, crops, embed, pipeline); detect_clock and ingest for M1
+- Next: P2.3 detector spike on the RTX 4060, then golden mini-index for M3
+- Blockers: none; MEVA and WILDTRACK downloads still running
 
 ### M3 — Reasoning, Retrieval & Science
 - State: on track
@@ -66,6 +66,7 @@ State values: not started · on track · at risk · blocked · done
 
 ## Decisions (append only)
 - [HH:MM] [M1] DECISION: project name evora, Python package `evora`. Why: short, local, meaningful. Impact: none.
+- [16:06] [M2] DECISION: naive times in file names are read in Asia/Kolkata (clock.default_tz). Why: the team and the judging venue are in IST. Impact: M3 time anchoring uses epoch seconds, so only the file-name interpretation depends on it.
 
 ## Contract change requests (append only)
 - [11:40] [M1] REQUEST (self-approved, additive): table `evidence` in schema.sql and `POST /api/media/unblur`; media routes accept `?unblur=<token>` and answer with header `X-Evora-Blur`. Why: media routes must resolve an evidence id; unblur must be audited. Affects: M3 (register evidence), M4 (blur header). → [11:40] [M1] APPROVED v1.1 (07c7e79)
@@ -77,12 +78,15 @@ State values: not started · on track · at risk · blocked · done
 - [11:40] [M1] → M4: show a visible warning when a media response has `X-Evora-Blur: unavailable`; the unblur flow is `POST /api/media/unblur {reason}` then `?unblur=<token>` (5 minute token, audited).
 - [10:55] [M1] → M2: expose `detect_clock(path) -> (t0, source)` and `ingest(cam, profile, layers, on_progress)` from `evora.perception` (or `.clock` / `.pipeline`). M1 calls them through `core/perception_adapter.py`, which uses a simulated stub until they exist. `on_progress` takes an `IngestJob` (layer + progress 0..1; progress 1.0 marks that layer finished).
 <!-- - [HH:MM] [M4] → M1: /api/cameras should include thumbnail URL. → [HH:MM] [M1] done (abc1234) -->
+- [16:06] [M2] → M1: add perception dependencies to backend/pyproject.toml (av, opencv-python-headless, numpy, pillow, torch, torchvision, ultralytics, transformers, tzdata, boxmot) and an `ingest:` block in config/default.yaml (keys in backend/evora/perception/settings.py, all have defaults). Also: jobs.py should call add_layers only for layers ingest finished (progress 1.0); L2 and L3 are not implemented yet and ingest skips them.
+- [16:06] [M2] → M1: media paths I store (crops.crop_path, scenes.frame_path, tracks.best_crop) are relative to the workspace media/ directory, e.g. crops/cam_01/t000001_0.jpg. Tell me if the media service expects another base.
 
 ## Known issues (append; mark fixed with commit)
 
 ## Datasets and models status (append)
 
 ---
+- [16:06] [M2] EPFL terrace1, passageway1 and 6p (12 clips) downloaded and normalised to H.264 mp4 under data/norm/epfl; manifest at data/manifest.json. MEVA 2018-03-05 11:05-11:10 slice and WILDTRACK zip downloading.
 
 ## Log (append only, newest at the bottom)
 - [HH:MM] [M1] Repository created; PROGRESS.md initialised.
@@ -105,3 +109,4 @@ State values: not started · on track · at risk · blocked · done
 - [16:30] [M3] NOTE: ours/b0 systems are not yet registered in eval/harness.py build_system (needs P3.6 retrieval, P3.9 router and an indexed workspace). No new contract changes needed so far.
 - [11:40] [M1] CONTRACT v1.1: evidence table + unblur endpoint (07c7e79). Pull and regenerate nothing: TS types are unchanged.
 - [11:40] [M1] P1.7 media service done (31e0d13, store e7ebd64): real frames, cached thumbnails with box, clips (3 s pre/post roll, faststart, HTTP range), face blur hook with honest `unavailable` state, audited unblur tokens. Bug fixed on the way: seeking past the last frame returned nothing.
+- [16:06] [M2] P2.1 and P2.2 done: fetch_epfl, fetch_wildtrack, fetch_meva, transcode, manifest and models_download scripts (0dbf4b8). One-line fix in .gitignore: `data/` -> `/data/` because it also ignored scripts/data.
