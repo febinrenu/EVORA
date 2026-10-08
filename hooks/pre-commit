@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Local-only hook. Blocks local-only files and added lines that name the coding tool.
+set -u
+
+blocked="$(git diff --cached --name-only | grep -E '^(CLAUDE\.md|CLAUDE\.local\.md|PLAN\.md|\.claude/|\.env(\.local)?$|data/|models/|workspaces/)' || true)"
+if [ -n "$blocked" ]; then
+  echo "pre-commit: local-only files are staged:" >&2
+  echo "$blocked" >&2
+  echo "Unstage them with: git restore --staged <path>" >&2
+  exit 1
+fi
+
+added="$(git diff --cached -U0 --no-color --diff-filter=ACMR -- . \
+  ':(exclude)package-lock.json' ':(exclude)pnpm-lock.yaml' ':(exclude)yarn.lock' ':(exclude)uv.lock' \
+  | grep -E '^\+[^+]' || true)"
+hits="$(printf '%s\n' "$added" | grep -iE 'claude|anthropic|co-authored-by|generated with' || true)"
+if [ -n "$hits" ]; then
+  echo "pre-commit: added lines mention the coding tool or attribution:" >&2
+  printf '%s\n' "$hits" | head -5 >&2
+  echo "Remove those mentions, then commit again." >&2
+  exit 1
+fi
+exit 0

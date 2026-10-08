@@ -1,0 +1,5 @@
+PROGRESS.md merge=union
+*.mp4 binary
+*.avi binary
+*.jpg binary
+*.png binary

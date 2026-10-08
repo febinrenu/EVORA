@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Local-only hook. Strips tool attribution trailers from the commit message,
+# then refuses the commit if the message still mentions the tool.
+set -u
+msg_file="$1"
+tmp="$(mktemp)"
+
+# 1) Drop known attribution lines (case-insensitive).
+grep -viE '^[[:space:]]*(co-authored-by:.*(claude|anthropic)|.*generated (with|by) .*claude|claude-session:|.*claude\.ai/code)' "$msg_file" > "$tmp" || true
+# 2) Drop lines that are only the robot emoji footer variant.
+grep -v $'\xF0\x9F\xA4\x96' "$tmp" > "$msg_file" || true
+rm -f "$tmp"
+
+# 3) Remove trailing blank lines left behind.
+if command -v awk >/dev/null 2>&1; then
+  awk 'BEGIN{n=0} {lines[++n]=$0} END{while(n>0 && lines[n] ~ /^[[:space:]]*$/) n--; for(i=1;i<=n;i++) print lines[i]}' "$msg_file" > "$msg_file.tmp" && mv "$msg_file.tmp" "$msg_file"
+fi
+
+# 4) Block anything that still names the tool or claims generated authorship.
+if grep -v '^#' "$msg_file" | grep -qiE 'claude|anthropic|chatgpt|copilot|(ai|llm)[- ]generated|generated (by|with) (an? )?(ai|llm|assistant)'; then
+  echo "commit-msg: the message mentions a coding assistant or generated authorship." >&2
+  echo "Rewrite it in plain engineering terms (what changed and why)." >&2
+  exit 1
+fi
+exit 0
