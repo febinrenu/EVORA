@@ -43,6 +43,8 @@ class T:
     t1: float
     vec: np.ndarray
     attrs: dict
+    p0: tuple[float, float] | None = None      # foot point where the track starts
+    p1: tuple[float, float] | None = None      # foot point where it ends
 
 
 def attribute_agreement(a: dict, b: dict) -> float:
@@ -71,15 +73,80 @@ def load_tracks(db: Database, ws: Workspace, st: IngestSettings) -> list[T]:
     if "reid" not in set(store.list_tables().tables):
         return []
     vecs = {r["track_id"]: np.asarray(r["vector"], dtype=np.float32) for r in store.open_table("reid").to_arrow().to_pylist()}
+    min_s = min(st.reid_min_track_s, st.reid_stitch_min_track_s) if st.reid_stitch else st.reid_min_track_s
     with db.read() as c:
         rows = c.execute("SELECT id, camera_id, cls, t_start, t_end, attrs FROM tracks").fetchall()
+        ends: dict[str, list] = defaultdict(lambda: [None, None])
+        for which, agg in ((0, "min"), (1, "max")):
+            for r in c.execute(
+                f"SELECT p.track_id, p.x1, p.y1, p.x2, p.y2 FROM track_points p JOIN "  # noqa: S608 - fixed aggregate names
+                f"(SELECT track_id, {agg}(t) AS t FROM track_points GROUP BY track_id) e ON e.track_id=p.track_id AND e.t=p.t"
+            ):
+                ends[r["track_id"]][which] = ((r["x1"] + r["x2"]) / 2.0, r["y2"])
     return [
-        T(r["id"], r["camera_id"], r["cls"], r["t_start"], r["t_end"], vecs[r["id"]], json.loads(r["attrs"] or "{}"))
-        for r in rows if r["id"] in vecs and r["t_end"] - r["t_start"] >= st.reid_min_track_s
+        T(r["id"], r["camera_id"], r["cls"], r["t_start"], r["t_end"], vecs[r["id"]], json.loads(r["attrs"] or "{}"),
+          *ends.get(r["id"], (None, None)))
+        for r in rows if r["id"] in vecs and r["t_end"] - r["t_start"] >= min_s
     ]
 
 
-def _matrices(a: list[T], b: list[T], st: IngestSettings):
+def _colours_contradict(a: dict, b: dict) -> bool:
+    """Both garments have a known, different colour: two different people (infrared and unknown never contradict)."""
+    if a.get("is_ir") or b.get("is_ir"):
+        return False
+    for key in ("upper_color", "lower_color", "color"):
+        x, y = a.get(key), b.get(key)
+        if x and y and x != y:
+            return True
+    return False
+
+
+def stitch_pairs(tracks: list[T], st: IngestSettings) -> list[tuple[float, str, str]]:
+    """(score, earlier track id, later track id) for fragments of one person seen by the same camera.
+
+    A later track continues an earlier one when it starts shortly after it ends (or just as it ends), close to where it
+    ended, looks alike (cosine above a floor and clearly above the camera's background similarity) and wears no contradicting
+    colours. Each track gets at most one successor and one predecessor, chosen by the Hungarian algorithm.
+    """
+    from scipy.optimize import linear_sum_assignment
+
+    out: list[tuple[float, str, str]] = []
+    by_cam: dict[str, list[T]] = defaultdict(list)
+    for t in tracks:
+        if t.p0 is not None and t.p1 is not None:
+            by_cam[t.camera_id].append(t)
+    for group in by_cam.values():
+        if len(group) < 2:
+            continue
+        vecs = np.stack([t.vec for t in group])
+        cos = vecs @ vecs.T
+        iu = np.triu_indices(len(group), 1)
+        pool = cos[iu]
+        med = float(np.median(pool))
+        spread = max(1.4826 * float(np.median(np.abs(pool - med))), 1e-6) if pool.size >= MIN_POOL else None
+        n = len(group)
+        score = np.full((n, n), -1.0)
+        for i, a in enumerate(group):
+            for j, b in enumerate(group):
+                if i == j or FAMILIES.get(a.cls) is None or FAMILIES.get(a.cls) != FAMILIES.get(b.cls):
+                    continue
+                gap = b.t0 - a.t1
+                if not -0.3 <= gap <= st.reid_stitch_max_gap_s:
+                    continue
+                dist = float(np.hypot(b.p0[0] - a.p1[0], b.p0[1] - a.p1[1]))
+                if dist > st.reid_stitch_reach * (1.0 + max(gap, 0.0)):
+                    continue
+                if cos[i, j] < st.reid_stitch_min_cos or _colours_contradict(a.attrs, b.attrs):
+                    continue
+                if spread is not None and (cos[i, j] - med) / spread < st.reid_stitch_min_z:
+                    continue
+                score[i, j] = float(cos[i, j]) - 0.5 * dist
+        rows, cols = linear_sum_assignment(np.where(score > -1.0, -score, BIG_COST))
+        out += [(float(score[i, j]), group[i].id, group[j].id) for i, j in zip(rows, cols, strict=True) if score[i, j] > -1.0]
+    return out
+
+
+def _matrices(a: list[T], b: list[T], st: IngestSettings, bg: tuple[float, float] | None = None):
     """Appearance cosine, plausibility mask, gaps, overlaps and attribute agreement for two camera groups.
 
     Also returns `z`: each cosine in robust standard deviations above the median cosine of all same-family
@@ -88,7 +155,9 @@ def _matrices(a: list[T], b: list[T], st: IngestSettings):
     app = np.stack([t.vec for t in a]) @ np.stack([t.vec for t in b]).T
     fam = np.array([[FAMILIES.get(x.cls) is not None and FAMILIES.get(x.cls) == FAMILIES.get(y.cls) for y in b] for x in a])
     pool = app[fam] if fam.any() else app.ravel()
-    if pool.size < MIN_POOL:
+    if bg is not None:
+        z = (app - bg[0]) / bg[1]           # background measured over every pair of cameras in the workspace
+    elif pool.size < MIN_POOL:
         z = np.full(app.shape, np.inf)      # too few pairs to know what 'everyone looks alike' means here
     else:
         med = float(np.median(pool))
@@ -124,11 +193,42 @@ def gaps_look_like_chance(matched: list[tuple[float, bool]], null: np.ndarray, s
     return float(binom.sf(inside - 1, len(gaps), min(max(base, 1e-6), 1.0))) > st.reid_topology_p
 
 
-def _bootstrap(groups: dict[str, list[T]], st: IngestSettings) -> dict[tuple[str, str], Link]:
+def global_background(groups: dict[str, list[T]]) -> tuple[float, float] | None:
+    """Median and robust spread of the appearance cosine between tracks of different cameras (same family), or None.
+
+    Small camera pairs cannot say what 'everyone looks alike' means, so the background is measured once over all of them.
+    """
+    values: list[np.ndarray] = []
+    cams = sorted(groups)
+    for i, ca in enumerate(cams):
+        for cb in cams[i + 1:]:
+            a, b = groups[ca], groups[cb]
+            app = np.stack([t.vec for t in a]) @ np.stack([t.vec for t in b]).T
+            fam = np.array([[FAMILIES.get(x.cls) is not None and FAMILIES.get(x.cls) == FAMILIES.get(y.cls) for y in b]
+                            for x in a])
+            if fam.any():
+                values.append(app[fam])
+    pool = np.concatenate(values) if values else np.empty(0)
+    if pool.size < MIN_POOL:
+        return None
+    med = float(np.median(pool))
+    return med, max(1.4826 * float(np.median(np.abs(pool - med))), 1e-6)
+
+
+def _vetoed(a: dict, b: dict, st: IngestSettings) -> bool:
+    """Two tracks whose garments were confidently read as different colours are different people."""
+    if a.get("is_ir") or b.get("is_ir"):
+        return False
+    if (a.get("color_conf") or 0.0) < st.reid_veto_conf or (b.get("color_conf") or 0.0) < st.reid_veto_conf:
+        return False
+    return _colours_contradict(a, b)
+
+
+def _bootstrap(groups: dict[str, list[T]], st: IngestSettings, bg=None) -> dict[tuple[str, str], Link]:
     samples: dict[tuple[str, str], list[tuple[float, bool]]] = defaultdict(list)
     for ca, cb in combinations(sorted(groups), 2):
         a, b = groups[ca], groups[cb]
-        app, mask, gap, over, _, z = _matrices(a, b, st)
+        app, mask, gap, over, _, z = _matrices(a, b, st, bg)
         score = np.where(mask, app, -1.0)
         for i in range(len(a)):
             order = np.argsort(-score[i])
@@ -177,10 +277,15 @@ def link_tracks(
 
     groups: dict[str, list[T]] = defaultdict(list)
     for t in tracks:
-        groups[t.camera_id].append(t)
+        if t.t1 - t.t0 >= st.reid_min_track_s:          # short fragments only take part in stitching below
+            groups[t.camera_id].append(t)
+    bg = global_background(groups)
     if links is None:
-        links = _bootstrap(groups, st) if st.reid_topology else {}
+        links = _bootstrap(groups, st, bg) if st.reid_topology else {}
     uf = _Union(tracks)
+    if st.reid_stitch:
+        for _, earlier, later in sorted(stitch_pairs(tracks, st), reverse=True):
+            uf.union(earlier, later)
     w_app, w_attr, w_topo = st.reid_w_appearance, st.reid_w_attributes, st.reid_w_topology
     if not st.reid_topology:
         total = w_app + w_attr
@@ -188,7 +293,7 @@ def link_tracks(
     candidates: list[tuple[float, str, str]] = []
     for ca, cb in combinations(sorted(groups), 2):
         a, b = groups[ca], groups[cb]
-        app, mask, gap, _, attr, z = _matrices(a, b, st)
+        app, mask, gap, _, attr, z = _matrices(a, b, st, bg)
         link = links.get(pair_key(ca, cb))
         topo = np.zeros(app.shape)
         if w_topo:
@@ -197,7 +302,8 @@ def link_tracks(
         score = w_app * app + w_attr * attr + w_topo * topo
         rows, cols = linear_sum_assignment(np.where(mask, -score, BIG_COST))
         for i, j in zip(rows, cols, strict=True):
-            if mask[i, j] and score[i, j] >= st.reid_accept_thr and z[i, j] >= st.reid_min_z:
+            if (mask[i, j] and score[i, j] >= st.reid_accept_thr and z[i, j] >= st.reid_min_z
+                    and app[i, j] >= st.reid_cross_min_cos and not _vetoed(a[i].attrs, b[j].attrs, st)):
                 candidates.append((float(score[i, j]), a[i].id, b[j].id))
     for _, x, y in sorted(candidates, reverse=True):   # strongest first, so a conflict drops the weaker link
         uf.union(x, y)

@@ -67,9 +67,18 @@ class IngestSettings(BaseModel):
     reid_w_topology: float = 0.2
     reid_topology_prior: float = 0.3  # topology score for a camera pair with no learned link
     reid_std_floor_s: float = 5.0
+    reid_cross_min_cos: float = 0.72  # appearance floor for a cross-camera link (a wrong merge costs more than a missed one)
+    reid_veto_conf: float = 0.6       # two clearly different, confidently read colours veto a link
     reid_min_z: float = 3.0           # a match must stand this many std above the camera pair's background similarity
     reid_margin: float = 0.05         # and beat the runner-up by this much to teach the topology
     reid_topology_p: float = 0.05     # matched gaps must be more concentrated than chance at this p-value
+    # within-camera stitching: one person broken into several tracks becomes one identity
+    reid_stitch: bool = True
+    reid_stitch_max_gap_s: float = 8.0       # longest pause between two fragments of one person
+    reid_stitch_min_track_s: float = 0.5     # fragments this short can still be stitched
+    reid_stitch_min_cos: float = 0.70        # appearance must be at least this similar ...
+    reid_stitch_min_z: float = 2.0           # ... and stand out from the camera's background similarity
+    reid_stitch_reach: float = 0.06          # allowed jump (normalised) plus this much per second of gap
     # embeddings
     image_model: str = "google/siglip2-base-patch16-224"
     embed_batch: int = 32
