@@ -1,6 +1,7 @@
 """FastAPI app for contract v1. Routes whose owner has not wired a service yet still return fixtures."""
 from __future__ import annotations
 
+import asyncio
 import base64
 from collections.abc import Callable
 from contextlib import asynccontextmanager
@@ -11,7 +12,16 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from evora.api import fixtures, routes_cameras, routes_ingest, routes_media, routes_memory, routes_query, routes_zones
+from evora.api import (
+    fixtures,
+    routes_alerts,
+    routes_cameras,
+    routes_ingest,
+    routes_media,
+    routes_memory,
+    routes_query,
+    routes_zones,
+)
 from evora.api.context import AppContext
 from evora.core.config import load_config
 from evora.core.jobs import IngestFn
@@ -37,6 +47,7 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        ctx.notifier.loop = asyncio.get_running_loop()
         yield
         ctx.runner.shutdown(wait=False)
         ctx.prerender.shutdown()
@@ -51,6 +62,7 @@ def create_app(
     app.include_router(routes_memory.make_router(ctx))
     app.include_router(routes_query.make_router(ctx))
     app.include_router(routes_zones.make_router(ctx))
+    app.include_router(routes_alerts.make_router(ctx))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cfg["server"]["cors_origins"],
@@ -110,27 +122,6 @@ def create_app(
     @app.post("/api/evidence/{evidence_id}/pack")
     def pack(evidence_id: str):
         return Response(b"PK\x05\x06" + b"\x00" * 18, media_type="application/zip")
-
-    # --- standing queries, alerts ---
-    @app.post("/api/standing")
-    def add_standing(body: dict):
-        return {**fixtures.load("standing_query"), "text": body.get("text", "")}
-
-    @app.get("/api/standing")
-    def standing():
-        return [fixtures.load("standing_query")]
-
-    @app.patch("/api/standing/{sid}")
-    def patch_standing(sid: str, body: dict):
-        return {**fixtures.load("standing_query"), "id": sid, **{k: v for k, v in body.items() if k == "active"}}
-
-    @app.get("/api/alerts")
-    def alerts():
-        return [fixtures.load("alert")]
-
-    @app.post("/api/alerts/{aid}/ack")
-    def ack(aid: str):
-        return {**fixtures.load("alert"), "id": aid, "acknowledged": True}
 
     # --- settings, voice, report, dev ---
     @app.post("/api/settings")

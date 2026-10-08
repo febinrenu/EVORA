@@ -27,6 +27,7 @@ class ZoneService:
     def __init__(self, db: Database, bus: Bus, kb: KnowledgeBase | None = None, recompute: Recompute | None = None):
         self.db, self.bus, self.kb = db, bus, kb
         self._recompute = recompute or perception_adapter.recompute_events
+        self.on_recomputed: Callable[[str], None] | None = None  # e.g. the alert engine re-reads this camera's events
 
     def _compute(self, camera_id: str, targets: list[Zone]) -> int | None:
         geometric = [z for z in targets if z.kind != "frame"]  # a whole-frame zone has no crossing or entry events
@@ -41,11 +42,22 @@ class ZoneService:
 
     def save(self, zone: Zone, fact_id: str | None = None) -> SaveResult:
         saved = zones.save(self.db, zone, fact_id)
-        return SaveResult(saved, self._compute(saved.camera_id, [saved]))
+        result = SaveResult(saved, self._compute(saved.camera_id, [saved]))
+        self._recomputed(saved.camera_id)
+        return result
+
+    def _recomputed(self, camera_id: str) -> None:
+        if self.on_recomputed is not None:
+            try:
+                self.on_recomputed(camera_id)
+            except Exception:  # noqa: BLE001 - a follow-up step must never fail a zone save
+                log.exception("post-recompute hook failed for %s", camera_id)
 
     def recompute_zone(self, zone_id: str) -> int | None:
         zone = zones.get_zone(self.db, zone_id)
-        return self._compute(zone.camera_id, [zone])
+        count = self._compute(zone.camera_id, [zone])
+        self._recomputed(zone.camera_id)
+        return count
 
     def recompute_camera(self, camera_id: str) -> int | None:
         """Called when a camera finishes ingesting: zones drawn earlier get their events now."""

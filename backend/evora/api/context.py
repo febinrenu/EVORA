@@ -9,6 +9,9 @@ from typing import Any
 
 import httpx
 
+from evora.alerts.compiler import StandingCompiler
+from evora.alerts.engine import AlertEngine
+from evora.alerts.notify import Notifier
 from evora.core import perception_adapter
 from evora.core import workspace as wsmod
 from evora.core.bus import Bus
@@ -25,6 +28,7 @@ from evora.llm.schemas import GatewayConfig
 from evora.memory.embedder import TextEmbedder
 from evora.memory.resolve import Equivalence
 from evora.memory.service import MemoryService, build_memory, gateway_equivalence
+from evora.query.planner import Planner, SqlitePlanCache
 
 
 @dataclass
@@ -45,6 +49,10 @@ class AppContext:
     clarifier: Any = None
     router: Any = None
     zones: Any = None
+    alerts: Any = None
+    notifier: Any = None
+    planner: Any = None
+    compiler: Any = None
 
     @classmethod
     def build(
@@ -79,10 +87,20 @@ class AppContext:
         ctx = cls(cfg, ws, db, bus, runner, media, UnblurTokens(), prerender, memory, settings, mock, gateway, http)
         ctx.zones = ZoneService(db, bus, memory.kb)
         memory.clarifier.on_zone = ctx.zones.recompute_zone
-        runner.on_done = ctx.zones.recompute_camera
+        ctx.notifier = Notifier(gateway, lambda: bool(settings["onprem"]))
+        ctx.alerts = AlertEngine(db, bus, memory.kb, ctx.notifier)
+
+        def after_ingest(camera_id: str) -> None:
+            ctx.zones.recompute_camera(camera_id)
+            ctx.alerts.backfill(camera_id)
+
+        runner.on_done = after_ingest
+        ctx.zones.on_recomputed = lambda camera_id: ctx.alerts.backfill(camera_id)
         if not mock:
             from evora.api.query_wiring import ClarifierAdapter, build_router
 
             ctx.clarifier = ClarifierAdapter(memory)
-            ctx.router = build_router(ctx, gateway, ctx.clarifier)
+            ctx.planner = Planner(gateway, SqlitePlanCache(db))
+            ctx.compiler = StandingCompiler(db, ctx.planner, memory, float(cfg["alerts"]["default_cooldown_s"]))
+            ctx.router = build_router(ctx, gateway, ctx.clarifier, ctx.planner)
         return ctx

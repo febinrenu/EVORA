@@ -11,7 +11,7 @@ from evora.core import perception_adapter
 from evora.core.media_service import MediaError
 from evora.core.vectors import open_store
 from evora.memory.clarify import ClarifyOutcome
-from evora.query.planner import Planner, SqlitePlanCache
+from evora.query.planner import Planner
 from evora.query.retrieve import RetrievalConfig, RetrievalResult, Retriever, SearchScope
 from evora.query.router import Router, RouterConfig
 from evora.query.verify import Verifier
@@ -92,7 +92,7 @@ class CropSource:
             return None
 
 
-def build_router(ctx: AppContext, gateway: Any, clarifier: ClarifierAdapter) -> Router:
+def build_router(ctx: AppContext, gateway: Any, clarifier: ClarifierAdapter, planner: Planner) -> Router:
     embedder = perception_adapter.get_query_embedder()
     if embedder is not None:
         retriever: Any = Retriever(
@@ -102,7 +102,7 @@ def build_router(ctx: AppContext, gateway: Any, clarifier: ClarifierAdapter) -> 
         log.warning("no query embedder installed: retrieval is disabled until perception.embed is available")
         retriever = NullRetriever()
     return Router(
-        ctx.db, Planner(gateway, SqlitePlanCache(ctx.db)), retriever, ctx.memory.resolver, clarifier,
+        ctx.db, planner, retriever, ctx.memory.resolver, clarifier,
         Verifier(gateway, CropSource(ctx)), RouterConfig(), reference_override=lambda: ctx.settings["reference_now"],
     )
 
