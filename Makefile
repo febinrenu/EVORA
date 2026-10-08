@@ -32,11 +32,20 @@ test:
 test-e2e:
 	$(BACKEND) run pytest -q tests/e2e
 
-eval ablate models:
-	@echo "make $@: owned by M2/M3, not wired yet"; exit 1
+models:
+	EVORA_MODELS_DIR=../models $(BACKEND) run python ../scripts/models_download.py $(ARGS)
+
+eval:
+	PYTHONPATH=.. $(BACKEND) run python -m eval.harness $(ARGS)
+
+ablate:
+	PYTHONPATH=.. $(BACKEND) run python -m eval.ablate $(ARGS)
 
 offline-test:
 	HF_HUB_OFFLINE=1 evora_ONPREM=1 $(BACKEND) run pytest -q tests/e2e tests/privacy
 
-doctor up:
-	@echo "make $@: M1 phase 3, not wired yet"; exit 1
+doctor:
+	EVORA_MODELS_DIR=../models $(BACKEND) run python ../scripts/doctor.py $(ARGS)
+
+up:
+	EVORA_MODELS_DIR=../models $(BACKEND) run python ../scripts/up.py $(ARGS)

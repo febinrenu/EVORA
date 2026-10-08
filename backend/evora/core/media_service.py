@@ -1,7 +1,7 @@
 """Render frames, thumbnails and clips from stored footage, with a disk cache and face blur."""
 from __future__ import annotations
 
-import base64
+import functools
 import logging
 import os
 import secrets
@@ -21,11 +21,18 @@ from evora.evidence.store import EvidenceRecord
 
 log = logging.getLogger("evora.media_service")
 
-# a 1x1 JPEG, used to check that the blur model actually runs
-_PROBE_JPEG = base64.b64decode(
-    "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////"
-    "////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA="
-)
+@functools.cache
+def probe_jpeg() -> bytes:
+    """A small valid JPEG for checking that the blur model actually runs (a 1x1 file is rejected by OpenCV)."""
+    import cv2
+    import numpy as np
+
+    ok, buf = cv2.imencode(".jpg", np.full((96, 96, 3), 128, dtype=np.uint8))
+    if not ok:
+        raise RuntimeError("could not build the blur probe image")
+    return buf.tobytes()
+
+
 FFMPEG_TIMEOUT_S = 120
 UNBLUR_TTL_S = 300
 
@@ -129,7 +136,7 @@ class MediaService:
         now = time.monotonic()
         if self._probe is None or self._probe[1] != id(fn) or now - self._probe[0] > 30:
             try:
-                fn(_PROBE_JPEG)
+                fn(probe_jpeg())
                 ok = True
             except Exception:  # noqa: BLE001 - any failure means blur cannot be promised
                 ok = False

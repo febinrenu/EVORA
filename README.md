@@ -6,9 +6,16 @@ Multi-camera video intelligence with conversational queries (HNX26EPS05).
 
 ```
 make setup     # install backend deps (uv, Python 3.11+)
-make dev       # API on http://127.0.0.1:8700 (serves contract fixtures until services land)
+make doctor    # is this machine ready to demo? every problem comes with the command that fixes it
+make up        # check, start local services, serve the API and the built UI on http://127.0.0.1:8700
 make check     # ruff + pytest + generated TS types in sync
 ```
+
+More targets: `make dev` (API with reload; `evora_MOCK=1 make dev` serves fixtures for UI work), `make models`
+(download local models while online), `make offline-test` (the suite with Wi-Fi-off rules), `make eval`, `make ablate`.
+Pass options with `ARGS`, for example `make up ARGS="--live --open"` or `make doctor ARGS="--on-prem"`.
+
+Judge day: follow Appendix C of the plan; the first step is `make doctor` all green.
 
 ## Layout
 
