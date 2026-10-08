@@ -107,6 +107,7 @@ async function startIngest(ids: string[], onError: (m: string) => void) {
 function CameraRow({ cam }: { cam: CameraInfo }) {
   const job = useEvora((s) => s.jobs[cam.id]);
   const live = useEvora((s) => s.live[cam.id]);
+  const analysis = useEvora((s) => s.analysis[cam.id]);
   const [liveError, setLiveError] = useState<string | null>(null);
   const streaming = cam.status === "live" || live === "running" || live === "retrying" || live === "starting";
   const toggleLive = async () => {
@@ -116,7 +117,14 @@ function CameraRow({ cam }: { cam: CameraInfo }) {
         await endpoints.stopReplay([cam.id]);
         useEvora.getState().setLive(cam.id, "stopped");
       } else {
-        await endpoints.replay([cam.id]);
+        // replay with live analysis so watches fire; without the perception stack, replay alone
+        try {
+          await endpoints.replay([cam.id], true);
+        } catch (e) {
+          if (!(e instanceof ApiError && e.status === 503)) throw e;
+          await endpoints.replay([cam.id], false);
+          setLiveError("Replaying without live analysis: the perception stack is not installed (start.bat setup).");
+        }
         useEvora.getState().setLive(cam.id, "starting");
       }
     } catch (e) {
@@ -144,7 +152,7 @@ function CameraRow({ cam }: { cam: CameraInfo }) {
     <li className={`lt-cam is-${cam.status}`}>
       {streaming ? (
         // MJPEG: the browser keeps the multipart stream open; frames are face-blurred server side
-        <Frame src={liveUrl(cam.id)} alt={`${cam.name}, live`} osd={live === "retrying" ? "RECONNECTING" : "● LIVE"} className="lt-live" />
+        <Frame src={liveUrl(cam.id)} alt={`${cam.name}, live`} osd={live === "retrying" ? "RETRYING" : "● LIVE"} className="lt-live" />
       ) : (
         <Frame src={frameUrl(cam.id, mid)} alt={`${cam.name}, frame from the middle of the recording`} />
       )}
@@ -165,6 +173,9 @@ function CameraRow({ cam }: { cam: CameraInfo }) {
           <button type="button" className="lt-link" onClick={() => void toggleLive()}>
             {streaming ? "Stop the live replay" : "Replay as live"}
           </button>
+        ) : null}
+        {streaming ? (
+          <p className="lt-cam-state">{analysis === "running" ? "Live replay, analysed as it plays: watches can fire" : analysis === "error" ? "Live replay; analysis stopped with an error" : "Live replay"}</p>
         ) : null}
         {liveError ? <p className="lt-error">{liveError}</p> : null}
         {cam.status === "ingesting" && job ? (

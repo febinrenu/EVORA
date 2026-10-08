@@ -13,6 +13,9 @@ import { ClipPlayer } from "./ClipPlayer";
 
 const STRIP = [-2, -1, 0, 1, 2];
 
+/** path steps carry their place on the route instead of a match score */
+const isHop = (h: unknown): h is { index: number; of: number } => typeof h === "object" && h !== null && "index" in h && "of" in h;
+
 export function EvidenceSheet({ ev, verified, first }: { ev: Evidence; verified: boolean | null | undefined; first: boolean }) {
   const cam = useEvora((s) => s.cameras.find((c) => c.id === ev.camera_id));
   const [playing, setPlaying] = useState(false);
@@ -59,7 +62,10 @@ export function EvidenceSheet({ ev, verified, first }: { ev: Evidence; verified:
       a.download = `evora_evidence_${ev.id}.zip`;
       a.click();
       URL.revokeObjectURL(url);
-      setExporting(sha ? `Exported. SHA-256 ${sha.slice(0, 16)}…` : "Exported.");
+      const signer = await endpoints.signer().catch(() => null);
+      setExporting(
+        [sha ? `Exported. SHA-256 ${sha.slice(0, 16)}…` : "Exported.", signer ? `Signed with key ${signer.fingerprint} (${signer.algorithm}).` : null].filter(Boolean).join(" "),
+      );
     } catch {
       setExporting("Export failed: the API did not answer.");
     }
@@ -88,7 +94,7 @@ export function EvidenceSheet({ ev, verified, first }: { ev: Evidence; verified:
           {offset(ev.offset_s)} into {fileName(cam)}
         </p>
         <p className={`lt-score is-${verified === true ? "ok" : verified === false ? "no" : "open"}`}>
-          {confidence(ev.score)}
+          {isHop(ev.hop) ? `Step ${ev.hop.index} of ${ev.hop.of} on the route` : confidence(ev.score)}
           {verified === true ? " · confirmed" : verified === false ? " · rejected on a second look" : ""}
         </p>
         {ev.why?.length ? (
@@ -108,6 +114,16 @@ export function EvidenceSheet({ ev, verified, first }: { ev: Evidence; verified:
           <button type="button" onClick={() => void exportPack()}>
             Export evidence
           </button>
+          {ev.track_id ? (
+            <button type="button" onClick={() => useEvora.getState().findSimilar(ev)}>
+              Find this elsewhere
+            </button>
+          ) : null}
+          {ev.global_id ? (
+            <button type="button" onClick={() => useEvora.getState().showPath(ev)}>
+              Show the path
+            </button>
+          ) : null}
           {token ? (
             <button type="button" onClick={() => setFaces(null)}>
               Blur faces again

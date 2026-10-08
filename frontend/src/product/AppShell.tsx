@@ -14,10 +14,12 @@ import { AskBar } from "./AskBar";
 import { SidePanel } from "./SidePanel";
 import { Timeline } from "./Timeline";
 import { Shortcuts } from "./Shortcuts";
+import { SystemCheck } from "./SystemCheck";
 import { Toasts, WatchDrawer } from "./WatchDrawer";
 
 export function AppShell() {
   const [help, setHelp] = useState(false);
+  const [check, setCheck] = useState(false);
 
   useEffect(() => {
     // `?debug` exposes the store for UI tests that must not touch real workspaces
@@ -27,9 +29,13 @@ export function AppShell() {
     void s.refreshCameras();
     void s.refreshMemory();
     void s.refreshWatches();
+    void s.restoreEarlier();
     endpoints
       .live()
-      .then((l) => l.streams.forEach((st) => useEvora.getState().setLive(st.camera_id, st.state)))
+      .then((l) => {
+        l.streams.forEach((st) => useEvora.getState().setLive(st.camera_id, st.state));
+        l.analyzers?.forEach((a) => useEvora.getState().setAnalysis(a.camera_id, a.state));
+      })
       .catch(() => undefined);
     const health = window.setInterval(() => void useEvora.getState().refreshHealth(), 15000);
     const off = subscribeEvents(
@@ -41,6 +47,7 @@ export function AppShell() {
           if (n.status === "ready") void st.refreshCameras();
         } else if (n.kind === "privacy") void st.refreshHealth();
         else if (n.kind === "live" && typeof n.camera_id === "string" && typeof n.state === "string") st.setLive(n.camera_id, n.state);
+        else if (n.kind === "analysis" && typeof n.camera_id === "string" && typeof n.state === "string") st.setAnalysis(n.camera_id, n.state);
         else if (n.kind === "alert" && n.alert && typeof n.alert === "object") st.pushAlert(n.alert as Alert, n.historical === true);
       },
       (connected) => useEvora.getState().setConnected(connected),
@@ -78,7 +85,7 @@ export function AppShell() {
 
   return (
     <div className="lt">
-      <TopBar onHelp={() => setHelp(true)} />
+      <TopBar onHelp={() => setHelp(true)} onCheck={() => setCheck(true)} />
       <CameraRail />
       <main className="lt-case" aria-label="Case log">
         <CaseLog />
@@ -89,6 +96,7 @@ export function AppShell() {
       <WatchDrawer />
       <Toasts />
       {help ? <Shortcuts onClose={() => setHelp(false)} /> : null}
+      {check ? <SystemCheck onClose={() => setCheck(false)} /> : null}
     </div>
   );
 }

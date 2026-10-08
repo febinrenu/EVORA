@@ -6,7 +6,7 @@ import { clock } from "./format";
 import { useEvora } from "./store";
 
 /** Workspace, the footage clock (end of the latest recording) and the privacy state. */
-export function TopBar({ onHelp }: { onHelp: () => void }) {
+export function TopBar({ onHelp, onCheck }: { onHelp: () => void; onCheck: () => void }) {
   const health = useEvora((s) => s.health);
   const connected = useEvora((s) => s.connected);
   const cameras = useEvora((s) => s.cameras);
@@ -46,6 +46,9 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
       </button>
       <button type="button" className={`lt-privacy${health?.onprem ? " is-on" : ""}`} onClick={() => void toggle()} disabled={!health || busy} aria-pressed={health?.onprem ?? false}>
         {health?.onprem ? "On this machine only" : "Cloud planner allowed"}
+      </button>
+      <button type="button" className="lt-check" onClick={onCheck}>
+        Check this machine
       </button>
       <button type="button" className="lt-help" onClick={onHelp} aria-label="Keyboard shortcuts">
         ?

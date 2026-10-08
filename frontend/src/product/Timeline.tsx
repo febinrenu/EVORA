@@ -4,8 +4,8 @@
 // answer's evidence as red ticks (click one to open it), and a scrub head.
 // Click or drag on a lane to see that camera's frame at that moment; with the
 // lanes focused, ←/→ step a second (Shift: ten), J/L five, Home/End jump.
-import { useMemo, useRef } from "react";
-import { frameUrl } from "@/lib/api/client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { endpoints, frameUrl, type ZoneEvent } from "@/lib/api/client";
 import { clock } from "./format";
 import { useEvora } from "./store";
 import { Frame } from "./Frame";
@@ -20,6 +20,22 @@ export function Timeline() {
   const active = cases.find((c) => c.id === focus?.caseId) ?? cases.findLast((c) => c.evidence.length > 0);
   const lanes = useRef<HTMLOListElement>(null);
   const dragging = useRef(false);
+  const memory = useEvora((s) => s.memory);
+  // crossings and entries of remembered places: memory events, drawn in yellow
+  const [zoneEvents, setZoneEvents] = useState<(ZoneEvent & { place: string })[]>([]);
+  const zoneKey = memory.map((f) => `${f.id}:${String(f.binding.zone_id ?? "")}`).join(",");
+  useEffect(() => {
+    let live = true;
+    const zones = memory.filter((f) => !f.superseded_by && typeof f.binding.zone_id === "string").map((f) => ({ zone: String(f.binding.zone_id), place: f.canonical }));
+    Promise.all(zones.map((z) => endpoints.zoneEvents(z.zone).then((evs) => evs.map((e) => ({ ...e, place: z.place }))).catch(() => [])))
+      .then((all) => live && setZoneEvents(all.flat()))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+    // refetch when the set of remembered zones changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoneKey]);
 
   const range = useMemo(() => {
     if (!cameras.length) return null;
@@ -99,6 +115,19 @@ export function Timeline() {
                         style={{ left: `${x(ev.t_peak)}%` }}
                         onClick={() => active && setFocus({ caseId: active.id, evidenceId: ev.id })}
                         aria-label={`${c.name} at ${clock(ev.t_peak)}`}
+                      />
+                    ))}
+                  {zoneEvents
+                    .filter((z) => z.camera_id === c.id)
+                    .map((z) => (
+                      <button
+                        key={z.id}
+                        type="button"
+                        className="lt-zone-tick"
+                        style={{ left: `${x(z.t)}%` }}
+                        onClick={() => setPlayhead({ t: z.t, cameraId: c.id })}
+                        aria-label={`${z.kind === "cross_line" ? "Crossed" : z.kind === "enter_zone" ? "Entered" : z.kind === "exit_zone" ? "Left" : "At"} ${z.place} at ${clock(z.t)}`}
+                        title={`${z.place} ${clock(z.t)}`}
                       />
                     ))}
                   {playhead ? <i className="lt-head" style={{ left: `${x(playhead.t)}%` }} aria-hidden="true" /> : null}

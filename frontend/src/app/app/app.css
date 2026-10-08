@@ -1274,3 +1274,103 @@
   color: var(--cyanotype);
   font-size: 0.8125rem;
 }
+
+/* questions asked before this page was opened, folded */
+.lt-earlier-head {
+  margin: 0 0 0.6rem;
+  color: var(--g48);
+  font-size: 0.8125rem;
+}
+.lt-entry.is-earlier {
+  margin-bottom: 0.6rem;
+}
+.lt-entry.is-earlier summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  cursor: pointer;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--g8);
+}
+.lt-entry.is-earlier summary .lt-question {
+  margin: 0;
+}
+.lt-earlier-meta {
+  color: var(--g48);
+  white-space: nowrap;
+}
+.lt-entry.is-earlier[open] summary {
+  margin-bottom: 0.6rem;
+}
+/* memory events: yellow diamonds, so they differ from answer ticks by shape too */
+.lt-zone-tick {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 1px solid var(--graphite);
+  background: var(--marker);
+  translate: -50% -50%;
+  rotate: 45deg;
+}
+.lt-check {
+  border: 0;
+  background: none;
+  color: var(--cyanotype);
+}
+.lt-doctor {
+  width: min(44rem, 94vw);
+  max-height: 86svh;
+  overflow: auto;
+}
+.lt-doctor ul {
+  list-style: none;
+  margin: 0.6rem 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.lt-doctor li {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+.lt-doctor li code {
+  display: block;
+  margin-top: 0.2rem;
+  padding: 0.25rem 0.4rem;
+  background: var(--lightbox);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+.lt-doctor-status {
+  font-size: 0.8125rem;
+  font-weight: 650;
+}
+.lt-doctor li.is-fail .lt-doctor-status::before,
+.lt-doctor li.is-warn .lt-doctor-status::before,
+.lt-doctor li.is-ok .lt-doctor-status::before,
+.lt-doctor li.is-pass .lt-doctor-status::before {
+  display: inline-block;
+  width: 1rem;
+}
+.lt-doctor li.is-fail .lt-doctor-status::before { content: "✕"; }
+.lt-doctor li.is-warn .lt-doctor-status::before { content: "!"; }
+.lt-doctor li.is-ok .lt-doctor-status::before,
+.lt-doctor li.is-pass .lt-doctor-status::before { content: "✓"; }
+.lt-doctor li.is-ok .lt-doctor-status,
+.lt-doctor li.is-pass .lt-doctor-status {
+  color: var(--g48);
+}
+.lt-doctor-verdict {
+  margin: 0;
+  font-weight: 650;
+}
+.lt-cam .lt-osd {
+  left: 0.3rem;
+  top: 0.2rem;
+  font-size: 0.5625rem;
+}

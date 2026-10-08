@@ -6,6 +6,7 @@
 import { useEffect, useRef } from "react";
 import { useEvora } from "./store";
 import { AnswerSheet } from "./AnswerSheet";
+import { clock, verdictLine } from "./format";
 
 const EXAMPLES = ["Did anyone carry a large bag through the lobby?", "Did a red car pass through the main gate in the last hour?", "Where did the person in the blue jacket go?"];
 
@@ -40,12 +41,25 @@ export function CaseLog() {
 
   return (
     <div className="lt-log" role="log" aria-live="polite">
-      {cases.map((c) => (
-        <article key={c.id} className="lt-entry">
-          <p className="lt-question">{c.question}</p>
-          <AnswerSheet c={c} />
-        </article>
-      ))}
+      {cases.some((c) => c.earlier) ? <p className="lt-earlier-head">Asked before this page was opened</p> : null}
+      {cases.map((c) =>
+        c.earlier ? (
+          <details key={c.id} className="lt-entry is-earlier">
+            <summary>
+              <span className="lt-question">{c.question}</span>
+              <span className="lt-earlier-meta">
+                {c.answer ? verdictLine(c.answer.verdict, c.answer.count, c.evidence.length) : c.summary?.verdict ? verdictLine(c.summary.verdict, null, c.summary.results ?? 0) : ""} {clock(c.askedAt / 1000).slice(0, 5)}
+              </span>
+            </summary>
+            <AnswerSheet c={c} />
+          </details>
+        ) : (
+          <article key={c.id} className="lt-entry">
+            <p className="lt-question">{c.question}</p>
+            <AnswerSheet c={c} />
+          </article>
+        ),
+      )}
       <div ref={end} />
     </div>
   );

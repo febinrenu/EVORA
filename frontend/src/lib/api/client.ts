@@ -1,6 +1,7 @@
 // Typed access to the evora API (contracts v1). In production the UI is served
 // by the API itself, so paths are relative; `npm run dev` points at :8700.
 import type {
+  PathHop,
   Alert,
   StandingQuery,
   Zone,
@@ -14,7 +15,7 @@ import type {
   QueryPlan,
 } from "@contracts/ts/evora-types";
 
-export type { Alert, StandingQuery, Zone, Answer, CameraInfo, ClarifyRequest, ClarifyResponse, Evidence, IngestJob, MemoryFact, QueryPlan };
+export type { PathHop, Alert, StandingQuery, Zone, Answer, CameraInfo, ClarifyRequest, ClarifyResponse, Evidence, IngestJob, MemoryFact, QueryPlan };
 
 // `make up` builds with NEXT_PUBLIC_EVORA_API when it serves the UI on its own port
 export const API_BASE = process.env.NEXT_PUBLIC_EVORA_API ?? process.env.NEXT_PUBLIC_API_BASE ?? "";
@@ -88,13 +89,63 @@ export interface TrackDetail {
   points: TrackPoint[];
 }
 
+export interface PastQuery {
+  id: string;
+  text: string;
+  intent: string | null;
+  verdict: string | null;
+  count: number | null;
+  n_results: number | null;
+  confidence: number | null;
+  created_at: number;
+  answer?: Answer | null;
+}
+
+export interface ZoneEvent {
+  id: string;
+  camera_id: string;
+  track_id: string;
+  kind: string;
+  zone_id: string;
+  t: number;
+  payload: Record<string, unknown>;
+}
+
+export interface DoctorCheck {
+  id: string;
+  title: string;
+  status: string;
+  detail: string;
+  fix: string | null;
+}
+
+export interface Doctor {
+  verdict: string;
+  ok: boolean;
+  checks: DoctorCheck[];
+  took_s: number;
+}
+
+/** GET returning the body plus one response header (e.g. X-Evora-Reid). */
+async function withHeader<T>(path: string, header: string): Promise<{ body: T; header: string | null }> {
+  const res = await fetch(apiUrl(path));
+  if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`, null);
+  return { body: (await res.json()) as T, header: res.headers.get(header) };
+}
+
 export const endpoints = {
   health: () => api<Health>("/api/health"),
   cameras: () => api<CameraInfo[]>("/api/cameras"),
   renameCamera: (id: string, name: string) => api<CameraInfo>(`/api/cameras/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ name }) }),
-  replay: (ids: string[], speed = 1) => api<unknown>("/api/live/replay", { method: "POST", body: JSON.stringify({ camera_ids: ids, speed }) }),
+  replay: (ids: string[], analyze = false, speed = 1) => api<unknown>("/api/live/replay", { method: "POST", body: JSON.stringify({ camera_ids: ids, speed, analyze }) }),
+  similar: (trackId: string, k = 12) => withHeader<Evidence[]>(`/api/tracks/${encodeURIComponent(trackId)}/similar?k=${k}`, "X-Evora-Reid"),
+  path: (globalId: string) => withHeader<PathHop[]>(`/api/globals/${encodeURIComponent(globalId)}/path`, "X-Evora-Reid"),
+  pastQueries: (limit = 20) => api<PastQuery[]>(`/api/queries?limit=${limit}&full=true`),
+  zoneEvents: (zoneId: string, limit = 200) => api<ZoneEvent[]>(`/api/zones/${encodeURIComponent(zoneId)}/events?limit=${limit}`),
+  doctor: () => api<Doctor>("/api/doctor"),
+  signer: () => api<{ algorithm: string; fingerprint: string }>("/api/evidence/signer"),
   stopReplay: (ids: string[]) => api<unknown>("/api/live/replay/stop", { method: "POST", body: JSON.stringify({ camera_ids: ids }) }),
-  live: () => api<{ streams: { camera_id: string; state: string; error: string | null }[] }>("/api/live"),
+  live: () => api<{ streams: { camera_id: string; state: string; error: string | null }[]; analyzers?: { camera_id: string; state: string; error: string | null }[] }>("/api/live"),
   placeCamera: (id: string, xy: [number, number]) => api<CameraInfo>(`/api/cameras/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ site_xy: xy }) }),
   /** audited, 5-minute token; pass as ?unblur= on media and frame routes */
   unblur: (reason: string, evidenceId?: string) => api<{ token: string; expires_at: number }>("/api/media/unblur", { method: "POST", body: JSON.stringify({ reason, evidence_id: evidenceId }) }),

@@ -33,6 +33,22 @@ export function AnswerSheet({ c }: { c: Case }) {
   }
 
   const a = c.answer;
+  if (!a && c.earlier) {
+    return (
+      <div className="lt-sheet">
+        <p className="lt-answer">
+          {c.summary?.verdict ? `${verdictLine(c.summary.verdict, null, c.summary.results ?? 0)} ` : ""}
+          {c.summary?.results !== null && c.summary?.results !== undefined ? `${c.summary.results} result${c.summary.results === 1 ? "" : "s"}. ` : ""}
+          The evidence was not kept with this entry.
+        </p>
+        <div className="lt-sheet-actions">
+          <button type="button" onClick={() => useEvora.getState().ask(c.question)}>
+            Ask again
+          </button>
+        </div>
+      </div>
+    );
+  }
   if (!a) return null;
   const evidence = c.evidence;
   const activeId = focus?.caseId === c.id ? focus.evidenceId : evidence[0]?.id;
