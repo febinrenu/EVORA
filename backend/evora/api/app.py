@@ -102,6 +102,7 @@ def create_app(
             "ok": True, "version": __version__, "workspace": ctx.ws.slug, "profile": os.environ.get("evora_PROFILE", "cpu"),
             "onprem": bool(state["settings"]["onprem"]), "layers_ready": ready,
             "egress_blocked": guard.blocked, "blur": ctx.media.blur_status(bool(state["settings"]["blur_faces"])),
+            "recordings": [] if ctx.mock else ctx.recorder.status(),
         }
 
     @app.get("/api/workspaces")

@@ -90,9 +90,11 @@ class MediaService:
     def __init__(
         self, ws: Workspace, cfg: dict, blur_provider: Callable[[], BlurFn | None],
         offset_fn: Callable[[CameraInfo, float], float | None] | None = None, recordings: RecordingIndex | None = None,
+        pinned: Callable[[], set[str]] | None = None,
     ):
         self.ws = ws
         self._recordings = recordings  # the rolling buffer of real RTSP cameras
+        self._pinned = pinned  # evidence ids whose cached files are never evicted (an alert's proof)
         self._offset_fn = offset_fn  # wall-clock time -> position in the file, for footage replayed as live
         self.pre_roll = float(cfg["media"]["pre_roll_s"])
         self.post_roll = float(cfg["media"]["post_roll_s"])
@@ -343,8 +345,15 @@ class MediaService:
                 tmp_out.unlink(missing_ok=True)
 
     def trim_cache(self, keep: Path | None = None, also_keep: Path | None = None) -> int:
-        """Delete least recently used cached files until the cache fits its cap. Returns files removed."""
+        """Delete least recently used cached files until the cache fits its cap. Returns files removed.
+
+        Files of pinned evidence (an alert's thumbnail and clip) are never deleted, so the cache may exceed its cap by
+        exactly what the alerts need.
+        """
         if self.cache_max_bytes <= 0:
+            return 0
+        pinned = self._pinned_ids()
+        if pinned is None:  # the lookup failed: deleting blind could remove an alert's proof, so keep everything this time
             return 0
         files = [
             p for d in (self.ws.media_dir / "thumbs", self.ws.clips_dir) for p in d.glob("*")
@@ -356,7 +365,7 @@ class MediaService:
         for p in sorted(files, key=lambda f: stats[f].st_mtime):
             if total <= self.cache_max_bytes:
                 break
-            if p in (keep, also_keep):
+            if p in (keep, also_keep) or p.stem.rsplit("_", 1)[0] in pinned:
                 continue
             try:
                 p.unlink()
@@ -365,6 +374,15 @@ class MediaService:
             total -= stats[p].st_size
             removed += 1
         return removed
+
+    def _pinned_ids(self) -> set[str] | None:
+        if self._pinned is None:
+            return set()
+        try:
+            return self._pinned()
+        except Exception:  # noqa: BLE001 - a broken lookup must never break rendering
+            log.exception("could not list pinned evidence; the cache is not trimmed this time")
+            return None
 
     @staticmethod
     def _atomic_write(path: Path, data: bytes) -> None:

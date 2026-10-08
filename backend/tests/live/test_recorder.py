@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 import time
 import types
 from datetime import datetime
@@ -67,6 +68,14 @@ def test_segments_come_from_the_folder_sorted_and_clamped(index):
     assert segs[0].end == pytest.approx(T + 10), "a segment ends no later than the next one starts"
     assert segs[2].end == pytest.approx(T + 30.2)
     assert index.segments("cam_02") == [] and index.has_recording("cam_01") and not index.has_recording("cam_02")
+
+
+def test_an_empty_segment_from_a_failed_start_is_ignored(index):
+    folder = index.directory("cam_01")
+    put(folder, T, T + 5, b"")
+    put(folder, T + 10, T + 15)
+    assert [round(s.start - T) for s in index.segments("cam_01")] == [10]
+    assert index.at("cam_01", T + 2) is None
 
 
 def test_lookup_by_time(index):
@@ -523,3 +532,45 @@ def register_for(ctx, camera_id, t_start, t_end):
     ))
     return eid
 
+
+
+# ---- recorder health ---------------------------------------------------------------------------------------------------------
+
+def test_health_reports_the_buffer_of_every_camera(live):
+    body = live.get("/api/health").json()
+    assert body["recordings"] == [], "nothing is recording until a camera is analysed"
+    ctx = live.ctx
+    ctx.recorder._recs["cam_01"] = types.SimpleNamespace(
+        camera_id="cam_01", state="recording", restarts=0, error=None, url="rtsp://x", stop=threading.Event(), proc=None,
+    )
+    row = live.get("/api/health").json()["recordings"][0]
+    assert (row["camera_id"], row["state"], row["segments"]) == ("cam_01", "recording", 2)
+    assert row["buffered_s"] == pytest.approx(6.0) and row["bytes"] > 0
+    ctx.recorder._recs.clear()
+
+
+def test_a_recording_that_goes_quiet_is_flagged_stalled(recorder):
+    folder = recorder.idx.directory("cam_01")  # segment_s = 1.0: stalled after 3 s of silence
+    put(folder, time.time() - 20, time.time() - 10)
+    rec = types.SimpleNamespace(
+        camera_id="cam_01", state="recording", restarts=0, error=None, url="rtsp://x", stop=threading.Event(), proc=None,
+    )
+    recorder._recs["cam_01"] = rec
+    row = recorder.status()[0]
+    assert row["stalled"] is True and row["last_segment_age_s"] == pytest.approx(10, abs=1.5)
+    put(folder, time.time() - 1, time.time())
+    row = recorder.status()[0]
+    assert row["stalled"] is False and row["last_segment_age_s"] < 2
+    rec.state = "retrying"
+    put(folder, time.time() - 40, time.time() - 30)
+    assert recorder.status()[0]["stalled"] is False, "a camera that is reconnecting is not 'stalled', it says retrying"
+    recorder._recs.clear()
+
+
+def test_a_camera_without_segments_has_no_age(recorder):
+    recorder._recs["cam_01"] = types.SimpleNamespace(
+        camera_id="cam_01", state="starting", restarts=0, error=None, url="rtsp://x", stop=threading.Event(), proc=None,
+    )
+    row = recorder.status()[0]
+    assert row["last_segment_age_s"] is None and row["stalled"] is False
+    recorder._recs.clear()

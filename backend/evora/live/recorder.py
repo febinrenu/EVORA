@@ -27,6 +27,7 @@ _NAME = re.compile(r"^(\d{8}_\d{6})\.ts$")
 _CAMERA_ID = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 GAP_TOLERANCE_S = 2.0  # a moment this close after a segment's last write still belongs to it
 MAX_BACKOFF_S = 10.0
+STALL_SEGMENTS = 3  # no new data for this many segment lengths while "recording" means the stream went quiet
 
 
 @dataclass(frozen=True)
@@ -66,9 +67,12 @@ class RecordingIndex:
                 continue
             try:
                 start = datetime.strptime(m.group(1), STAMP).timestamp()  # local wall clock, as ffmpeg named it
-                end = path.stat().st_mtime
+                stat = path.stat()
             except (ValueError, OSError):
                 continue
+            if stat.st_size == 0:  # ffmpeg opened it but failed before writing anything (it is restarted): nothing to play
+                continue
+            end = stat.st_mtime
             out.append(Segment(camera_id, path, start, max(end, start)))
         out.sort(key=lambda s: s.start)
         if not out:
@@ -209,8 +213,12 @@ class Recorder:
         out = []
         for r in recs:
             stats = self.index.stats(r.camera_id)
+            age = round(max(time.time() - stats["newest"], 0.0), 1) if stats["newest"] is not None else None
+            # recording, yet nothing written for a few segments: the camera is connected but silent
+            stalled = r.state == "recording" and age is not None and age > STALL_SEGMENTS * self.index.segment_s
             out.append({"camera_id": r.camera_id, "state": r.state, "restarts": r.restarts, "error": r.error,
-                        "segments": stats["segments"], "buffered_s": stats["buffered_s"], "bytes": stats["bytes"]})
+                        "segments": stats["segments"], "buffered_s": stats["buffered_s"], "bytes": stats["bytes"],
+                        "last_segment_age_s": age, "stalled": stalled})
         return out
 
     def is_recording(self, camera_id: str) -> bool:

@@ -104,3 +104,16 @@ def acknowledge(db: Database, alert_id: str) -> Alert:
             raise AlertNotFound(alert_id)
     with db.read() as c:
         return _to_alert(c.execute("SELECT * FROM alerts WHERE id=?", (alert_id,)).fetchone())
+
+
+def pinned_evidence_ids(db: Database) -> set[str]:
+    """Evidence that belongs to an alert. Its cached clip and thumbnail are kept when the media cache is trimmed."""
+    out: set[str] = set()
+    with db.read() as c:
+        rows = c.execute("SELECT evidence FROM alerts").fetchall()
+    for row in rows:
+        try:
+            out.add(str(json.loads(row["evidence"])["id"]))
+        except (ValueError, KeyError, TypeError):
+            continue
+    return out

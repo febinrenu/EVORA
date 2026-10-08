@@ -11,6 +11,7 @@ from typing import Any
 
 import httpx
 
+from evora.alerts import store as alert_store
 from evora.alerts.compiler import StandingCompiler
 from evora.alerts.engine import AlertEngine
 from evora.alerts.notify import Notifier
@@ -95,6 +96,7 @@ class AppContext:
         media = MediaService(
             ws, cfg, blur_provider or perception_adapter.get_blur_faces,
             offset_fn=lambda cam, t: live_sessions.file_offset(db, cam.id, cam.duration_s, t), recordings=recordings,
+            pinned=lambda: alert_store.pinned_evidence_ids(db),
         )
         prerender = Prerenderer(db, media, lambda: bool(settings["blur_faces"]), top=int(cfg["media"]["prerender_top"]))
         mock = bool(os.environ.get("evora_MOCK") == "1") if mock is None else mock
