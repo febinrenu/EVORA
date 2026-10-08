@@ -7,7 +7,8 @@ from typing import Any
 
 import yaml
 
-CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+CONFIG_DIR = REPO_ROOT / "config"
 
 
 def _merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
