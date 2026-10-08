@@ -68,6 +68,11 @@ export function AnswerSheet({ c }: { c: Case }) {
           ))}
         </ul>
       ) : null}
+      <div className="lt-sheet-actions">
+        <button type="button" onClick={() => useEvora.getState().setDrawer(true, c.question)}>
+          Watch for this
+        </button>
+      </div>
       <p className="lt-meta">
         {c.ttfa !== undefined ? `First answer in ${seconds(c.ttfa)}` : null}
         {verifiedCount ? ` · ${verifiedCount} confirmed by a second look` : null}

@@ -5,7 +5,7 @@
 // the right, timeline lanes across the bottom.
 import { useEffect, useState } from "react";
 import { subscribeEvents } from "@/lib/api/stream";
-import type { IngestJob } from "@/lib/api/client";
+import type { Alert, IngestJob } from "@/lib/api/client";
 import { useEvora } from "./store";
 import { TopBar } from "./TopBar";
 import { CameraRail } from "./CameraRail";
@@ -14,6 +14,7 @@ import { AskBar } from "./AskBar";
 import { SidePanel } from "./SidePanel";
 import { Timeline } from "./Timeline";
 import { Shortcuts } from "./Shortcuts";
+import { Toasts, WatchDrawer } from "./WatchDrawer";
 
 export function AppShell() {
   const [help, setHelp] = useState(false);
@@ -25,6 +26,7 @@ export function AppShell() {
     void s.refreshHealth();
     void s.refreshCameras();
     void s.refreshMemory();
+    void s.refreshWatches();
     const health = window.setInterval(() => void useEvora.getState().refreshHealth(), 15000);
     const off = subscribeEvents(
       (n) => {
@@ -34,6 +36,7 @@ export function AppShell() {
           st.setCameraStatus(n.camera_id, n.status as never);
           if (n.status === "ready") void st.refreshCameras();
         } else if (n.kind === "privacy") void st.refreshHealth();
+        else if (n.kind === "alert" && n.alert && typeof n.alert === "object") st.pushAlert(n.alert as Alert, n.historical === true);
       },
       (connected) => useEvora.getState().setConnected(connected),
     );
@@ -78,6 +81,8 @@ export function AppShell() {
       </main>
       <SidePanel />
       <Timeline />
+      <WatchDrawer />
+      <Toasts />
       {help ? <Shortcuts onClose={() => setHelp(false)} /> : null}
     </div>
   );

@@ -1,9 +1,9 @@
 // Product state for /app. One store; the stream handlers are the only writers
 // for cases, the events feed is the only writer for ingest progress.
 import { create } from "zustand";
-import { endpoints, type Answer, type CameraInfo, type ClarifyRequest, type ClarifyResponse, type Evidence, type Health, type IngestJob, type MemoryFact, type QueryPlan } from "@/lib/api/client";
+import { endpoints, type Alert, type StandingQuery, type Answer, type CameraInfo, type ClarifyRequest, type ClarifyResponse, type Evidence, type Health, type IngestJob, type MemoryFact, type QueryPlan } from "@/lib/api/client";
 import { postStream, type StreamMessage } from "@/lib/api/stream";
-import { setSiteZone } from "./format";
+import { clock, setSiteZone } from "./format";
 
 export type CaseStatus = "planning" | "searching" | "answered" | "clarify" | "error";
 
@@ -26,6 +26,17 @@ export interface Case {
   ttfa?: number;
 }
 
+export interface Toast {
+  id: string;
+  alert: Alert;
+}
+
+/** Where the timeline scrub head is, and which lane it is on */
+export interface Playhead {
+  t: number;
+  cameraId: string;
+}
+
 export interface Focus {
   caseId: string;
   evidenceId: string;
@@ -41,6 +52,13 @@ interface State {
   focus: Focus | null;
   history: string[];
   sessionId: string;
+  watches: StandingQuery[];
+  alerts: Alert[];
+  toasts: Toast[];
+  playhead: Playhead | null;
+  drawer: boolean;
+  /** text to prefill in the watch form ("Watch for this" on an answer) */
+  draft: string;
 
   ask: (text: string) => void;
   clarify: (caseId: string, resp: ClarifyResponse, label: string) => void;
@@ -52,6 +70,14 @@ interface State {
   setJob: (job: IngestJob) => void;
   setCameraStatus: (id: string, status: CameraInfo["status"]) => void;
   setConnected: (c: boolean) => void;
+  refreshWatches: () => Promise<void>;
+  pushAlert: (a: Alert, historical: boolean) => void;
+  dismissToast: (id: string) => void;
+  ackAlert: (id: string) => Promise<void>;
+  setPlayhead: (p: Playhead | null) => void;
+  setDrawer: (open: boolean, draft?: string) => void;
+  /** show an alert's evidence as an entry in the case log */
+  openAlert: (a: Alert, watchText: string) => void;
 }
 
 const newId = (): string => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Date.now() + Math.random()));
@@ -129,6 +155,12 @@ export const useEvora = create<State>()((set, get) => {
     focus: null,
     history: [],
     sessionId: newId(),
+    watches: [],
+    alerts: [],
+    toasts: [],
+    playhead: null,
+    drawer: false,
+    draft: "",
 
     ask: (text) => {
       const q = text.trim();
@@ -182,5 +214,46 @@ export const useEvora = create<State>()((set, get) => {
     setJob: (job) => set((s) => ({ jobs: { ...s.jobs, [job.camera_id]: job } })),
     setCameraStatus: (id, status) => set((s) => ({ cameras: s.cameras.map((c) => (c.id === id ? { ...c, status } : c)) })),
     setConnected: (connected) => set({ connected }),
+    refreshWatches: async () => {
+      try {
+        const [watches, alerts] = await Promise.all([endpoints.watches(), endpoints.alerts()]);
+        set({ watches, alerts: alerts.sort((a, b) => b.t - a.t) });
+      } catch {
+        /* keep */
+      }
+    },
+    pushAlert: (a, historical) =>
+      set((s) => ({
+        alerts: s.alerts.some((x) => x.id === a.id) ? s.alerts : [a, ...s.alerts],
+        // only new events pop a toast; ones found in earlier footage go quietly to the drawer
+        toasts: historical || s.toasts.some((t) => t.id === a.id) ? s.toasts : [...s.toasts, { id: a.id, alert: a }].slice(-3),
+      })),
+    dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+    ackAlert: async (id) => {
+      set((s) => ({ alerts: s.alerts.map((a) => (a.id === id ? { ...a, acknowledged: true } : a)), toasts: s.toasts.filter((t) => t.id !== id) }));
+      try {
+        await endpoints.ack(id);
+      } catch {
+        /* the drawer refresh will show the real state */
+      }
+    },
+    setPlayhead: (playhead) => set({ playhead }),
+    setDrawer: (drawer, draft) => set((s) => ({ drawer, draft: draft ?? s.draft })),
+    openAlert: (a, watchText) => {
+      const id = `alert-${a.id}`;
+      set((s) => {
+        if (s.cases.some((c) => c.id === id)) return { focus: { caseId: id, evidenceId: a.evidence.id }, drawer: false };
+        const answer = {
+          query_id: id,
+          text: `${a.evidence.camera_name} at ${clock(a.t)}, for the watch “${watchText}”.`,
+          verdict: "found",
+          evidence: [a.evidence],
+          confidence: a.evidence.score,
+          plan: { intent: "standing" },
+        } as unknown as Answer;
+        const c: Case = { id, question: `Alert: ${watchText}`, askedAt: Date.now(), status: "answered", evidence: [a.evidence], answer, resolved: [], verified: {}, notes: [] };
+        return { cases: [...s.cases, c], focus: { caseId: id, evidenceId: a.evidence.id }, drawer: false };
+      });
+    },
   };
 });

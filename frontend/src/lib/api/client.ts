@@ -1,6 +1,9 @@
 // Typed access to the evora API (contracts v1). In production the UI is served
 // by the API itself, so paths are relative; `npm run dev` points at :8700.
 import type {
+  Alert,
+  StandingQuery,
+  Zone,
   Answer,
   CameraInfo,
   ClarifyRequest,
@@ -11,9 +14,10 @@ import type {
   QueryPlan,
 } from "@contracts/ts/evora-types";
 
-export type { Answer, CameraInfo, ClarifyRequest, ClarifyResponse, Evidence, IngestJob, MemoryFact, QueryPlan };
+export type { Alert, StandingQuery, Zone, Answer, CameraInfo, ClarifyRequest, ClarifyResponse, Evidence, IngestJob, MemoryFact, QueryPlan };
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
+// `make up` builds with NEXT_PUBLIC_EVORA_API when it serves the UI on its own port
+export const API_BASE = process.env.NEXT_PUBLIC_EVORA_API ?? process.env.NEXT_PUBLIC_API_BASE ?? "";
 
 export const apiUrl = (path: string): string => (path.startsWith("http") ? path : `${API_BASE}${path}`);
 
@@ -95,6 +99,15 @@ export const endpoints = {
   },
   ingest: (cameraIds: string[]) => api<IngestJob[]>("/api/ingest", { method: "POST", body: JSON.stringify({ camera_ids: cameraIds }) }),
   memory: () => api<MemoryFact[]>("/api/memory"),
+  patchMemory: (id: string, body: { canonical?: string; aliases?: string[]; confirm_aliases?: string[] }) =>
+    api<MemoryFact>(`/api/memory/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteMemory: (id: string) => api<unknown>(`/api/memory/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  watches: () => api<StandingQuery[]>("/api/standing"),
+  /** 409 carries {clarify: ClarifyRequest}: answer it, then post the same text again */
+  watch: (text: string) => api<StandingQuery>("/api/standing", { method: "POST", body: JSON.stringify({ text }) }),
+  setWatch: (id: string, active: boolean) => api<StandingQuery>(`/api/standing/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ active }) }),
+  alerts: () => api<Alert[]>("/api/alerts"),
+  ack: (id: string) => api<Alert>(`/api/alerts/${encodeURIComponent(id)}/ack`, { method: "POST" }),
   track: (id: string) => api<TrackDetail>(`/api/tracks/${encodeURIComponent(id)}`),
   setOnprem: (onprem: boolean) => api<Record<string, unknown>>("/api/settings", { method: "POST", body: JSON.stringify({ onprem }) }),
   /** the route reads the raw request body */

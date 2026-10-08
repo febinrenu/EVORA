@@ -10,6 +10,8 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
   const health = useEvora((s) => s.health);
   const connected = useEvora((s) => s.connected);
   const cameras = useEvora((s) => s.cameras);
+  const unseen = useEvora((s) => s.alerts.filter((a) => !a.acknowledged).length);
+  const setDrawer = useEvora((s) => s.setDrawer);
   const [busy, setBusy] = useState(false);
   const end = cameras.reduce((m, c) => Math.max(m, c.t0 + (c.duration_s ?? 0)), 0);
 
@@ -36,6 +38,9 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
       <span className="lt-spacer" />
       {!connected ? <span className="lt-offline">Reconnecting to this machine…</span> : null}
       {health?.blur === "unavailable" ? <span className="lt-warn">Face blur is unavailable</span> : null}
+      <button type="button" className="lt-watch-btn" onClick={() => setDrawer(true)}>
+        Watch{unseen ? <span className="lt-badge" aria-label={`${unseen} new alerts`}>{unseen}</span> : null}
+      </button>
       <button type="button" className={`lt-privacy${health?.onprem ? " is-on" : ""}`} onClick={() => void toggle()} disabled={!health || busy} aria-pressed={health?.onprem ?? false}>
         {health?.onprem ? "On this machine only" : "Cloud planner allowed"}
       </button>
