@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from contracts.models import Zone
 
 from evora.core.db import Database, open_db
+from evora.perception.actions import ACTION_KINDS as ACTION_KINDS
+from evora.perception.actions import action_rows, load_trajectories
 from evora.perception.settings import IngestSettings
 
 log = logging.getLogger("evora.perception.events")
@@ -188,11 +190,14 @@ def recompute_events(camera_id: str, zones: list[Zone], *, db: Database | None =
             rows.append((f"{tid}:{kind}:-:0", camera_id, tid, kind, None, t, payload))
         rows += track_events(tid, camera_id, samples, zones, t_end=t_end, dwell_s=st.dwell_s,
                              hysteresis=st.line_hysteresis, debounce=st.zone_debounce)
+    rows += action_rows(camera_id, load_trajectories(db, camera_id), st)
     with db.write() as c:
         if zone_ids:
             marks = ",".join("?" * len(zone_ids))
             c.execute(f"DELETE FROM events WHERE camera_id=? AND zone_id IN ({marks})", (camera_id, *zone_ids))  # noqa: S608 - placeholders only
         c.execute("DELETE FROM events WHERE camera_id=? AND zone_id IS NULL AND kind IN ('appear','disappear')", (camera_id,))
+        marks = ",".join("?" * len(ACTION_KINDS))
+        c.execute(f"DELETE FROM events WHERE camera_id=? AND kind IN ({marks})", (camera_id, *ACTION_KINDS))  # noqa: S608 - placeholders only
         c.executemany(
             "INSERT OR REPLACE INTO events(id,camera_id,track_id,kind,zone_id,t,payload) VALUES(?,?,?,?,?,?,?)", rows)
     log.info("%s: %d events for %d zones", camera_id, len(rows), len(zones))

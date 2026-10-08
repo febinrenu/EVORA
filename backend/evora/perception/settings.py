@@ -57,6 +57,18 @@ class IngestSettings(BaseModel):
     l3_budget_s: float = 240.0        # time limit per camera; the layer stops and keeps what it has
     l3_max_tokens: int = 512          # reasoning vision models spend tokens thinking before they answer
     # events
+    # actions from trajectories (perception/actions.py); speeds are frame widths per second
+    action_move_speed: float = 0.012          # faster than this a track is moving ...
+    action_still_speed: float = 0.006         # ... and slower than this it has stopped (hysteresis)
+    action_min_segment_s: float = 1.5         # shorter pauses and stutters are merged into their neighbours
+    action_min_still_s: float = 2.0           # a stop or a start needs this much standing still
+    action_min_path: float = 0.05             # a turn needs a moving segment at least this long (frame widths)
+    action_turn_deg: float = 40.0             # heading change that counts as a turn
+    action_u_turn_deg: float = 140.0          # and as a U-turn
+    action_reverse_gap_s: float = 20.0        # the backward move must follow the stop within this time
+    action_vehicle_pad: float = 0.3           # a person is "next to" a vehicle within this share of its size
+    action_close_s: float = 3.0               # two people this long within `action_close_height` heights: talking
+    action_close_height: float = 1.0
     dwell_s: float = 20.0             # continuous presence in a zone that counts as dwelling
     line_hysteresis: float = 0.01     # normalised distance beyond a line before a crossing counts
     zone_debounce: int = 2            # samples a zone enter/exit must persist
@@ -87,7 +99,7 @@ class IngestSettings(BaseModel):
     reid_stitch_min_z: float = 2.0           # ... and stand out from the camera's background similarity
     # within-camera re-clustering: the same person returning after an occlusion or a walk out of view
     reid_recluster: bool = True
-    reid_recluster_q: float = 0.97           # merge above this quantile of the cosine between tracks seen at the same time
+    reid_recluster_q: float = 0.95           # merge above this quantile of the cosine between tracks seen at the same time
     reid_recluster_floor: float = 0.70       # (those are different people, so it is this camera's own look-alike level)
     reid_recluster_ceil: float = 0.92
     reid_recluster_min_pairs: int = 20       # concurrent pairs needed to know that level; fewer = no re-clustering
