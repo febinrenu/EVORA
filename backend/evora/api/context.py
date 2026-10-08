@@ -24,6 +24,7 @@ from evora.core.privacy_guard import guard
 from evora.core.workspace import Workspace
 from evora.core.zone_service import ZoneService
 from evora.evidence.prerender import Prerenderer
+from evora.live.restream import ReplayManager
 from evora.llm.gateway import Gateway
 from evora.llm.keypool import KeyPool
 from evora.llm.schemas import GatewayConfig
@@ -55,6 +56,7 @@ class AppContext:
     notifier: Any = None
     planner: Any = None
     compiler: Any = None
+    live: Any = None
 
     @classmethod
     def build(
@@ -91,6 +93,12 @@ class AppContext:
         ctx = cls(cfg, ws, db, bus, runner, media, UnblurTokens(), prerender, memory, settings, mock, gateway, http)
         ctx.zones = ZoneService(db, bus, memory.kb)
         memory.clarifier.on_zone = ctx.zones.recompute_zone
+        live_cfg = cfg["live"]
+        ctx.live = ReplayManager(
+            db, ws.root / "live", mediamtx_path=live_cfg["mediamtx_path"], port=int(live_cfg["rtsp_port"]),
+            max_streams=int(live_cfg["max_streams"]), default_speed=float(live_cfg["default_speed"]),
+            on_state=lambda camera_id, state: bus.publish("live", {"camera_id": camera_id, "state": state}),
+        )
         ctx.notifier = Notifier(gateway, lambda: bool(settings["onprem"]))
         ctx.alerts = AlertEngine(db, bus, memory.kb, ctx.notifier)
 

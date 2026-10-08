@@ -32,6 +32,11 @@ media:
   prerender_top: 3
 privacy:
   allow_hosts: []     # hosts reachable in on-prem mode besides loopback (empty = loopback only)
+live:
+  mediamtx_path: null   # null = look on PATH and in the winget folder
+  rtsp_port: 8554
+  max_streams: 16
+  default_speed: 1.0
 alerts:
   default_cooldown_s: 30
 jobs:
