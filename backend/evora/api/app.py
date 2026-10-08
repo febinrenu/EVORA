@@ -23,6 +23,7 @@ from evora.api import (
     routes_media,
     routes_memory,
     routes_query,
+    routes_site,
     routes_tracks,
     routes_zones,
 )
@@ -83,6 +84,7 @@ def create_app(
     app.include_router(routes_live.make_tile_router(ctx))
     app.include_router(routes_tracks.make_router(ctx))
     app.include_router(routes_admin.make_router(ctx))
+    app.include_router(routes_site.make_router(ctx))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cfg["server"]["cors_origins"],
