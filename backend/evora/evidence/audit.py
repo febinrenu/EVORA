@@ -19,9 +19,14 @@ def record(db: Database, action: str, detail: dict[str, Any], actor: str = "loca
     return entry_id
 
 
-def entries(db: Database, action: str | None = None) -> list[dict[str, Any]]:
-    sql, args = "SELECT * FROM audit_log", ()
+def entries(
+    db: Database, action: str | None = None, limit: int | None = None, newest_first: bool = False,
+) -> list[dict[str, Any]]:
+    sql, args = "SELECT * FROM audit_log", []
     if action:
-        sql, args = sql + " WHERE action=?", (action,)
+        sql, args = sql + " WHERE action=?", [action]
+    sql += " ORDER BY t DESC, rowid DESC" if newest_first else " ORDER BY t"
+    if limit is not None:
+        sql, args = sql + " LIMIT ?", [*args, limit]
     with db.read() as c:
-        return [{**dict(r), "detail": json.loads(r["detail"])} for r in c.execute(sql + " ORDER BY t", args)]
+        return [{**dict(r), "detail": json.loads(r["detail"])} for r in c.execute(sql, args)]

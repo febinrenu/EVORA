@@ -73,6 +73,23 @@ def make_router(ctx: AppContext) -> APIRouter:
             out.append(ev)
         return out
 
+    @router.get("/globals")
+    def list_globals(cls: str | None = None, limit: int = Query(100, ge=1, le=500)) -> list[dict]:
+        if ctx.mock:
+            return [CANNED_GLOBAL]
+        return _globals(ctx, None, cls, limit)
+
+    @router.get("/globals/{gid}")
+    def get_global(gid: str) -> dict:
+        if ctx.mock:
+            return {**CANNED_GLOBAL, "id": gid}
+        if not _GLOBAL_ID.match(gid):
+            raise HTTPException(422, "invalid identity id")
+        rows = _globals(ctx, gid, None, 1)
+        if not rows:
+            raise HTTPException(404, "unknown identity")
+        return rows[0]
+
     @router.get("/globals/{gid}/path")
     async def path(gid: str, response: Response) -> list[PathHop]:
         if ctx.mock:
@@ -95,6 +112,28 @@ def make_router(ctx: AppContext) -> APIRouter:
         return hops
 
     return router
+
+
+CANNED_GLOBAL = {"id": "g_000001", "cls": "person", "label": None, "n_tracks": 2, "cameras": ["cam_01", "cam_02"],
+                 "t_first": 1790000000.0, "t_last": 1790000300.0}
+
+
+def _globals(ctx: AppContext, gid: str | None, cls: str | None, limit: int) -> list[dict]:
+    """Identities with how many tracks, which cameras and when they were first and last seen (from the tracks table)."""
+    sql = (
+        "SELECT t.global_id AS id, COALESCE(g.cls, MIN(t.cls)) AS cls, g.label AS label, COUNT(*) AS n_tracks, "
+        "GROUP_CONCAT(DISTINCT t.camera_id) AS cameras, MIN(t.t_start) AS t_first, MAX(t.t_end) AS t_last "
+        "FROM tracks t LEFT JOIN global_ids g ON g.id = t.global_id WHERE t.global_id IS NOT NULL"
+    )
+    args: list = []
+    if gid is not None:
+        sql, args = sql + " AND t.global_id=?", [*args, gid]
+    if cls is not None:
+        sql, args = sql + " AND COALESCE(g.cls, t.cls)=?", [*args, cls]
+    sql += " GROUP BY t.global_id ORDER BY t_last DESC LIMIT ?"
+    with ctx.db.read() as c:
+        rows = c.execute(sql, [*args, limit]).fetchall()
+    return [{**dict(r), "cameras": sorted((r["cameras"] or "").split(","))} for r in rows]
 
 
 def _registered(ctx: AppContext, evidence_id: str) -> bool:

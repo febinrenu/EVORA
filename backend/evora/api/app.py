@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from evora import __version__
 from evora.api import (
+    routes_admin,
     routes_alerts,
     routes_cameras,
     routes_evidence,
@@ -79,6 +80,7 @@ def create_app(
     app.include_router(routes_live.make_router(ctx))
     app.include_router(routes_live.make_tile_router(ctx))
     app.include_router(routes_tracks.make_router(ctx))
+    app.include_router(routes_admin.make_router(ctx))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cfg["server"]["cors_origins"],
