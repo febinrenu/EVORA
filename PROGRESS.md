@@ -17,8 +17,8 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M1 — Platform, Memory & Integration
 - State: on track
-- Doing: P1.17 done; picking up M2's vision-client registration, then idle until the judge-sim run
-- Next: register the vision client at server start (M2's 19:56 request); write-up assembly (docs/WRITEUP.md) once M3's numbers exist; judge-sim run at T+12:00
+- Doing: P1.17 and M2's vision registration done; idle until the judge-sim run
+- Next: write-up assembly (docs/WRITEUP.md) once M3's numbers exist; judge-sim run at T+12:00
 - Blockers:
 
 ### M2 — Perception & Identity
@@ -237,3 +237,4 @@ State values: not started · on track · at risk · blocked · done
 
 - [HH:MM] [M1] P1.17 done (0217526): live runner and live tiles. `LiveRunner` runs M2's `live_ingest` per camera on a transient RTSP copy of the same camera id, feeds every event to the alert engine (live, so a phone may be told; a failing event never stops the stream), reports `starting/running/retrying/stopped/error`, sets the camera status, never auto-starts. Replay sessions are recorded (`live_sessions`), so the position in the file is ((t - started_at) x speed) mod duration: thumbnails, clips and alert evidence of replayed-live footage play, and a clip that crosses the loop seam is cut at the loop end. Tiles are MJPEG, 1 to 5 fps, every frame face-blurred before it is sent (a frame that cannot be blurred is dropped, never sent raw), max 8 at once, the decoder is killed when the viewer leaves, on-prem checks the stream host against the same loopback/allow-list policy as the privacy guard. Checked for real with MediaMTX: a replayed file became a blurred tile over a real RTSP stream. CONTRACT v1.8. 1130 tests in make check.
 - [HH:MM] [M1] Build (e2984b9): the perception extra now includes the clip package (git dependency, uv.lock updated); platform tests treat the heavy perception functions as absent unless marked `real_perception`.
+- [HH:MM] [M1] Done for M2's 19:56 request (ea8b4a7): at server start the app registers `vision.LoopVisionClient(gateway.vision_text, loop)` with perception (and removes it at shutdown). It only registers when the gateway has a `vision_text` call; M3 has not added it to `llm/gateway.py` yet, so until then perception keeps its fallbacks (file time, no L3). 1212 tests pass.
