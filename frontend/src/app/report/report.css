@@ -344,3 +344,69 @@
     margin-left: 0;
   }
 }
+
+/* claims, provenance and limits */
+.rp-prov {
+  margin: -0.4rem 0 1.4rem;
+  font-size: 0.8125rem;
+  color: var(--g48);
+}
+.rp-claims {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 0.8rem;
+  margin-bottom: 1.4rem;
+}
+.rp-claims section {
+  padding: 1rem 1.2rem;
+  background: var(--diffuser);
+  border: 1px solid var(--g8);
+  border-radius: 6px;
+}
+.rp-claims-head {
+  margin: 0 0 0.5rem !important;
+  font-size: 1rem !important;
+  font-stretch: 100% !important;
+  font-weight: 650;
+}
+.rp-claims ul,
+.rp-limits {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.45rem;
+  max-width: 72ch;
+}
+.rp-subhead {
+  margin: 1.6rem 0 0.6rem;
+  font-size: 1rem;
+  font-weight: 650;
+}
+.rp-noteval {
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.rp-noteval div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 12rem) 1fr;
+  gap: 0.8rem;
+}
+.rp-noteval dt {
+  font-weight: 600;
+}
+.rp-noteval dd {
+  margin: 0;
+  color: var(--g48);
+  max-width: 72ch;
+}
+@media (max-width: 640px) {
+  .rp-noteval div {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
+}
+.rp-table td.rp-text,
+.rp-table thead th:nth-child(-n + 3) {
+  text-align: left;
+}

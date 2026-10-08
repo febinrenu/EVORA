@@ -1,37 +1,38 @@
 "use client";
 
-// Report page (P4.17): the research story from the latest `make eval` and
-// `make ablate`, exactly as measured. Headline tiles, the full table, a paired
-// comparison against the baseline, ablations and latency. Numbers are never
-// rounded into claims; anything not measured says so.
+// Report page (P4.17): the research story from M3's latest report, as
+// measured. What the results support and what they do not show sit beside the
+// numbers; every value carries its n; capabilities that were not evaluated are
+// listed with the reason. Nothing is rounded into a claim.
 import { useEffect, useState } from "react";
 import { ApiError } from "@/lib/api/client";
-import { LABELS, SPLITS, count, evalBySplit, fetchReport, metric, systemName, type AblationFile, type EvalFile, type ReportPayload, type SystemReport } from "./data";
+import { CAPABILITY, LABELS, SPLITS, fetchReport, metric, splitName, systemName, value, type AblationRow, type EvalFile, type Metric, type Report, type SystemReport } from "./data";
 
 const RATIOS = ["hit@1", "hit@5", "mrr", "camera_accuracy", "negative_precision"] as const;
 const TABLE = ["hit@1", "hit@5", "mrr", "camera_accuracy", "timestamp_error_s", "negative_precision", "reask_count", "ttfa_p50_ms"] as const;
 
-const fmt = (v: number | null, key: string): string => {
-  if (v === null || Number.isNaN(v)) return "–";
+const fmt = (v: number | null | undefined, key: string): string => {
+  if (v === null || v === undefined || Number.isNaN(v)) return "–";
   if (key === "timestamp_error_s") return `${v.toFixed(1)} s`;
   if (key.endsWith("_ms")) return v < 1000 ? `${Math.round(v)} ms` : `${(v / 1000).toFixed(2)} s`;
   if (key === "reask_count") return String(Math.round(v * 100) / 100);
   return v.toFixed(2);
 };
+const withN = (m: Metric | null, key: string): string => (m && m.value !== null ? `${fmt(m.value, key)} (n ${m.n})` : "not measured");
 
 export function ReportView() {
-  const [data, setData] = useState<ReportPayload | null>(null);
+  const [report, setReport] = useState<Report | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     fetchReport()
-      .then(setData)
+      .then(setReport)
       .catch((e: unknown) => setError(e instanceof ApiError ? e.message : "The API did not answer."));
   }, []);
 
-  const bySplit = evalBySplit(data);
+  const r = report ?? null;
   const known: readonly string[] = SPLITS;
-  const splits: string[] = [...known.filter((s) => bySplit[s]), ...Object.keys(bySplit).filter((s) => !known.includes(s))];
-  const main = bySplit.test ?? bySplit[splits[0]];
+  const splits = r ? [...known.filter((s) => r.overall[s]), ...Object.keys(r.overall).filter((s) => !known.includes(s))] : [];
+  const main = r ? r.overall.test ?? r.overall[splits[0]] : undefined;
   const systems = main ? Object.keys(main) : [];
   const baseline = systems.find((s) => s !== "ours");
 
@@ -47,39 +48,92 @@ export function ReportView() {
       <main className="rp-main">
         <h1 className="rp-title">What the measurements show</h1>
         {error ? <p className="rp-note">The report could not be loaded: {error}</p> : null}
-        {!error && !data ? <p className="rp-note">Loading the latest evaluation…</p> : null}
-        {data && !main ? (
+        {!error && report === undefined ? <p className="rp-note">Loading the latest evaluation…</p> : null}
+        {report === null ? (
           <p className="rp-note">
-            No evaluation has been published to this machine yet. Run <code>make eval</code> and <code>make ablate</code>; the page reads their reports.
+            No evaluation has been published to this machine yet. Run <code>make eval</code>, <code>make ablate</code> and <code>python -m eval.report</code>; this page reads the result.
           </p>
         ) : null}
-        {main ? (
+        {r && main ? (
           <>
-            <Summary main={main} baseline={baseline} />
-            <Tiles main={main} baseline={baseline} />
+            <Provenance r={r} />
+            {r.supported.length || r.notShown.length ? (
+              <div className="rp-claims">
+                {r.supported.length ? (
+                  <section aria-labelledby="rp-sup">
+                    <h2 id="rp-sup" className="rp-claims-head">What the results support</h2>
+                    <ul>
+                      {r.supported.map((s) => (
+                        <li key={s}>{s}</li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+                {r.notShown.length ? (
+                  <section aria-labelledby="rp-not">
+                    <h2 id="rp-not" className="rp-claims-head">What they do not show</h2>
+                    <ul>
+                      {r.notShown.map((s) => (
+                        <li key={s}>{s}</li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+              </div>
+            ) : null}
+            <Tiles r={r} main={main} baseline={baseline} />
             <section className="rp-section" aria-labelledby="rp-results">
               <h2 id="rp-results">Results</h2>
-              <p className="rp-lead">Same footage, same parsed time window and camera filter for every system; only retrieval differs. n counts the queries a metric applies to.</p>
-              <ResultsTable bySplit={bySplit} splits={splits} />
+              <p className="rp-lead">Same footage, same parsed time window and camera filter for every system; only retrieval differs. n is the number of questions a metric applies to.</p>
+              <ResultsTable overall={r.overall} splits={splits} />
             </section>
+            {Object.keys(r.capabilities).length ? (
+              <section className="rp-section" aria-labelledby="rp-caps">
+                <h2 id="rp-caps">By capability</h2>
+                <CapabilityTable caps={r.capabilities} splits={splits} />
+                {Object.keys(r.notEvaluated).length ? (
+                  <>
+                    <h3 className="rp-subhead">Not evaluated</h3>
+                    <dl className="rp-noteval">
+                      {Object.entries(r.notEvaluated).map(([cap, why]) => (
+                        <div key={cap}>
+                          <dt>{CAPABILITY[cap] ?? cap}</dt>
+                          <dd>{why}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </>
+                ) : null}
+              </section>
+            ) : null}
             {baseline ? (
               <section className="rp-section" aria-labelledby="rp-vs">
-                <h2 id="rp-vs">Against the baseline, {main[systems[0]]?.split ?? "test"} split</h2>
+                <h2 id="rp-vs">Against the baseline, {splitName(main[systems[0]]?.split ?? "test")} split</h2>
                 <PairedBars a={main.ours} b={main[baseline]} bName={systemName(baseline)} />
               </section>
             ) : null}
-            {data?.ablations ? (
+            {r.ablations.length ? (
               <section className="rp-section" aria-labelledby="rp-abl">
                 <h2 id="rp-abl">What each part contributes</h2>
-                <p className="rp-lead">Each row turns one contribution off and reruns the frozen test split. A shorter bar than the full system means that part was helping.</p>
-                <Ablations rows={data.ablations} />
+                <p className="rp-lead">Each row turns one contribution off and reruns the frozen test split. A shorter bar than the full system means that part was helping; equal bars mean no effect could be measured on these questions.</p>
+                <Ablations rows={r.ablations} />
               </section>
             ) : null}
             <section className="rp-section" aria-labelledby="rp-lat">
               <h2 id="rp-lat">Time to the first answer</h2>
               <p className="rp-lead">Dot is the median, the line runs to the 95th percentile, measured on the same machine in the same session.</p>
-              <Latency bySplit={bySplit} splits={splits} />
+              <Latency overall={r.overall} splits={splits} />
             </section>
+            {r.limits.length ? (
+              <section className="rp-section" aria-labelledby="rp-lim">
+                <h2 id="rp-lim">Limits</h2>
+                <ul className="rp-limits">
+                  {r.limits.map((l) => (
+                    <li key={l}>{l}</li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
           </>
         ) : null}
       </main>
@@ -87,41 +141,33 @@ export function ReportView() {
   );
 }
 
-/** One plain sentence that states the trade-off the numbers show, both ways. */
-function Summary({ main, baseline }: { main: EvalFile; baseline?: string }) {
-  const o = main.ours;
-  const b = baseline ? main[baseline] : undefined;
-  if (!o) return null;
+function Provenance({ r }: { r: Report }) {
   const parts: string[] = [];
-  const neg = [metric(o, "negative_precision"), metric(b, "negative_precision")];
-  const ts = [metric(o, "timestamp_error_s"), metric(b, "timestamp_error_s")];
-  const hit = [metric(o, "hit@1"), metric(b, "hit@1")];
-  if (neg[0] !== null && neg[1] !== null) parts.push(neg[0] > neg[1] ? `says “nothing there” correctly far more often (${fmt(neg[0], "")} vs ${fmt(neg[1], "")})` : `is not better at saying “nothing there” (${fmt(neg[0], "")} vs ${fmt(neg[1], "")})`);
-  if (ts[0] !== null && ts[1] !== null) parts.push(ts[0] < ts[1] ? `lands closer to the moment (${fmt(ts[0], "timestamp_error_s")} vs ${fmt(ts[1], "timestamp_error_s")} median error)` : `lands further from the moment (${fmt(ts[0], "timestamp_error_s")} vs ${fmt(ts[1], "timestamp_error_s")})`);
-  const hitLine = hit[0] !== null && hit[1] !== null ? (hit[0] >= hit[1] ? `and finds the right clip first at least as often (Hit@1 ${fmt(hit[0], "")} vs ${fmt(hit[1], "")}).` : `but finds the right clip first less often (Hit@1 ${fmt(hit[0], "")} vs ${fmt(hit[1], "")}).`) : ".";
-  return (
-    <p className="rp-summary">
-      On the {o.split} split ({o.n_queries} questions), EVORA {parts.join(" and ")} {hitLine}
-    </p>
-  );
+  if (r.generatedAt) parts.push(`Generated ${r.generatedAt.replace("T", " ").slice(0, 16)}`);
+  if (r.commit) parts.push(`code ${r.commit}`);
+  if (r.frozen?.code_commit) parts.push(`thresholds frozen at ${r.frozen.code_commit} before ${(r.frozen.frozen_before ?? ["test"]).map(splitName).join(" and ")}`);
+  if (!parts.length) return null;
+  return <p className="rp-prov">{parts.join(" · ")}.</p>;
 }
 
-function Tiles({ main, baseline }: { main: EvalFile; baseline?: string }) {
-  const o = main.ours;
-  const b = baseline ? main[baseline] : undefined;
-  const tiles: [string, string][] = [
-    ["negative_precision", "Says “nothing there” when nothing is there"],
-    ["timestamp_error_s", "Median distance from the true moment"],
-    ["hit@1", "Right clip ranked first"],
-  ];
+/** Headline tiles: pooled capability results (with n) when present, else the main split. */
+function Tiles({ r, main, baseline }: { r: Report; main: EvalFile; baseline?: string }) {
+  const ours = r.pooled.ours;
+  const base = baseline ? r.pooled[baseline] : undefined;
+  const tiles: { what: string; a: Metric | null; b: Metric | null; key: string; scope: string }[] = [];
+  if (ours?.negative) tiles.push({ what: "Says “nothing there” when nothing is there", a: metric(ours.negative, "negative_precision"), b: metric(base?.negative, "negative_precision"), key: "negative_precision", scope: "all splits" });
+  tiles.push({ what: "Median distance from the true moment", a: metric(main.ours?.metrics, "timestamp_error_s"), b: baseline ? metric(main[baseline]?.metrics, "timestamp_error_s") : null, key: "timestamp_error_s", scope: `${splitName(main.ours?.split ?? "test")} split` });
+  if (ours?.object) tiles.push({ what: "Right clip ranked first, object questions", a: metric(ours.object, "hit@1"), b: metric(base?.object, "hit@1"), key: "hit@1", scope: "all splits" });
+  else tiles.push({ what: "Right clip ranked first", a: metric(main.ours?.metrics, "hit@1"), b: baseline ? metric(main[baseline]?.metrics, "hit@1") : null, key: "hit@1", scope: "test split" });
   return (
     <ul className="rp-tiles">
-      {tiles.map(([k, what]) => (
-        <li key={k}>
-          <span className="rp-tile-what">{what}</span>
-          <span className="rp-tile-value">{fmt(metric(o, k), k)}</span>
+      {tiles.map((t) => (
+        <li key={t.what}>
+          <span className="rp-tile-what">{t.what}</span>
+          <span className="rp-tile-value">{fmt(t.a?.value, t.key)}</span>
           <span className="rp-tile-vs">
-            {b ? `${systemName(baseline ?? "")} ${fmt(metric(b, k), k)}` : "no baseline"} · n {count(o, k)}
+            n {t.a?.n ?? 0}, {t.scope}
+            {t.b ? ` · ${systemName(baseline ?? "")} ${fmt(t.b.value, t.key)}` : ""}
           </span>
         </li>
       ))}
@@ -129,7 +175,7 @@ function Tiles({ main, baseline }: { main: EvalFile; baseline?: string }) {
   );
 }
 
-function ResultsTable({ bySplit, splits }: { bySplit: Record<string, EvalFile>; splits: string[] }) {
+function ResultsTable({ overall, splits }: { overall: Record<string, EvalFile>; splits: string[] }) {
   return (
     <div className="rp-table-wrap">
       <table className="rp-table">
@@ -147,19 +193,57 @@ function ResultsTable({ bySplit, splits }: { bySplit: Record<string, EvalFile>; 
         </thead>
         <tbody>
           {splits.flatMap((s) =>
-            Object.entries(bySplit[s]).map(([sys, r]) => (
+            Object.entries(overall[s]).map(([sys, rep]) => (
               <tr key={`${s}-${sys}`} className={sys === "ours" ? "is-ours" : undefined}>
                 <th scope="row">{systemName(sys)}</th>
-                <td>{s.replace("_", " ")}</td>
-                <td>{r.n_queries}</td>
+                <td className="rp-text">{splitName(s)}</td>
+                <td>{rep.n_queries}</td>
                 {TABLE.map((k) => (
-                  <td key={k} title={`n = ${count(r, k)}`}>
-                    {fmt(metric(r, k), k)}
+                  <td key={k} title={`n = ${rep.metrics[k]?.n ?? 0}`}>
+                    {fmt(value(rep.metrics, k), k)}
                   </td>
                 ))}
               </tr>
             )),
           )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CapabilityTable({ caps, splits }: { caps: Record<string, Record<string, EvalFile>>; splits: string[] }) {
+  const rows: { split: string; sys: string; cap: string; rep: SystemReport }[] = [];
+  for (const s of splits)
+    for (const [sys, byCap] of Object.entries(caps[s] ?? {}))
+      for (const [cap, rep] of Object.entries(byCap)) if (!cap.startsWith("activity")) rows.push({ split: s, sys, cap, rep });
+  const cols = ["hit@1", "camera_accuracy", "timestamp_error_s", "negative_precision"] as const;
+  return (
+    <div className="rp-table-wrap">
+      <table className="rp-table">
+        <thead>
+          <tr>
+            <th scope="col">Capability</th>
+            <th scope="col">System</th>
+            <th scope="col">Split</th>
+            {cols.map((k) => (
+              <th key={k} scope="col">
+                {LABELS[k]}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ split, sys, cap, rep }) => (
+            <tr key={`${cap}-${sys}-${split}`} className={sys === "ours" ? "is-ours" : undefined}>
+              <th scope="row">{CAPABILITY[cap] ?? cap}</th>
+              <td className="rp-text">{systemName(sys)}</td>
+              <td className="rp-text">{splitName(split)}</td>
+              {cols.map((k) => (
+                <td key={k}>{rep.metrics[k]?.value === null || rep.metrics[k] === undefined ? "–" : withN(rep.metrics[k], k)}</td>
+              ))}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -174,8 +258,8 @@ function useTip() {
     onPointerMove: (e: React.PointerEvent) => setTip({ x: e.clientX, y: e.clientY, text }),
     onPointerLeave: () => setTip(null),
     onFocus: (e: React.FocusEvent) => {
-      const r = (e.target as HTMLElement).getBoundingClientRect();
-      setTip({ x: r.right, y: r.top, text });
+      const b = (e.target as HTMLElement).getBoundingClientRect();
+      setTip({ x: b.right, y: b.top, text });
     },
     onBlur: () => setTip(null),
     tabIndex: 0,
@@ -199,56 +283,61 @@ function PairedBars({ a, b, bName }: { a?: SystemReport; b?: SystemReport; bName
       </div>
       <ol className="rp-pairs">
         {RATIOS.map((k) => {
-          const va = metric(a, k);
-          const vb = metric(b, k);
+          const ma = metric(a?.metrics, k);
+          const mb = metric(b?.metrics, k);
           return (
             <li key={k}>
               <span className="rp-row-label">{LABELS[k]}</span>
               <span className="rp-bars">
                 <span className="rp-track">
-                  <i className="rp-bar is-a" style={{ width: `${(va ?? 0) * 100}%` }} {...bind(`EVORA, ${LABELS[k]}: ${fmt(va, k)} (n ${count(a, k)})`)} />
-                  <span className="rp-val">{fmt(va, k)}</span>
+                  <i className="rp-bar is-a" style={{ width: `${(ma?.value ?? 0) * 100}%` }} {...bind(`EVORA, ${LABELS[k]}: ${withN(ma, k)}`)} />
+                  <span className="rp-val">{fmt(ma?.value, k)}</span>
                 </span>
                 <span className="rp-track">
-                  <i className="rp-bar is-b" style={{ width: `${(vb ?? 0) * 100}%` }} {...bind(`${bName}, ${LABELS[k]}: ${fmt(vb, k)} (n ${count(b, k)})`)} />
-                  <span className="rp-val">{fmt(vb, k)}</span>
+                  <i className="rp-bar is-b" style={{ width: `${(mb?.value ?? 0) * 100}%` }} {...bind(`${bName}, ${LABELS[k]}: ${withN(mb, k)}`)} />
+                  <span className="rp-val">{fmt(mb?.value, k)}</span>
                 </span>
               </span>
             </li>
           );
         })}
       </ol>
-      <figcaption>Scale 0 to 1 for every row. Higher is better.</figcaption>
+      <figcaption>Scale 0 to 1 for every row; higher is better. Hover or focus a bar for its n.</figcaption>
       {node}
     </figure>
   );
 }
 
-function Ablations({ rows }: { rows: AblationFile }) {
+function Ablations({ rows }: { rows: AblationRow[] }) {
   const { bind, node } = useTip();
-  const entries = Object.entries(rows);
-  const full = rows["full system"]?.report;
-  const metricsShown = ["hit@1", "negative_precision"] as const;
+  const full = rows.find((r) => r.label === "full system");
+  const shown = ["hit@1", "negative_precision"] as const;
   return (
     <figure className="rp-figure">
       <div className="rp-abl">
-        {metricsShown.map((k) => {
-          const ref = metric(full, k);
+        {shown.map((k) => {
+          const ref = value(full?.metrics, k);
           return (
             <div key={k} className="rp-abl-col">
               <h3>{LABELS[k]}</h3>
               <ol>
-                {entries.map(([name, row]) => {
-                  const v = metric(row.report, k);
-                  const label = name.replace(/^no /, "without ");
+                {rows.map((row) => {
+                  const m = metric(row.metrics, k);
+                  const v = m?.value ?? null;
+                  const isFull = row.label === "full system";
+                  const label = isFull ? "Full system" : row.label.replace(/^no /, "without ");
                   return (
-                    <li key={name} className={name === "full system" ? "is-full" : undefined}>
-                      <span className="rp-row-label">{name === "full system" ? "Full system" : label}</span>
+                    <li key={row.label} className={isFull ? "is-full" : undefined}>
+                      <span className="rp-row-label">{label}</span>
                       {row.skipped ? (
                         <span className="rp-skip">Not run: {row.skipped.replace(/^skipped: /, "")}</span>
                       ) : (
                         <span className="rp-track">
-                          <i className="rp-bar is-a" style={{ width: `${(v ?? 0) * 100}%` }} {...bind(`${name}: ${LABELS[k]} ${fmt(v, k)}${ref !== null && v !== null && name !== "full system" ? ` (${v - ref >= 0 ? "+" : ""}${(v - ref).toFixed(2)} vs full)` : ""}`)} />
+                          <i
+                            className="rp-bar is-a"
+                            style={{ width: `${(v ?? 0) * 100}%` }}
+                            {...bind(`${label}: ${LABELS[k]} ${withN(m, k)}${ref !== null && v !== null && !isFull ? `, ${v - ref >= 0 ? "+" : ""}${(v - ref).toFixed(2)} vs full` : ""}`)}
+                          />
                           <span className="rp-val">{fmt(v, k)}</span>
                           {ref !== null ? <b className="rp-ref" style={{ left: `${ref * 100}%` }} aria-hidden="true" /> : null}
                         </span>
@@ -267,9 +356,9 @@ function Ablations({ rows }: { rows: AblationFile }) {
   );
 }
 
-function Latency({ bySplit, splits }: { bySplit: Record<string, EvalFile>; splits: string[] }) {
+function Latency({ overall, splits }: { overall: Record<string, EvalFile>; splits: string[] }) {
   const { bind, node } = useTip();
-  const rows = splits.flatMap((s) => Object.entries(bySplit[s]).map(([sys, r]) => ({ s, sys, p50: metric(r, "ttfa_p50_ms"), p95: metric(r, "ttfa_p95_ms") })));
+  const rows = splits.flatMap((s) => Object.entries(overall[s]).map(([sys, rep]) => ({ s, sys, p50: value(rep.metrics, "ttfa_p50_ms"), p95: value(rep.metrics, "ttfa_p95_ms"), n: rep.metrics.ttfa_p50_ms?.n ?? 0 })));
   const max = Math.max(1, ...rows.map((r) => r.p95 ?? r.p50 ?? 0));
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * max);
   return (
@@ -282,12 +371,12 @@ function Latency({ bySplit, splits }: { bySplit: Record<string, EvalFile>; split
         {rows.map((r) => (
           <li key={`${r.s}-${r.sys}`}>
             <span className="rp-row-label">
-              {systemName(r.sys)} <em>{r.s.replace("_", " ")}</em>
+              {systemName(r.sys)} <em>{splitName(r.s)}</em>
             </span>
             <span className="rp-lat-track">
               {r.p50 !== null && r.p95 !== null ? <i className={`rp-range is-${r.sys === "ours" ? "a" : "b"}`} style={{ left: `${(r.p50 / max) * 100}%`, width: `${((r.p95 - r.p50) / max) * 100}%` }} /> : null}
               {r.p50 !== null ? (
-                <i className={`rp-dot is-${r.sys === "ours" ? "a" : "b"}`} style={{ left: `${(r.p50 / max) * 100}%` }} {...bind(`${systemName(r.sys)}, ${r.s}: median ${fmt(r.p50, "ttfa_p50_ms")}, 95th ${fmt(r.p95, "ttfa_p95_ms")}`)} />
+                <i className={`rp-dot is-${r.sys === "ours" ? "a" : "b"}`} style={{ left: `${(r.p50 / max) * 100}%` }} {...bind(`${systemName(r.sys)}, ${splitName(r.s)}: median ${fmt(r.p50, "ttfa_p50_ms")}, 95th ${fmt(r.p95, "ttfa_p95_ms")} (n ${r.n})`)} />
               ) : null}
               <span className="rp-lat-val">
                 {fmt(r.p50, "ttfa_p50_ms")} · {fmt(r.p95, "ttfa_p95_ms")}
