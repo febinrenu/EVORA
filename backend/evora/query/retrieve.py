@@ -43,6 +43,13 @@ from evora.query.logic import Candidate, TrackRec, instant_in_window, span_in_wi
 from evora.query.objects import sample_evenly
 
 OTHER_COLOUR_CAP = 0.35     # below the router's accept line, so a person seen in another colour is never an answer
+# colour read from a person's crops when the stored colour is unknown: image-text similarity over the 11 colour words,
+# compared with each other (absolute cosines are tiny). Checked once against human labels of the upper body (about 70%
+# right against 50% for always guessing the commonest colour); the trousers were no better than guessing, so only the
+# upper-body wording is used. Constants were fixed before that check and not tuned on it.
+ESTIMATE_PROMPT = "a photo of a person wearing {}"
+ESTIMATE_TEMPERATURE = 1.5
+ESTIMATE_MIN_P = 0.35
 VECTOR_CACHE = 128        # distinct query texts whose embeddings are kept
 MIN_POINTS_IN_WINDOW = 2   # track points (about 4 per second) a track needs inside the window to count as present
 MIN_PRESENCE_S = 0.5        # and they must span at least this long
@@ -165,6 +172,30 @@ class Retriever:
             if row.get("frame_path") and instant_in_window(float(row["t"]), window, tz):
                 by_camera.setdefault(row["camera_id"], []).append((float(row["t"]), row["frame_path"]))
         return {camera: sample_evenly(frames, per_camera) for camera, frames in by_camera.items()}
+
+    def _estimated_colours(self, track_ids: Sequence[str], target: Target) -> dict[str, tuple[str, float]]:
+        """track id -> (colour, probability) estimated from its crops; only for people when a colour was asked for."""
+        if "person" not in target.cls or not any(a in COLOUR_TERMS for a in target.attributes) or not track_ids:
+            return {}
+        terms = sorted(COLOUR_TERMS)
+        text = np.stack([self._text_vector(ESTIMATE_PROMPT.format(c)) for c in terms])
+        table = self._store.open_table("crops")
+        sums: dict[str, np.ndarray] = {}
+        for i in range(0, len(track_ids), 300):
+            ids = list(track_ids[i:i + 300])
+            where = _in_clause("track_id", ids)
+            for row in table.search().where(where, prefilter=True).select(["track_id", "vector"]).limit(100000).to_list():
+                vec = _unit(np.asarray(row["vector"], dtype=np.float32))
+                sums[row["track_id"]] = sums.get(row["track_id"], 0.0) + vec
+        out: dict[str, tuple[str, float]] = {}
+        for tid, total in sums.items():
+            cos = text @ _unit(total)
+            z = (cos - cos.mean()) / (cos.std() + 1e-9)
+            p = np.exp(z * ESTIMATE_TEMPERATURE)
+            p /= p.sum()
+            best = int(np.argmax(p))
+            out[tid] = (terms[best], float(p[best]))
+        return out
 
     def _text_vector(self, text: str) -> np.ndarray:
         """The unit text embedding, computed once per distinct text: crops and scenes share the same query."""
@@ -385,6 +416,7 @@ class Retriever:
         caption_scores = bm25.scores(" ".join([target.noun, *target.attributes, target.embed_text])) if bm25 else {}
 
         present = self._presence(pool, scope)
+        estimates = self._estimated_colours(list(pool), target) if self.cfg.attributes and "crops" in tables else {}
         used: set[str] = set()
         for tid, row in pool.items():
             inside = present.get(tid)
@@ -405,6 +437,14 @@ class Retriever:
                 if sig.attributes is not None:
                     sig.why += explain_attributes(target.attributes, attrs)
                     used.add("attributes")
+                elif tid in estimates:  # no stored colour: an estimate from the crops, labelled as one
+                    term, p = estimates[tid]
+                    if term in target.attributes and p >= ESTIMATE_MIN_P:
+                        # support for answers and counts only: the ranking is unchanged (image similarity already
+                        # carries colour, and an estimate did not improve it on labelled data)
+                        sig.why.append(f"colour {term} (estimated {p:.2f})")
+                    else:  # looked at, and it looks like something else: checked, not matching
+                        sig.why.append(f"estimated colour {term} {p:.2f}")
             if tid in caption_scores and self._caption_agrees(bm25, tid, target):
                 sig.caption = squash_bm25(caption_scores[tid])
                 sig.why.append("caption match")

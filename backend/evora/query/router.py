@@ -248,9 +248,10 @@ class Router:
         if dropped:
             notes.append("Coarse scene matches were left out because they cannot show the requested action.")
         accepted = [m for m in matches if m.score >= self.cfg.accept]
-        unbacked = len(accepted)
-        accepted = _backed_by_attributes(plan, accepted, notes)
-        unreadable = unbacked - len(accepted) if plan.intent == "count" else 0
+        before = accepted
+        accepted = _backed_by_attributes(plan, before, notes)
+        checked_by_estimate = sum(1 for m in before if m not in accepted and any(w.startswith("estimated colour") for w in m.why))
+        unreadable = (len(before) - len(accepted) - checked_by_estimate) if plan.intent == "count" else 0
         near = [m for m in matches if m.score < self.cfg.accept]
         timings["logic"] = _ms(t)
 
@@ -705,10 +706,20 @@ def _backed_by_attributes(plan: QueryPlan, accepted: list[Match], notes: list[st
     if plan.intent not in ("exists", "list", "first", "last", "count") or not plan.targets or not plan.targets[0].attributes:
         return accepted
     backed = [m for m in accepted if any(w.startswith(_SUPPORT_WHY) for w in m.why)]
+    estimated = sum(1 for m in backed if any("(estimated" in w for w in m.why))
+    if estimated:
+        notes.append(f"{estimated} of these colours were estimated from how the person looks, not read from the clothes, "
+                     "so they are less certain.")
     if len(backed) == len(accepted):
         return accepted
     if plan.intent == "count":
-        notes.append(f"{len(accepted) - len(backed)} more could not be checked for {' '.join(plan.targets[0].attributes)}.")
+        looked_at = sum(1 for m in accepted if m not in backed and any(w.startswith("estimated colour") for w in m.why))
+        if looked_at:
+            notes.append(f"{looked_at} more were checked from how they look and did not look "
+                         f"{' '.join(plan.targets[0].attributes)}; that estimate can be wrong.")
+        unread = len(accepted) - len(backed) - looked_at
+        if unread:
+            notes.append(f"{unread} more could not be checked for {' '.join(plan.targets[0].attributes)}.")
         return backed
     return backed or accepted
 

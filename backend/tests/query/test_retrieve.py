@@ -386,3 +386,34 @@ async def test_presence_keeps_in_window_points_and_still_tells_apart_never_on_sc
     presence = retriever._presence({"away": {}, "nopoints": {}, "here": {}}, scope)
     assert presence["away"] == [] and "nopoints" not in presence      # points elsewhere vs no points at all
     assert min(presence["here"]) >= 60.0 and max(presence["here"]) <= 120.0
+
+
+# ------------------------------------------------------- a colour estimated from the crops, labelled as an estimate
+@pytest.mark.asyncio
+async def test_an_unknown_colour_is_estimated_from_the_crops_and_labelled_as_an_estimate(ws):
+    ws.camera("cam_01")
+    ws.track("looks_red", "cam_01", cls="person", crops=[E[0]], t0=100.0, t1=110.0)
+    ws.track("looks_blue", "cam_01", cls="person", crops=[E[1]], t0=200.0, t1=210.0)
+    ws.track("known_red", "cam_01", cls="person", crops=[E[2]], attrs={"upper_color": "red", "upper_color_conf": 0.9},
+             t0=300.0, t1=310.0)
+    p = plan(attrs=("red",), cls=("person",), noun="person", embed="a photo of a person wearing red")
+    res = await ws.retriever().search(p)
+    why = {c.track.id: c.why for c in res.candidates}
+    assert any(w.startswith("colour red (estimated") for w in why["looks_red"])          # a match, said to be an estimate
+    assert any(w.startswith("estimated colour blue") for w in why["looks_blue"])          # checked, and not red
+    assert not any(w.startswith("colour") for w in why["looks_blue"])                     # so it is not support for red
+    assert "colour red 0.90" in why["known_red"] and not any("estimated" in w for w in why["known_red"])  # stored wins
+
+
+@pytest.mark.asyncio
+async def test_colours_are_estimated_only_for_people_and_only_when_a_colour_was_asked(ws):
+    ws.camera("cam_01")
+    ws.track("car1", "cam_01", cls="car", crops=[E[0]], t0=100.0, t1=110.0)
+    ws.track("person1", "cam_01", cls="person", crops=[E[0]], t0=200.0, t1=210.0)
+    retriever = ws.retriever()
+    car = await retriever.search(plan(attrs=("red",), cls=("car",), noun="car"))
+    assert not any("estimated" in w for c in car.candidates for w in c.why)
+    plain = await retriever.search(plan(attrs=(), cls=("person",), noun="person", embed="a photo of a person"))
+    assert not any("estimated" in w for c in plain.candidates for w in c.why)
+    off = await ws.retriever(attributes=False).search(plan(attrs=("red",), cls=("person",), noun="person"))
+    assert not any("estimated" in w for c in off.candidates for w in c.why)
