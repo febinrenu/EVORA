@@ -112,3 +112,59 @@ def test_cli_end_to_end_with_a_registered_system(tmp_path, monkeypatch, capsys):
     assert harness.main(["--system", "oracle", "--queries", str(qfile), "--out", str(tmp_path / "out")]) == 0
     assert "| oracle | dev | 1 |" in capsys.readouterr().out
     assert Path(tmp_path / "out" / "eval_dev.json").exists()
+
+
+# ------------------------------------------------------------ capability tables
+def cap_item(qid, cap, hit=True, intent="exists", count=None):
+    expected = {"verdict": "yes", "hits": [{"camera_id": "cam_01", "start": GT_START, "end": GT_END}]} if hit \
+        else {"verdict": "count", "count": count} if intent == "count" else {"verdict": "no"}
+    tags = [f"cap:{cap}"] if cap else []
+    return QueryItem.model_validate({"id": qid, "text": qid, "workspace": "w", "intent": intent, "tags": tags,
+                                     "expected": expected})
+
+
+def test_capability_of_defaults_untagged_queries_to_the_activity_diagnostic():
+    assert harness.capability_of(cap_item("a", "object")) == "object"
+    assert harness.capability_of(cap_item("b", None)) == harness.ACTIVITY
+
+
+@pytest.mark.asyncio
+async def test_one_report_per_capability_never_a_blended_headline():
+    items = [cap_item("o1", "object"), cap_item("o2", "object"), cap_item("n1", "negative", hit=False),
+             cap_item("a1", None)]
+    results = []
+    for it in items:
+        results.append(await Oracle().run(it))
+    caps = harness.by_capability(items, results, "dev")
+    assert list(caps) == ["object", "negative", harness.ACTIVITY]  # table order, only what exists
+    assert caps["object"].n_queries == 2 and caps["negative"].n_queries == 1
+    assert caps["object"].metrics["hit@1"].value == 1.0 and caps["negative"].metrics["negative_precision"].value == 1.0
+
+
+@pytest.mark.asyncio
+async def test_capability_markdown_lists_unsupported_capabilities_instead_of_inventing_rows():
+    items = [cap_item("o1", "object"), cap_item("n1", "negative", hit=False)]
+    caps = harness.by_capability(items, [await Oracle().run(i) for i in items], "dev")
+    text = harness.format_capability_markdown(caps, "ours")
+    assert "| object | 1 | 1.00 |" in text and "System: ours" in text
+    assert "colour" not in text.split("Not evaluated")[0]  # no row for a capability without ground truth
+    tail = text.split("Not evaluated")[1]
+    assert "- colour:" in tail and "- carrying:" in tail and "- path:" in tail
+    covered = harness.by_capability([cap_item("c1", "colour")], [await Oracle().run(cap_item("c1", "colour"))], "dev")
+    assert "- colour:" not in harness.format_capability_markdown(covered)  # a capability with ground truth leaves the list
+
+
+def test_count_error_metrics_show_how_far_off_the_counts_are():
+    from eval.metrics import RunResult, score
+
+    items = [cap_item(f"c{i}", "count", hit=False, intent="count", count=n) for i, n in enumerate([2, 4, 0, 3])]
+    got = [2, 3, 2, None]  # exact, off by one, off by two, no answer
+    results = []
+    for it, g in zip(items, got, strict=True):
+        ans = None if g is None else Answer(query_id="q", text="", verdict="count", count=g, confidence=1.0,
+                                            plan=QueryPlan(intent="count"))
+        results.append(RunResult(it.id, ans))
+    m = score(items, results).metrics
+    assert m["count_accuracy"].value == 0.25
+    assert m["count_mae"].value == pytest.approx((0 + 1 + 2 + 3) / 4)  # no answer counts as having counted nothing
+    assert m["count_within_1"].value == 0.5

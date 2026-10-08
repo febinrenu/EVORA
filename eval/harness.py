@@ -117,6 +117,55 @@ def build_system(name: str, workspace: str | None = None, root: Path | None = No
     return builder(workspace, **kwargs)
 
 
+# Capabilities the system claims, in table order; anything without a `cap:` tag is the activity diagnostic.
+CAPABILITIES = ["object", "negative", "count", "colour", "carrying", "zone", "path"]
+ACTIVITY = "activity (diagnostic)"
+# Shown as rows so a missing score is visible rather than silently absent. They flip when ground truth exists.
+UNSUPPORTED_CAPABILITIES = {
+    "colour": "no colour labels in MEVA; needs the blind human labels from scripts/colour_label_tool.py",
+    "carrying": "no bag-carrying ground truth: MEVA's carried objects are class 'other', one bag actor in 6 cameras",
+    "path": "no cross-camera identity ground truth (MEVA actor ids are per clip and camera)",
+}
+CAPABILITY_COLUMNS = [
+    ("Hit@1", "hit@1", "{:.2f}"), ("Hit@5", "hit@5", "{:.2f}"), ("MRR", "mrr", "{:.2f}"),
+    ("Cam acc", "camera_accuracy", "{:.2f}"), ("Ts err (s)", "timestamp_error_s", "{:.1f}"),
+    ("Neg prec", "negative_precision", "{:.2f}"), ("Count acc", "count_accuracy", "{:.2f}"),
+    ("Count MAE", "count_mae", "{:.2f}"), ("Within 1", "count_within_1", "{:.2f}"),
+]
+
+
+def capability_of(item: QueryItem) -> str:
+    return next((t[4:] for t in item.tags if t.startswith("cap:")), ACTIVITY)
+
+
+def by_capability(items: list[QueryItem], results: list[RunResult], split: str = "all") -> dict[str, Report]:
+    """One report per capability present in `items`, so a mixed set never produces one blended headline."""
+    groups: dict[str, list[QueryItem]] = {}
+    for item in items:
+        groups.setdefault(capability_of(item), []).append(item)
+    order = [c for c in [*CAPABILITIES, ACTIVITY] if c in groups]
+    return {c: score(groups[c], results, split=split) for c in order}
+
+
+def format_capability_markdown(reports: dict[str, Report], system: str = "ours") -> str:
+    """Rows only where valid ground truth exists; unsupported capabilities are listed with the reason."""
+    header = ["Capability", "n", *[c[0] for c in CAPABILITY_COLUMNS]]
+    lines = [f"System: {system}", "", "| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
+    for cap, report in reports.items():
+        cells = [_cell(report, key, fmt) for _, key, fmt in CAPABILITY_COLUMNS]
+        lines.append("| " + " | ".join([cap, str(report.n_queries), *cells]) + " |")
+    missing = [c for c in UNSUPPORTED_CAPABILITIES if c not in reports]
+    if missing:
+        lines += ["", "Not evaluated (no reliable ground truth in the available data):"]
+        lines += [f"- {c}: {UNSUPPORTED_CAPABILITIES[c]}" for c in missing]
+    return "\n".join(lines)
+
+
+async def evaluate_detailed(system: System, items: list[QueryItem], split: str) -> tuple[Report, list[RunResult]]:
+    results = await run_system(system, items)
+    return score(items, results, split=split), results
+
+
 async def evaluate(system: System, items: list[QueryItem], split: str) -> Report:
     return score(items, await run_system(system, items), split=split)
 
@@ -138,16 +187,26 @@ def main(argv: list[str] | None = None) -> int:
         print(f"No {split} queries found.", file=sys.stderr)
         return 2
     reports: dict[str, Report] = {}
+    per_capability: dict[str, dict[str, Report]] = {}
     for name in args.system:
         try:
             system = build_system(name, args.workspace, args.root, args.replay)
         except SystemNotReady as exc:
             print(str(exc), file=sys.stderr)
             return 2
-        reports[name] = asyncio.run(evaluate(system, items, split))
+        reports[name], results = asyncio.run(evaluate_detailed(system, items, split))
+        per_capability[name] = by_capability(items, results, split)
     json_path, md_path = write_reports(reports, args.out, stem=f"eval_{split}")
+    cap_text = "\n\n".join(format_capability_markdown(r, name) for name, r in per_capability.items())
+    cap_md = args.out / f"eval_{split}_capabilities.md"
+    cap_md.write_text(cap_text + "\n", encoding="utf-8")
+    (args.out / f"eval_{split}_capabilities.json").write_text(
+        json.dumps({n: {c: r.to_dict() for c, r in caps.items()} for n, caps in per_capability.items()}, indent=2),
+        encoding="utf-8")
     print(format_markdown(reports))
-    print(f"\nwrote {json_path} and {md_path}")
+    print()
+    print(cap_text)
+    print(f"\nwrote {json_path}, {md_path} and {cap_md}")
     return 0
 
 

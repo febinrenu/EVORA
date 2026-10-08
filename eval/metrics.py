@@ -157,6 +157,12 @@ def score(items: list[QueryItem], results: list[RunResult], split: str = "all") 
     counts = [i for i in items if i.intent == "count" and i.expected.count is not None]
     count_ok = sum(1 for i in counts if (a := answered(i)) is not None and a.count == i.expected.count)
     m["count_accuracy"] = Metric(count_ok / len(counts) if counts else None, len(counts))
+    errors = []
+    for i in counts:
+        a = answered(i)
+        errors.append(abs((a.count if a is not None and a.count is not None else 0) - i.expected.count))
+    m["count_mae"] = Metric(sum(errors) / len(errors) if errors else None, len(errors))
+    m["count_within_1"] = Metric(sum(1 for e in errors if e <= 1) / len(errors) if errors else None, len(errors))
 
     # clarify-once
     asked_tp = asked_fp = asked_fn = 0
