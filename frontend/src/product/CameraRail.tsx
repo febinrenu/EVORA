@@ -223,6 +223,7 @@ function ClockLine({ cam, reading }: { cam: CameraInfo; reading: { state: "readi
     try {
       useEvora.getState().upsertCameras([await endpoints.setClock(cam.id, t0)]);
       useEvora.getState().setClock(cam.id, null);
+      useEvora.getState().clockCorrected(cam.id);
       setByHand(true);
       setEditing(false);
     } catch (e) {

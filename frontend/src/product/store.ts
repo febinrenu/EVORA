@@ -23,6 +23,8 @@ export interface Case {
   pending?: { req: ClarifyRequest; resp: ClarifyResponse; label: string };
   /** after the server lost the paused question (a restart), the same answer is sent again when it asks again */
   replay?: { referent: string; resp: ClarifyResponse; label: string };
+  /** cameras whose clock was corrected after this answer: its times have moved */
+  clockMoved?: string[];
   /** the stream this case listens to; messages from an older one are ignored */
   stream?: string;
   /** clarifications answered for this question, oldest first */
@@ -97,6 +99,8 @@ interface State {
   setLive: (cameraId: string, state: string) => void;
   setAnalysis: (cameraId: string, state: string) => void;
   setClock: (cameraId: string, state: { state: "reading" | "failed"; error?: string } | null) => void;
+  /** a camera's clock was corrected: answers that cite it now show stale times */
+  clockCorrected: (cameraId: string) => void;
   /** show an alert's evidence as an entry in the case log */
   openAlert: (a: Alert, watchText: string) => void;
   /** query by example: sightings that look like this track */
@@ -398,6 +402,12 @@ export const useEvora = create<State>()((set, get) => {
     },
     setLive: (cameraId, state) => set((s) => ({ live: { ...s.live, [cameraId]: state } })),
     setAnalysis: (cameraId, state) => set((s) => ({ analysis: { ...s.analysis, [cameraId]: state } })),
+    clockCorrected: (cameraId) =>
+      set((s) => ({
+        cases: s.cases.map((c) =>
+          c.answer && c.evidence.some((e) => e.camera_id === cameraId) && !c.clockMoved?.includes(cameraId) ? { ...c, clockMoved: [...(c.clockMoved ?? []), cameraId] } : c,
+        ),
+      })),
     setClock: (cameraId, state) =>
       set((s) => {
         const clock = { ...s.clock };

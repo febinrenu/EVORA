@@ -50,6 +50,7 @@ export function AppShell() {
           st.setCameraStatus(n.camera_id, n.status as never);
           // a clock correction moved the camera's stored times: fetch its new t0
           if (n.status === "ready" || typeof n.clock === "string") void st.refreshCameras();
+          if (typeof n.clock === "string") st.clockCorrected(n.camera_id);
         } else if (n.kind === "clock" && typeof n.camera_id === "string") {
           if (n.state === "reading") st.setClock(n.camera_id, { state: "reading" });
           else {

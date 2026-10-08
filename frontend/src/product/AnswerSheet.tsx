@@ -62,6 +62,16 @@ export function AnswerSheet({ c }: { c: Case }) {
   return (
     <div className="lt-sheet">
       <p className={`lt-verdict${partial ? " is-partial" : ""}`}>{verdictLine(a.verdict, a.count, evidence.length)}</p>
+      {c.clockMoved?.length ? (
+        <p className="lt-stale" role="status">
+          <span>
+            The clock of {c.clockMoved.map((id) => cameras.find((x) => x.id === id)?.name ?? id).join(" and ")} was corrected after this answer, so the times below are from before the correction.
+          </span>
+          <button type="button" onClick={() => useEvora.getState().ask(c.question)}>
+            Ask again
+          </button>
+        </p>
+      ) : null}
       {partial ? <p className="lt-partial">Some of this could not be checked. The notes below say what.</p> : null}
       {a.verdict !== "count" && evidence.length > 1 ? <p className="lt-shown">{evidence.length} shown</p> : null}
       <p className="lt-answer">{a.text}</p>
