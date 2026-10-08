@@ -163,6 +163,9 @@ def compose(
     reference_now: float | None = None,
     partial: bool = False,
     unconfirmed: bool = False,
+    concurrent: Mapping[str, Mapping[str, int]] | None = None,
+    appearances: int | None = None,
+    unreadable: int = 0,
 ) -> Composed:
     """Build the verdict and the grounded text. `evidence` is already ordered best/first/last.
 
@@ -184,6 +187,38 @@ def compose(
     sentences: list[Sentence] = []
     ids = tuple(e.id for e in evidence)
     intent = plan.intent
+
+    if intent == "count" and unreadable and not count and plan.targets and plan.targets[0].attributes:
+        # attributes were asked for and none could be read: say so instead of answering zero
+        wanted = " ".join(plan.targets[0].attributes)
+        noun = plan.targets[0].noun
+        being = f"wearing {wanted}" if noun in ("person", "people") else wanted
+        sentences.append(Sentence(
+            f"I can't tell how many {pluralize(noun)} are {being}: the colour could not be read for "
+            f"{unreadable} of them (too small, too dark or too far away).", (), "negative"))
+        notes.append("Nothing is counted as zero here: the colour is unknown, not absent.")
+        return Composed("partial", sentences, notes, None)
+
+    if intent == "count" and concurrent:
+        cam_names = {**names, **{e.camera_id: e.camera_name for e in evidence}}
+        typical = max(v["typical"] for v in concurrent.values())
+        peak = max(v["peak"] for v in concurrent.values())
+        noun = plan.targets[0].noun if plan.targets else "item"
+        label = noun if typical == 1 else pluralize(noun)
+        spot = f" of {where}" if where else ""
+        sentence = (f"About {typical} {label} {'was' if typical == 1 else 'were'} in view{spot} at the same time"
+                    f"{_when(plan)}")
+        sentence += f" (up to {peak} at once)." if peak > typical else "."
+        sentences.append(Sentence(sentence.replace("  ", " "), tuple(e.id for e in evidence), "fact" if evidence else "negative"))
+        if len(concurrent) > 1:
+            per = ", ".join(f"{cam_names.get(c, c)} {v['typical']}" for c, v in sorted(concurrent.items()))
+            sentences.append(Sentence(f"Per camera: {per}.", ()))
+            notes.append("These cameras may show the same place, so the largest single-camera number is given, not the sum.")
+        if appearances is not None and appearances > typical:
+            notes.append(f"{appearances} separate appearances were tracked, but people who leave the view or are hidden for a "
+                         "while come back as new tracks. The number above is how many were in view at the same time, "
+                         "which is the closest the footage gets to how many people there are.")
+        return Composed("count", sentences, notes, typical)
 
     if intent == "count":
         n = count if count is not None else len(evidence)

@@ -47,7 +47,9 @@ from evora.query.logic import (
     Match,
     apply_action,
     best_per_track,
+    concurrency,
     count_distinct,
+    instant_in_window,
     order_matches,
 )
 from evora.query.planner import Planner, PlanningError, reference_now, workspace_tz
@@ -221,7 +223,9 @@ class Router:
         if dropped:
             notes.append("Coarse scene matches were left out because they cannot show the requested action.")
         accepted = [m for m in matches if m.score >= self.cfg.accept]
+        unbacked = len(accepted)
         accepted = _backed_by_attributes(plan, accepted, notes)
+        unreadable = unbacked - len(accepted) if plan.intent == "count" else 0
         near = [m for m in matches if m.score < self.cfg.accept]
         timings["logic"] = _ms(t)
 
@@ -244,10 +248,15 @@ class Router:
             yield _event("evidence", ev.model_dump(mode="json"))
 
         count = count_distinct(accepted) if plan.intent == "count" else None
+        concurrent = None
+        if plan.intent == "count" and plan.action == "any" and accepted:
+            # "how many are there" asks how many are in view, not how many track fragments exist
+            concurrent = self._concurrency(accepted, plan.time, tz)
         composed = compose_checked(
             plan, evidence, count=count, nearest_miss=miss, path=hops, cameras=_as_compose_cameras(cameras),
             source_names={c.id: c.source_name for c in cameras if c.source_name}, tz=tz, reference_now=ref_now,
             partial=_is_partial(cameras, plan, evidence), unconfirmed=_unconfirmed(plan, evidence),
+            concurrent=concurrent, appearances=count, unreadable=unreadable,
         )
         timings["compose"] = _ms(t)
         timings["ttfa"] = _ms(started)
@@ -500,6 +509,28 @@ class Router:
         events = self._events_for([c.track.id for c in pool if c.track.cls != "scene"]) if plan.action != "any" else []
         matches = apply_action(pool, events, plan.action, bound.zones, plan.time, tz, zone_required=bool(bound.zones))
         return matches, dropped
+
+    def _concurrency(self, accepted: list[Match], window: TimeWindow | None, tz: tzinfo) -> dict[str, dict[str, int]] | None:
+        """Per camera: how many of the accepted tracks were in view at once, from their stored points."""
+        by_camera: dict[str, list[str]] = {}
+        for m in accepted:
+            if not m.track_id.startswith("scene:"):
+                by_camera.setdefault(m.camera_id, []).append(m.track_id)
+        out: dict[str, dict[str, int]] = {}
+        with self._db.read() as conn:
+            for camera, ids in by_camera.items():
+                times: dict[str, list[float]] = {}
+                for i in range(0, len(ids), 400):
+                    chunk = ids[i:i + 400]
+                    marks = ",".join("?" * len(chunk))
+                    for row in conn.execute(f"SELECT track_id, t FROM track_points WHERE track_id IN ({marks}) "
+                                            "ORDER BY track_id, t", chunk):
+                        if instant_in_window(row["t"], window, tz):
+                            times.setdefault(row["track_id"], []).append(row["t"])
+                result = concurrency(times)
+                if result is not None:
+                    out[camera] = result
+        return out or None
 
     def _select(self, plan: QueryPlan, accepted: list[Match]) -> list[Match]:
         if plan.intent in ("first", "last"):

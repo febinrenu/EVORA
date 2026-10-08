@@ -10,6 +10,7 @@ from evora.query.logic import (
     TrackRec,
     apply_action,
     best_per_track,
+    concurrency,
     count_distinct,
     instant_in_window,
     order_matches,
@@ -268,3 +269,29 @@ def test_a_time_of_day_with_seconds_does_not_crash():
     from evora.query.logic import tod_contains
     assert tod_contains(13 * 3600 + 53 * 60 + 10, "13:53:00", "13:54:00")
     assert not tod_contains(15 * 3600, "13:53:00", "13:54:00")
+
+
+def test_concurrency_counts_who_is_in_view_at_once_not_how_many_tracks_exist():
+    # four people stay for ten seconds; each one's track breaks in two with a one-second gap (two fragments each)
+    people = {}
+    for i in range(4):
+        people[f"p{i}a"] = [k * 0.25 for k in range(0, 21)]            # 0-5 s
+        people[f"p{i}b"] = [6 + k * 0.25 for k in range(0, 17)]        # 6-10 s
+    out = concurrency(people)
+    assert len(people) == 8                                               # eight tracks ...
+    assert out["typical"] == 4 and out["peak"] == 4                        # ... four people, never more in view at once
+
+
+def test_concurrency_bridges_short_hiding_and_not_long_absences():
+    one = {"a": [0.0, 0.25, 0.5, 2.0, 2.25]}                 # hidden for 1.5 s: still there
+    assert concurrency(one) == {"typical": 1, "peak": 1, "seconds": 3}
+    long_gap = {"a": [0.0, 0.25, 10.0, 10.25]}               # gone for 10 s: two separate visits, never together
+    assert concurrency(long_gap) == {"typical": 1, "peak": 1, "seconds": 2}
+    assert concurrency({}) is None and concurrency({"a": []}) is None
+
+
+def test_concurrency_median_is_robust_to_a_brief_crowd():
+    times = {f"c{i}": [0.0, 0.25] for i in range(5)}         # five people together for one second only
+    times["steady"] = [k * 0.25 for k in range(0, 41)]       # one person for ten seconds
+    out = concurrency(times)
+    assert out["peak"] == 6 and out["typical"] == 1

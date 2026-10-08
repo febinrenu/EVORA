@@ -262,6 +262,38 @@ def order_matches(matches: Iterable[Match], intent: str) -> list[Match]:
     return sorted(items, key=lambda m: (-m.score, m.t_peak))
 
 
+def concurrency(
+    times_by_track: Mapping[str, Sequence[float]], bin_s: float = 1.0, bridge_s: float = 2.0
+) -> dict[str, int] | None:
+    """How many tracks are in view at the same moment: {"typical", "peak", "seconds"}, or None with no points.
+
+    Each track is present in every bin between its stored points, bridging gaps of up to `bridge_s` (a person hidden
+    for a moment is still there). `typical` is the median over the bins where anything is in view: for a room it is
+    the number of people in it, which separate-appearance counts overstate whenever one person's track is broken.
+    """
+    present: dict[int, int] = {}
+    for times in times_by_track.values():
+        ordered = sorted(times)
+        if not ordered:
+            continue
+        bins: set[int] = set()
+        previous = None
+        for t in ordered:
+            b = int(t // bin_s)
+            bins.add(b)
+            if previous is not None and 0 < t - previous <= bridge_s:
+                bins.update(range(int(previous // bin_s), b + 1))
+            previous = t
+        for b in bins:
+            present[b] = present.get(b, 0) + 1
+    if not present:
+        return None
+    counts = sorted(present.values())
+    mid = len(counts) // 2
+    typical = counts[mid] if len(counts) % 2 else round((counts[mid - 1] + counts[mid]) / 2)
+    return {"typical": int(typical), "peak": int(counts[-1]), "seconds": len(counts)}
+
+
 def count_distinct(matches: Iterable[Match]) -> int:
     """Distinct identities: global ids where linked, else individual tracks."""
     return len({m.global_id or m.track_id for m in matches})

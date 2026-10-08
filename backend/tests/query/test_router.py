@@ -667,3 +667,16 @@ async def test_the_box_comes_from_the_stored_point_nearest_in_time(ws):
     assert router._bbox("t1", 1090.0) == (0.1, 0.1, 0.2, 0.2)       # before the first point: the first one
     assert router._bbox("t1", 1200.0) == (0.7, 0.7, 0.8, 0.8)       # after the last: the last one
     assert router._bbox("nobody", 1102.0) is None
+
+
+@pytest.mark.asyncio
+async def test_how_many_people_are_in_the_room_counts_who_is_in_view_not_the_track_fragments(ws):
+    # four people for twelve seconds, each tracked as three fragments with short gaps: twelve tracks, four people
+    for i in range(4):
+        for j, (a, b) in enumerate(((1100.0, 1104.0), (1105.0, 1108.0), (1109.0, 1112.0))):
+            ws.track(f"p{i}_{j}", "cam_01", cls="person", crops=[E[2]], t0=a, t1=b, bbox=(0.1 * i, 0.2, 0.1 * i + 0.1, 0.6))
+    events = await collect(make_router(ws).answer("how many people are there", "s1"))
+    ans = of(events, "answer")[-1]
+    assert ans["verdict"] == "count"
+    assert ans["count"] == 4 and "About 4 people" in ans["text"]
+    assert any("12 separate appearances" in n for n in ans["notes"])

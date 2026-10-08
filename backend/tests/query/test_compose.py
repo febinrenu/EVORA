@@ -208,3 +208,41 @@ def test_helpers():
     assert clock(t(9, 14, 3), IST) == "09:14:03" and clock(t(9, 14, 3), IST, True) == "9 Oct 09:14:03"
     names = ("person", "car", "bus", "van", "woman")
     assert [pluralize(n) for n in names] == ["people", "cars", "buses", "vans", "women"]
+
+
+def counted(**kw):
+    return compose(plan(intent="count", noun="person", attrs=(), place="the room", action="any", phrase=None),
+                   [evidence("a"), evidence("b")], **{**KW, **kw})
+
+
+def test_a_count_of_people_in_a_room_is_how_many_are_in_view_with_appearances_as_context():
+    out = counted(count=38, concurrent={"cam_01": {"typical": 4, "peak": 6, "seconds": 150}}, appearances=38)
+    assert out.verdict == "count" and out.count == 4
+    assert out.text.startswith("About 4 people were in view of the room at the same time (up to 6 at once).")
+    assert any("38 separate appearances" in n and "at the same time" in n for n in out.notes)
+
+
+def test_one_person_and_no_peak_wording():
+    out = counted(count=1, concurrent={"cam_01": {"typical": 1, "peak": 1, "seconds": 9}}, appearances=1)
+    assert out.text == "About 1 person was in view of the room at the same time."
+    assert not any("separate appearances" in n for n in out.notes)
+
+
+def test_several_cameras_give_the_largest_number_and_say_why():
+    cams = {"cam_01": {"typical": 4, "peak": 5, "seconds": 9}, "cam_02": {"typical": 3, "peak": 4, "seconds": 9}}
+    out = counted(concurrent=cams, appearances=10)
+    assert out.count == 4 and "Per camera:" in out.text
+    assert any("may show the same place" in n for n in out.notes)
+
+
+def test_a_colour_nobody_could_read_is_not_counted_as_zero():
+    out = compose(plan(intent="count", noun="person", attrs=("red",), place=None, action="any", phrase=None), [],
+                  count=0, unreadable=30, **KW)
+    assert out.verdict == "partial" and out.count is None
+    assert out.text.startswith("I can't tell how many people are wearing red: the colour could not be read for 30 of them")
+    assert any("unknown, not absent" in n for n in out.notes)
+
+
+def test_without_concurrency_the_old_count_is_unchanged():
+    out = counted(count=3)
+    assert out.text.startswith("Counted 3 matching people")
