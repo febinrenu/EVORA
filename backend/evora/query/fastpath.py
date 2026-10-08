@@ -179,18 +179,18 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _norm_name(name: str) -> str:
+def norm_name(name: str) -> str:
     name = re.sub(r"[^a-z0-9 ]", " ", name.lower())
     name = re.sub(r"\b(the|camera|cam)\b", " ", name)
     return re.sub(r"\s+", " ", name).strip()
 
 
 def _match_camera(place: str, cameras: Sequence[CameraLike]) -> str | None:
-    wanted = _norm_name(place)
+    wanted = norm_name(place)
     if not wanted:
         return None
     for cam in cameras:
-        if wanted == _norm_name(cam.name) or wanted == _norm_name(cam.id).replace("_", " "):
+        if wanted == norm_name(cam.name) or wanted == norm_name(cam.id).replace("_", " "):
             return cam.id
     digits = re.fullmatch(r"(\d+)", wanted)
     if digits:
