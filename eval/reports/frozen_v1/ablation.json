@@ -1,0 +1,649 @@
+{
+  "full system": {
+    "switch": null,
+    "skipped": null,
+    "report": {
+      "split": "test",
+      "n_queries": 19,
+      "metrics": {
+        "hit@1": {
+          "value": 0.3846,
+          "n": 13
+        },
+        "hit@5": {
+          "value": 0.4615,
+          "n": 13
+        },
+        "mrr": {
+          "value": 0.4359,
+          "n": 13
+        },
+        "camera_accuracy": {
+          "value": 0.5385,
+          "n": 13
+        },
+        "temporal_iou": {
+          "value": 0.0712,
+          "n": 13
+        },
+        "timestamp_error_s": {
+          "value": 7.4327,
+          "n": 7
+        },
+        "existence_accuracy": {
+          "value": 0.7368,
+          "n": 19
+        },
+        "existence_f1": {
+          "value": 0.7826,
+          "n": 19
+        },
+        "negative_precision": {
+          "value": 0.8333,
+          "n": 6
+        },
+        "count_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "count_mae": {
+          "value": null,
+          "n": 0
+        },
+        "count_within_1": {
+          "value": null,
+          "n": 0
+        },
+        "ask_precision": {
+          "value": 0.0,
+          "n": 1
+        },
+        "ask_recall": {
+          "value": null,
+          "n": 0
+        },
+        "reask_count": {
+          "value": 1.0,
+          "n": 19
+        },
+        "path_hop_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "ttfa_p50_ms": {
+          "value": 172.2698,
+          "n": 19
+        },
+        "ttfa_p95_ms": {
+          "value": 281.2044,
+          "n": 19
+        },
+        "ttva_p50_ms": {
+          "value": 174.0065,
+          "n": 19
+        },
+        "ttva_p95_ms": {
+          "value": 283.0293,
+          "n": 19
+        },
+        "no_model_share": {
+          "value": 1.0,
+          "n": 19
+        },
+        "errors": {
+          "value": 0.0,
+          "n": 19
+        }
+      }
+    }
+  },
+  "no Track-centric multi-granular retrieval (C1)": {
+    "switch": {
+      "id": "C1",
+      "key": "retrieval.unit",
+      "full": "track",
+      "ablated": "frame",
+      "metric": "hit@1",
+      "owner": "M3"
+    },
+    "skipped": null,
+    "report": {
+      "split": "test",
+      "n_queries": 19,
+      "metrics": {
+        "hit@1": {
+          "value": 0.3846,
+          "n": 13
+        },
+        "hit@5": {
+          "value": 0.5385,
+          "n": 13
+        },
+        "mrr": {
+          "value": 0.4487,
+          "n": 13
+        },
+        "camera_accuracy": {
+          "value": 0.6923,
+          "n": 13
+        },
+        "temporal_iou": {
+          "value": 0.0597,
+          "n": 13
+        },
+        "timestamp_error_s": {
+          "value": 11.0677,
+          "n": 9
+        },
+        "existence_accuracy": {
+          "value": 0.7895,
+          "n": 19
+        },
+        "existence_f1": {
+          "value": 0.8333,
+          "n": 19
+        },
+        "negative_precision": {
+          "value": 0.8333,
+          "n": 6
+        },
+        "count_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "count_mae": {
+          "value": null,
+          "n": 0
+        },
+        "count_within_1": {
+          "value": null,
+          "n": 0
+        },
+        "ask_precision": {
+          "value": 0.0,
+          "n": 1
+        },
+        "ask_recall": {
+          "value": null,
+          "n": 0
+        },
+        "reask_count": {
+          "value": 1.0,
+          "n": 19
+        },
+        "path_hop_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "ttfa_p50_ms": {
+          "value": 87.6498,
+          "n": 19
+        },
+        "ttfa_p95_ms": {
+          "value": 130.6335,
+          "n": 19
+        },
+        "ttva_p50_ms": {
+          "value": 89.2327,
+          "n": 19
+        },
+        "ttva_p95_ms": {
+          "value": 132.5129,
+          "n": 19
+        },
+        "no_model_share": {
+          "value": 1.0,
+          "n": 19
+        },
+        "errors": {
+          "value": 0.0,
+          "n": 19
+        }
+      }
+    }
+  },
+  "no Attribute grounding (C2)": {
+    "switch": {
+      "id": "C2",
+      "key": "retrieval.attributes",
+      "full": true,
+      "ablated": false,
+      "metric": "hit@1",
+      "owner": "M3"
+    },
+    "skipped": null,
+    "report": {
+      "split": "test",
+      "n_queries": 19,
+      "metrics": {
+        "hit@1": {
+          "value": 0.3846,
+          "n": 13
+        },
+        "hit@5": {
+          "value": 0.4615,
+          "n": 13
+        },
+        "mrr": {
+          "value": 0.4359,
+          "n": 13
+        },
+        "camera_accuracy": {
+          "value": 0.5385,
+          "n": 13
+        },
+        "temporal_iou": {
+          "value": 0.0712,
+          "n": 13
+        },
+        "timestamp_error_s": {
+          "value": 7.4327,
+          "n": 7
+        },
+        "existence_accuracy": {
+          "value": 0.7368,
+          "n": 19
+        },
+        "existence_f1": {
+          "value": 0.7826,
+          "n": 19
+        },
+        "negative_precision": {
+          "value": 0.8333,
+          "n": 6
+        },
+        "count_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "count_mae": {
+          "value": null,
+          "n": 0
+        },
+        "count_within_1": {
+          "value": null,
+          "n": 0
+        },
+        "ask_precision": {
+          "value": 0.0,
+          "n": 1
+        },
+        "ask_recall": {
+          "value": null,
+          "n": 0
+        },
+        "reask_count": {
+          "value": 1.0,
+          "n": 19
+        },
+        "path_hop_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "ttfa_p50_ms": {
+          "value": 180.1938,
+          "n": 19
+        },
+        "ttfa_p95_ms": {
+          "value": 300.6971,
+          "n": 19
+        },
+        "ttva_p50_ms": {
+          "value": 181.7924,
+          "n": 19
+        },
+        "ttva_p95_ms": {
+          "value": 302.5565,
+          "n": 19
+        },
+        "no_model_share": {
+          "value": 1.0,
+          "n": 19
+        },
+        "errors": {
+          "value": 0.0,
+          "n": 19
+        }
+      }
+    }
+  },
+  "no Plan-then-verify: LLM planner (C3a)": {
+    "switch": {
+      "id": "C3a",
+      "key": "query.planner",
+      "full": "llm",
+      "ablated": "raw",
+      "metric": "hit@1",
+      "owner": "M3"
+    },
+    "skipped": null,
+    "report": {
+      "split": "test",
+      "n_queries": 19,
+      "metrics": {
+        "hit@1": {
+          "value": 0.1538,
+          "n": 13
+        },
+        "hit@5": {
+          "value": 0.3077,
+          "n": 13
+        },
+        "mrr": {
+          "value": 0.1987,
+          "n": 13
+        },
+        "camera_accuracy": {
+          "value": 0.3077,
+          "n": 13
+        },
+        "temporal_iou": {
+          "value": 0.0363,
+          "n": 13
+        },
+        "timestamp_error_s": {
+          "value": 56.7418,
+          "n": 4
+        },
+        "existence_accuracy": {
+          "value": 0.6842,
+          "n": 19
+        },
+        "existence_f1": {
+          "value": 0.8125,
+          "n": 19
+        },
+        "negative_precision": {
+          "value": 0.0,
+          "n": 6
+        },
+        "count_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "count_mae": {
+          "value": null,
+          "n": 0
+        },
+        "count_within_1": {
+          "value": null,
+          "n": 0
+        },
+        "ask_precision": {
+          "value": null,
+          "n": 0
+        },
+        "ask_recall": {
+          "value": null,
+          "n": 0
+        },
+        "reask_count": {
+          "value": 0.0,
+          "n": 19
+        },
+        "path_hop_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "ttfa_p50_ms": {
+          "value": 267.8542,
+          "n": 19
+        },
+        "ttfa_p95_ms": {
+          "value": 304.2565,
+          "n": 19
+        },
+        "ttva_p50_ms": {
+          "value": 269.7217,
+          "n": 19
+        },
+        "ttva_p95_ms": {
+          "value": 306.138,
+          "n": 19
+        },
+        "no_model_share": {
+          "value": 1.0,
+          "n": 19
+        },
+        "errors": {
+          "value": 0.0,
+          "n": 19
+        }
+      }
+    }
+  },
+  "no Plan-then-verify: verification (C3b)": {
+    "switch": {
+      "id": "C3b",
+      "key": "query.verify",
+      "full": true,
+      "ablated": false,
+      "metric": "negative_precision",
+      "owner": "M3"
+    },
+    "skipped": null,
+    "report": {
+      "split": "test",
+      "n_queries": 19,
+      "metrics": {
+        "hit@1": {
+          "value": 0.3846,
+          "n": 13
+        },
+        "hit@5": {
+          "value": 0.4615,
+          "n": 13
+        },
+        "mrr": {
+          "value": 0.4359,
+          "n": 13
+        },
+        "camera_accuracy": {
+          "value": 0.5385,
+          "n": 13
+        },
+        "temporal_iou": {
+          "value": 0.0712,
+          "n": 13
+        },
+        "timestamp_error_s": {
+          "value": 7.4327,
+          "n": 7
+        },
+        "existence_accuracy": {
+          "value": 0.7368,
+          "n": 19
+        },
+        "existence_f1": {
+          "value": 0.7826,
+          "n": 19
+        },
+        "negative_precision": {
+          "value": 0.8333,
+          "n": 6
+        },
+        "count_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "count_mae": {
+          "value": null,
+          "n": 0
+        },
+        "count_within_1": {
+          "value": null,
+          "n": 0
+        },
+        "ask_precision": {
+          "value": 0.0,
+          "n": 1
+        },
+        "ask_recall": {
+          "value": null,
+          "n": 0
+        },
+        "reask_count": {
+          "value": 1.0,
+          "n": 19
+        },
+        "path_hop_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "ttfa_p50_ms": {
+          "value": 166.3262,
+          "n": 19
+        },
+        "ttfa_p95_ms": {
+          "value": 293.3028,
+          "n": 19
+        },
+        "ttva_p50_ms": {
+          "value": 168.0476,
+          "n": 19
+        },
+        "ttva_p95_ms": {
+          "value": 295.1372,
+          "n": 19
+        },
+        "no_model_share": {
+          "value": 1.0,
+          "n": 19
+        },
+        "errors": {
+          "value": 0.0,
+          "n": 19
+        }
+      }
+    }
+  },
+  "no Clarify-once referent memory (C4)": {
+    "switch": {
+      "id": "C4",
+      "key": "memory.alias_embed",
+      "full": true,
+      "ablated": false,
+      "metric": "reask_count",
+      "owner": "M1"
+    },
+    "skipped": null,
+    "report": {
+      "split": "test",
+      "n_queries": 19,
+      "metrics": {
+        "hit@1": {
+          "value": 0.3846,
+          "n": 13
+        },
+        "hit@5": {
+          "value": 0.4615,
+          "n": 13
+        },
+        "mrr": {
+          "value": 0.4359,
+          "n": 13
+        },
+        "camera_accuracy": {
+          "value": 0.5385,
+          "n": 13
+        },
+        "temporal_iou": {
+          "value": 0.0712,
+          "n": 13
+        },
+        "timestamp_error_s": {
+          "value": 7.4327,
+          "n": 7
+        },
+        "existence_accuracy": {
+          "value": 0.7368,
+          "n": 19
+        },
+        "existence_f1": {
+          "value": 0.7826,
+          "n": 19
+        },
+        "negative_precision": {
+          "value": 0.8333,
+          "n": 6
+        },
+        "count_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "count_mae": {
+          "value": null,
+          "n": 0
+        },
+        "count_within_1": {
+          "value": null,
+          "n": 0
+        },
+        "ask_precision": {
+          "value": 0.0,
+          "n": 1
+        },
+        "ask_recall": {
+          "value": null,
+          "n": 0
+        },
+        "reask_count": {
+          "value": 1.0,
+          "n": 19
+        },
+        "path_hop_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "ttfa_p50_ms": {
+          "value": 174.0862,
+          "n": 19
+        },
+        "ttfa_p95_ms": {
+          "value": 311.4813,
+          "n": 19
+        },
+        "ttva_p50_ms": {
+          "value": 175.6894,
+          "n": 19
+        },
+        "ttva_p95_ms": {
+          "value": 313.3178,
+          "n": 19
+        },
+        "no_model_share": {
+          "value": 1.0,
+          "n": 19
+        },
+        "errors": {
+          "value": 0.0,
+          "n": 19
+        }
+      }
+    }
+  },
+  "no Topology-aware cross-camera linking (C5)": {
+    "switch": {
+      "id": "C5",
+      "key": "reid.topology",
+      "full": true,
+      "ablated": false,
+      "metric": "path_hop_accuracy",
+      "owner": "M2"
+    },
+    "skipped": "needs the footage re-indexed with the switch off",
+    "report": null
+  },
+  "no Motion-gated adaptive sampling (C6)": {
+    "switch": {
+      "id": "C6",
+      "key": "ingest.motion_gate",
+      "full": true,
+      "ablated": false,
+      "metric": "hit@5",
+      "owner": "M2"
+    },
+    "skipped": "needs the footage re-indexed with the switch off",
+    "report": null
+  }
+}
