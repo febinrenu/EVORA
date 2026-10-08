@@ -281,6 +281,11 @@ class Planner:
             plan = plan.model_copy(update={"time": None})  # "at what time" asks for an answer, it is not a range
         asked = [r for r in plan.unresolved if r.role == "time" and _is_time_question(r.text)]
         plan = plan.model_copy(update={"unresolved": [r for r in plan.unresolved if r not in asked]})
+        if plan.time is not None and plan.time.tod_after and plan.time.tod_after == plan.time.tod_before:
+            instant = _clock_bounds(plan.time.tod_after)  # "at 13:53" as an empty range matches nothing: use that minute
+            if instant is not None:
+                bounded = plan.time.model_copy(update={"tod_after": instant[0], "tod_before": instant[1]})
+                plan = plan.model_copy(update={"time": bounded})
         window, understood = resolve_window(plan.time, reference, tz)
         if not understood and plan.time is not None and plan.time.phrase and not (plan.time.tod_after or plan.time.tod_before):
             bounds = _clock_bounds(plan.time.phrase)  # a clock time said outright needs no explaining

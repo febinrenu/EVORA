@@ -344,3 +344,10 @@ async def test_a_clock_time_in_the_question_is_not_clarified():
     res = await Planner(FakeGateway(plan, backend="local")).plan("where did it go (from the lobby at 00:13:53)", CAMS, REF, IST)
     assert res.plan.unresolved == []
     assert (res.plan.time.tod_after, res.plan.time.tod_before) == ("00:13", "00:14")
+
+
+@pytest.mark.asyncio
+async def test_a_model_plan_with_the_same_time_twice_means_that_minute():
+    plan = model_plan(time=TimeWindow(phrase="at 00:13:53", tod_after="00:13:53", tod_before="00:13:53"))
+    res = await Planner(FakeGateway(plan, backend="local")).plan("where was the guy at 00:13:53", CAMS, REF, IST)
+    assert (res.plan.time.tod_after, res.plan.time.tod_before) == ("00:13", "00:14")
