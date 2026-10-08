@@ -31,7 +31,7 @@ class GatewayConfig:
     groq_whisper_model: str = "whisper-large-v3-turbo"
     local_text_model: str = "qwen3.5:4b"
     local_vision_model: str = "qwen3-vl:2b"
-    local_look_model: str = "qwen3.5:4b"  # answers questions about frames: quick, no reasoning phase, reliable replies
+    local_look_model: str = "qwen3-vl:4b-instruct"  # answers questions about frames: no reasoning phase, replies at once
     ollama_host: str = "http://127.0.0.1:11434"
     ntfy_base: str = "https://ntfy.sh"
     reasoning_effort: str = "low"

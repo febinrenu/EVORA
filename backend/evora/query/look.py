@@ -123,8 +123,12 @@ class LookAnswerer:
         sheet = contact_sheet(images, labels)
         if sheet is None:
             return None
+        model = self._model
+        picker = getattr(self._gateway, "pick_look_model", None)
+        if model is None and picker is not None:
+            model = await picker()
         answer = await self._gateway.vision_text(sheet, prompt_for(question, camera_name, labels), local_only=True,
-                                                 max_tokens=ANSWER_TOKENS, model=self._model)
+                                                 max_tokens=ANSWER_TOKENS, model=model)
         return answer.strip() if answer else None
 
 

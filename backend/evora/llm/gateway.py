@@ -27,7 +27,10 @@ log = logging.getLogger("evora.llm")
 
 NTFY_TIMEOUT_S = 5.0
 # when the configured local vision model is not installed, installed models are tried in this order of name
-VISION_MODEL_PREFERENCE = ("qwen3-vl", "qwen3.5", "qwen2.5vl", "gemma3", "llama3.2-vision", "llava", "minicpm-v")
+# the instruct build answers at once; the plain qwen3-vl tag reasons first: slow, and it can run out of budget
+VISION_MODEL_PREFERENCE = (
+    "qwen3-vl:4b-instruct", "instruct", "qwen3-vl", "qwen3.5", "qwen2.5vl", "gemma3", "llama3.2-vision", "llava", "minicpm-v",
+)
 VISION_REASONING_HEADROOM = 512  # tokens the local vision model spends reasoning before it answers
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _NTFY_TOPIC = re.compile(r"[A-Za-z0-9_-]{1,64}")
@@ -103,6 +106,8 @@ class Gateway:
         self._ollama = OllamaClient(config.ollama_host, client)
         self._vision_model = config.local_vision_model  # replaced once if that model turns out not to be installed
         self._vision_fallback_tried = False
+        self._look_model: str | None = None
+        self._look_model_picked = False
         self._replay = (
             ReplayStore(config.replay_path, config.replay_mode)  # type: ignore[arg-type]
             if config.replay_path is not None and config.replay_mode != "off"
@@ -284,10 +289,18 @@ class Gateway:
     async def chat_json(self, task: str, messages: list[dict], schema: type[M]) -> M:
         return (await self.chat_json_ex(task, messages, schema))[0]
 
-    @property
-    def look_model(self) -> str:
-        """The local model that answers questions about frames."""
-        return self._cfg.local_look_model
+    async def pick_look_model(self) -> str | None:
+        """The local model that answers questions about frames: the configured one if installed, else the best
+        installed model that can see, else None (the configured vision model is then used). Asked once."""
+        if self._look_model_picked:
+            return self._look_model
+        self._look_model_picked = True
+        installed = await self._ollama.installed_models()
+        wanted = [self._cfg.local_look_model, "qwen3.5:4b"]
+        self._look_model = next((m for m in wanted if m in installed), None)
+        if self._look_model is None:
+            self._look_model = await self._installed_vision_model()
+        return self._look_model
 
     @staticmethod
     def _is_missing_model(exc: LLMError) -> bool:

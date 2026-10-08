@@ -599,10 +599,36 @@ async def test_vision_text_can_use_a_named_local_model_and_falls_back_when_it_is
     seen.clear()
     assert await gw.vision_text(b"x", "How many?", model="not-installed:1b") == "Four people."
     assert seen == ["not-installed:1b", "qwen3-vl:2b"]               # the configured model answers instead
-    assert gw.look_model == "qwen3.5:4b"
 
 
 def test_the_look_model_is_configurable_from_the_environment():
     from evora.llm.schemas import GatewayConfig
-    assert GatewayConfig().local_look_model == "qwen3.5:4b"
+    assert GatewayConfig().local_look_model == "qwen3-vl:4b-instruct"
     assert GatewayConfig.from_env({"OLLAMA_LOOK_MODEL": "gemma3:4b"}).local_look_model == "gemma3:4b"
+
+
+def tags_reply(names):
+    return lambda r: httpx.Response(200, json={"models": [{"name": n} for n in names]})
+
+
+@pytest.mark.asyncio
+async def test_the_look_model_is_the_configured_one_when_installed_else_the_next_best():
+    def gateway(installed):
+        def handler(request):
+            return tags_reply(installed)(request) if request.url.path == "/api/tags" else httpx.Response(200, json={})
+        return make(Recorder(no_groq, handler))
+    assert await gateway(["qwen3-vl:4b-instruct", "qwen3.5:4b"]).pick_look_model() == "qwen3-vl:4b-instruct"
+    assert await gateway(["qwen3.5:4b", "qwen2.5:0.5b"]).pick_look_model() == "qwen3.5:4b"
+    assert await gateway([]).pick_look_model() is None
+    gw = gateway(["qwen3-vl:4b-instruct"])
+    first = await gw.pick_look_model()
+    gw._ollama.installed_models = None                          # asked once: a second call never asks Ollama again
+    assert await gw.pick_look_model() == first
+
+
+def test_the_instruct_build_is_preferred_over_the_reasoning_one_when_falling_back():
+    from evora.llm.gateway import VISION_MODEL_PREFERENCE
+    names = ["qwen3-vl:4b", "qwen3.5:4b", "qwen3-vl:4b-instruct"]
+    ranked = sorted(names, key=lambda n: next((i for i, p in enumerate(VISION_MODEL_PREFERENCE) if p in n.lower()),
+                                              len(VISION_MODEL_PREFERENCE)))
+    assert ranked[0] == "qwen3-vl:4b-instruct"

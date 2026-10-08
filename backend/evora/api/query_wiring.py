@@ -116,8 +116,7 @@ def build_router(ctx: AppContext, gateway: Any, clarifier: ClarifierAdapter, pla
         gateway=gateway,  # `describe` answers are phrased by the grounded model instead of the plain summary
         objects=OpenObjectSurveyor(ctx.ws.media_dir),  # chairs, carpets, "red objects": found in the stored frames
         # questions only the picture can answer go to the local vision model together with the frames
-        look=(LookAnswerer(gateway, ctx.ws.media_dir, model=getattr(gateway, "look_model", None))
-              if hasattr(gateway, "vision_text") else None),
+        look=LookAnswerer(gateway, ctx.ws.media_dir) if hasattr(gateway, "vision_text") else None,
         # a looped replay-as-live camera shows its real position in the file, not wall clock minus t0
         file_offset=lambda camera_id, duration_s, t: live_sessions.file_offset(ctx.db, camera_id, duration_s, t),
     )
