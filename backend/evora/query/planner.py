@@ -88,7 +88,7 @@ def normalize_text(text: str) -> str:
 
 
 def _is_ordinary_time(text: str, reference: float, tz: tzinfo) -> bool:
-    if fastpath.is_standard_time(text):
+    if fastpath.is_standard_time(text) or _clock_bounds(text) is not None:
         return True
     resolved, ok = resolve_window(TimeWindow(phrase=text), reference, tz)
     return ok and resolved is not None and resolved.start is not None
@@ -133,6 +133,32 @@ _ASKS_FOR_TIME = re.compile(r"^(?:at |on |in )?(?:what|which)\s+(?:time|hour|day
 
 def _is_time_question(text: str) -> bool:
     return bool(_ASKS_FOR_TIME.match(text.strip()))
+
+
+_CLOCK_TIME = re.compile(r"\b(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*(am|pm)?\b", re.IGNORECASE)
+
+
+def _clock_bounds(phrase: str) -> tuple[str, str] | None:
+    """Times of day named outright: "at 13:53", "at 00:13:53", "from 4pm to 5pm", "13:24 to 13:27" -> ("HH:MM", "HH:MM").
+
+    One time means the minute it falls in. Numbers without a colon or am/pm ("in 3 days") are not clock times.
+    """
+    found: list[int] = []
+    for m in _CLOCK_TIME.finditer(phrase):
+        hour, minute, meridiem = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or "").lower()
+        if m.group(2) is None and not meridiem:
+            continue
+        if meridiem:
+            if not 1 <= hour <= 12:
+                return None
+            hour = hour % 12 + (12 if meridiem == "pm" else 0)
+        if hour > 23 or minute > 59:
+            return None
+        found.append(hour * 60 + minute)
+    if not found or len(found) > 2:
+        return None
+    start, end = found[0], found[-1] if len(found) == 2 else found[0] + 1
+    return f"{start // 60:02d}:{start % 60:02d}", f"{end // 60 % 24:02d}:{end % 60:02d}"
 
 
 def _worn_or_carried(noun: str) -> bool:
@@ -256,6 +282,12 @@ class Planner:
         asked = [r for r in plan.unresolved if r.role == "time" and _is_time_question(r.text)]
         plan = plan.model_copy(update={"unresolved": [r for r in plan.unresolved if r not in asked]})
         window, understood = resolve_window(plan.time, reference, tz)
+        if not understood and plan.time is not None and plan.time.phrase and not (plan.time.tod_after or plan.time.tod_before):
+            bounds = _clock_bounds(plan.time.phrase)  # a clock time said outright needs no explaining
+            if bounds is not None:
+                bounded = plan.time.model_copy(update={"tod_after": bounds[0], "tod_before": bounds[1]})
+                plan = plan.model_copy(update={"time": bounded})
+                window, understood = resolve_window(plan.time, reference, tz)
         # models sometimes list "after 8pm" or "last week" as something to look up; those never need memory
         unresolved = [r for r in plan.unresolved if not (r.role == "time" and _is_ordinary_time(r.text, reference, tz))]
         if not understood and plan.time is not None and plan.time.phrase:

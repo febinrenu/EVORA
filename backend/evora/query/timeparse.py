@@ -60,7 +60,7 @@ def _midnight(day: date, tz: tzinfo) -> datetime:
 
 
 def _tod_seconds(hhmm: str) -> float:
-    hour, minute = hhmm.split(":")
+    hour, minute = hhmm.split(":")[:2]
     return int(hour) * 3600 + int(minute) * 60
 
 

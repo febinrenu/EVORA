@@ -262,3 +262,9 @@ def test_a_time_of_day_range_ends_at_the_stated_clock_time_not_at_the_end_of_tha
     assert tod_contains(at(5, 59, 59), "22:00", "06:00", IST) and not tod_contains(at(6, 0, 30), "22:00", "06:00", IST)
     assert tod_contains(at(23, 59, 59), "20:00", None, IST) and not tod_contains(at(19, 59, 59), "20:00", None, IST)
     assert tod_contains(at(0, 0, 0), None, "06:00", IST) and not tod_contains(at(6, 0, 1), None, "06:00", IST)
+
+
+def test_a_time_of_day_with_seconds_does_not_crash():
+    from evora.query.logic import tod_contains
+    assert tod_contains(13 * 3600 + 53 * 60 + 10, "13:53:00", "13:54:00")
+    assert not tod_contains(15 * 3600, "13:53:00", "13:54:00")

@@ -89,7 +89,7 @@ def _seconds_of_day(ts: float, tz: tzinfo) -> float:
 
 
 def _parse_hhmm(value: str) -> int:
-    hour, minute = value.split(":")
+    hour, minute = value.split(":")[:2]  # a model may add seconds: 00:13:53
     return int(hour) * 60 + int(minute)
 
 

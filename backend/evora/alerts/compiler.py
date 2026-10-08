@@ -71,6 +71,7 @@ class StandingCompiler:
                 tod_before = binding.get("tod_before") or tod_before
 
         targets = sorted({c for t in plan.targets for c in t.cls})
+        attributes = sorted({a for t in plan.targets for a in t.attributes})
         if not targets:
             raise CompileError("I could not tell what to watch for (a person, a car, ...). Try naming it.")
 
@@ -85,12 +86,13 @@ class StandingCompiler:
             raise CompileError(f"Watching for '{plan.action.replace('_', ' ')}' does not apply to a {zone_kind} here.")
         direction = LINE_DIRECTION.get(plan.action) if zone_kind == "line" else None
 
+        tod_after, tod_before = (t[:5] if t else t for t in (tod_after, tod_before))  # models sometimes add seconds
         place = plan.place.text if plan.place else None
         rule = StandingRule(
-            targets=targets, attributes=sorted({a for t in plan.targets for a in t.attributes}), place=place,
+            targets=targets, attributes=attributes, place=place,
             camera_ids=sorted(camera_ids), zone_id=zone_id, events=events, direction=direction,
             tod_after=tod_after, tod_before=tod_before, cooldown_s=self.default_cooldown_s,
-            summary=self._summary(plan, targets, place, camera_ids, tod_after, tod_before),
+            summary=self._summary(plan, targets, place, camera_ids, tod_after, tod_before, attributes),
         )
         return Compiled(rule, plan)
 
@@ -103,9 +105,11 @@ class StandingCompiler:
             return DEFAULT_EVENTS["frame"]  # nothing "passes" a whole view; treat it as appearing in it
         return kinds
 
-    def _summary(self, plan, targets, place, camera_ids, after, before) -> str:  # noqa: ANN001
+    def _summary(self, plan, targets, place, camera_ids, after, before, attributes=()) -> str:  # noqa: ANN001
         names = {c.id: c.name for c in cams.list_cameras(self.db)}
         what = " or ".join(targets)
+        if attributes:
+            what += f" ({', '.join(attributes)})"
         where = place or (", ".join(names.get(c, c) for c in sorted(camera_ids)) or "any camera")
         if after and before:
             when = f" between {after} and {before}"

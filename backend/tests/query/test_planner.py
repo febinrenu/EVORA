@@ -326,3 +326,21 @@ async def test_asking_what_time_is_not_a_range_to_clarify(phrase):
     plan = model_plan(time=TimeWindow(phrase=phrase), unresolved=[Referent(text=phrase, role="time")])
     res = await Planner(FakeGateway(plan, backend="local")).plan("at what time did the guy enter the room", CAMS, REF, IST)
     assert res.plan.time is None and res.plan.unresolved == []
+
+
+@pytest.mark.parametrize("phrase, bounds", [
+    ("at 00:13:53", ("00:13", "00:14")), ("at 13:53", ("13:53", "13:54")), ("at 1pm", ("13:00", "13:01")),
+    ("between 4pm to 5pm", ("16:00", "17:00")), ("at 13:24 to 13:27", ("13:24", "13:27")),
+    ("in 3 days", None), ("on 2026-10-09", None), ("at 25:00", None),
+])
+def test_clock_times_said_outright_become_time_of_day_bounds(phrase, bounds):
+    from evora.query.planner import _clock_bounds
+    assert _clock_bounds(phrase) == bounds
+
+
+@pytest.mark.asyncio
+async def test_a_clock_time_in_the_question_is_not_clarified():
+    plan = model_plan(time=TimeWindow(phrase="at 00:13:53"), unresolved=[Referent(text="at 00:13:53", role="time")])
+    res = await Planner(FakeGateway(plan, backend="local")).plan("where did it go (from the lobby at 00:13:53)", CAMS, REF, IST)
+    assert res.plan.unresolved == []
+    assert (res.plan.time.tod_after, res.plan.time.tod_before) == ("00:13", "00:14")
