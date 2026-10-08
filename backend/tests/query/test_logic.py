@@ -295,3 +295,13 @@ def test_concurrency_median_is_robust_to_a_brief_crowd():
     times["steady"] = [k * 0.25 for k in range(0, 41)]       # one person for ten seconds
     out = concurrency(times)
     assert out["peak"] == 6 and out["typical"] == 1
+
+
+def test_a_count_uses_the_person_group_before_the_identity():
+    from evora.query.logic import Match, count_distinct
+
+    def m(tid, gid, group):
+        return Match(tid, "cam_01", 0.0, 0.0, 1.0, 0.8, gid, None, (), group)
+
+    matches = [m("a", "g1", "p1"), m("b", "g2", "p1"), m("c", "g3", None), m("d", None, None)]
+    assert count_distinct(matches) == 3          # a and b are one person, c by identity, d by track

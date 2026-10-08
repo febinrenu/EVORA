@@ -505,7 +505,8 @@ class Retriever:
             if inside:  # the best crop may be from another part of a long track: use the nearest moment in the window
                 if peak is None or not instant_in_window(peak, scope.window, scope.tz):
                     peak = min(inside, key=lambda t: abs(t - peak)) if peak is not None else inside[len(inside) // 2]
-            track = TrackRec(tid, row["camera_id"], row["cls"], row["t_start"], row["t_end"], peak, row["global_id"])
+            track = TrackRec(tid, row["camera_id"], row["cls"], row["t_start"], row["t_end"], peak, row["global_id"],
+                             attrs.get("person_group"))
             score, why = blend(sig, self.cfg.weights), tuple(sig.why)
             if other_colour:  # a caption or a stored colour shows another colour on that garment: a near miss at best
                 score, why = min(score, OTHER_COLOUR_CAP), (*why, "another colour")

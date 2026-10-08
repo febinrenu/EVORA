@@ -61,7 +61,7 @@ class IngestSettings(BaseModel):
     line_hysteresis: float = 0.01     # normalised distance beyond a line before a crossing counts
     zone_debounce: int = 2            # samples a zone enter/exit must persist
     # appearance (ReID) features
-    reid_weights: str = "osnet_x0_25_msmt17.pt"
+    reid_weights: str = "osnet_ain_x1_0_msmt17.pt"   # WILDTRACK: same-camera AUC 0.87 and cross-camera 0.78 (x0.25: 0.80, 0.63)
     reid_crops_per_track: int = 4
     # cross-camera linking (contribution C5)
     reid_topology: bool = True        # False = appearance and attributes only (ablation)
@@ -74,7 +74,7 @@ class IngestSettings(BaseModel):
     reid_w_topology: float = 0.2
     reid_topology_prior: float = 0.3  # topology score for a camera pair with no learned link
     reid_std_floor_s: float = 5.0
-    reid_cross_min_cos: float = 0.72  # appearance floor for a cross-camera link (a wrong merge costs more than a missed one)
+    reid_cross_min_cos: float = 0.80  # appearance floor for a cross-camera link (a wrong merge costs more than a missed one)
     reid_veto_conf: float = 0.6       # two clearly different, confidently read colours veto a link
     reid_min_z: float = 3.0           # a match must stand this many std above the camera pair's background similarity
     reid_margin: float = 0.05         # and beat the runner-up by this much to teach the topology

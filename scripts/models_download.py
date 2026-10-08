@@ -24,7 +24,11 @@ YUNET_URL = ("https://github.com/opencv/opencv_zoo/raw/main/models/face_detectio
              "face_detection_yunet_2023mar.onnx")
 # Exact YOLO26 / YOLOE-26 checkpoint names must be confirmed against the Ultralytics docs (spike P2.3).
 YOLO_WEIGHTS = ["yolo26n.pt", "yolo26s.pt", "yolo26n-seg.pt", "yoloe-26n-seg.pt", "yoloe-26n-seg-pf.pt"]
-BOXMOT_WEIGHTS = {"osnet_x0_25_msmt17.pt": "1sSwXSUlj4_tHZequ_iZ8w_Jh0VaRQMqF"}
+BOXMOT_WEIGHTS = {
+    "osnet_x0_25_msmt17.pt": "1sSwXSUlj4_tHZequ_iZ8w_Jh0VaRQMqF",
+    # the model in use: on WILDTRACK it separates people clearly better than the x0.25 (cross-camera AUC 0.78 vs 0.63)
+    "osnet_ain_x1_0_msmt17.pt": "1SigwBE6mPdqiJMqhuIY4aqC7--5CsMal",
+}
 ALL_STEPS = ["yolo", "yoloe", "siglip2", "bge", "fastembed", "boxmot", "yunet", "ollama"]
 
 

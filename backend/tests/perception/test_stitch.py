@@ -203,3 +203,22 @@ def test_too_few_concurrent_pairs_means_no_reclustering():
 
     tracks = [_track(f"t{i}", 100.0 * i, 100.0 * i + 5, _unit(1, 0.1 * i, 0)) for i in range(6)]   # never two at once
     assert recluster_camera(tracks, IngestSettings()) == []
+
+
+def test_count_groups_merge_fragments_but_identities_do_not():
+    import numpy as np
+
+    from evora.perception.settings import IngestSettings
+    from evora.reid.associate import group_tracks
+
+    rng = np.random.default_rng(3)
+    people = [_unit(*rng.normal(size=16)) for _ in range(3)]
+    tracks = []
+    for k in range(4):
+        for p, base in enumerate(people):
+            noisy = base + 0.05 * rng.normal(size=16).astype(np.float32)
+            tracks.append(_track(f"p{p}_{k}", 100.0 * k + 5 * p, 100.0 * k + 5 * p + 60.0, noisy / np.linalg.norm(noisy)))
+    identities = [[t] for t in tracks]          # as if linking left every track alone
+    groups = group_tracks(tracks, identities, IngestSettings(reid_recluster_min_pairs=5))
+    assert sorted(len(g) for g in groups) == [4, 4, 4]
+    assert len(group_tracks(tracks, identities, IngestSettings(reid_recluster=False))) == 12

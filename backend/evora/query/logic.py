@@ -38,6 +38,7 @@ class TrackRec:
     t_end: float
     best_t: float | None = None
     global_id: str | None = None
+    group_id: str | None = None      # fragments of one person within a camera, for counting (attrs.person_group)
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,7 @@ class Match:
     global_id: str | None = None
     event_id: str | None = None
     why: tuple[str, ...] = ()
+    group_id: str | None = None
 
 
 # ------------------------------------------------------------- time filters
@@ -172,7 +174,7 @@ def _default_match(cand: Candidate, t: float | None = None, event: EventRec | No
     if t is None:
         t = tr.best_t if tr.best_t is not None else (tr.t_start + tr.t_end) / 2
     return Match(tr.id, tr.camera_id, tr.t_start, t, tr.t_end, cand.score, tr.global_id,
-                 event.id if event else None, (*cand.why, *extra))
+                 event.id if event else None, (*cand.why, *extra), tr.group_id)
 
 
 def apply_action(
@@ -296,4 +298,4 @@ def concurrency(
 
 def count_distinct(matches: Iterable[Match]) -> int:
     """Distinct identities: global ids where linked, else individual tracks."""
-    return len({m.global_id or m.track_id for m in matches})
+    return len({m.group_id or m.global_id or m.track_id for m in matches})

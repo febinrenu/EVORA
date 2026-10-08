@@ -403,16 +403,6 @@ def link_tracks(
     if st.reid_stitch:
         for _, earlier, later in sorted(stitch_pairs(tracks, st), reverse=True):
             uf.union(earlier, later)
-    if st.reid_recluster:
-        by_cam: dict[str, list[T]] = defaultdict(list)
-        for t in tracks:
-            # a duplicate box of a person is not a second person: it would raise this camera's look-alike bar
-            if FAMILIES.get(t.cls) == "person" and t.vec.size > 1 and t.id not in duplicates:
-                by_cam[t.camera_id].append(t)
-        for group in by_cam.values():
-            for members in recluster_camera(group, st):
-                for other in members[1:]:
-                    uf.union(members[0].id, other.id, st.reid_recluster_overlap_s)
     w_app, w_attr, w_topo = st.reid_w_appearance, st.reid_w_attributes, st.reid_w_topology
     if not st.reid_topology:
         total = w_app + w_attr
@@ -464,6 +454,35 @@ def merge_duplicates(clusters: list[list[T]], dupes: list[tuple[str, str]]) -> l
     return list(merged.values())
 
 
+def group_tracks(tracks: list[T], identities: list[list[T]], st: IngestSettings,
+                 duplicates: frozenset[str] = frozenset()) -> list[list[T]]:
+    """Groups for COUNTING people: the identities, plus each camera's fragments re-clustered by appearance.
+
+    Identities (paths, search by example) must be right when they say two tracks are one person, so they use only the
+    strict steps. A count is wrong the other way round (one person counted five times), and on WILDTRACK about 40% of
+    the re-clustering merges join two different people, which is acceptable for a count and not for a path.
+    """
+    uf = _Union(tracks)
+    for members in identities:
+        known = [t for t in members if t.id in uf.parent]       # tracks too short to link have no vector and stay alone
+        for other in known[1:]:
+            uf.union(known[0].id, other.id, overlap_s=1e9)   # identities already decided (duplicates are seen together)
+    if st.reid_recluster:
+        by_cam: dict[str, list[T]] = defaultdict(list)
+        for t in tracks:
+            # a duplicate box of a person is not a second person: it would raise this camera's look-alike bar
+            if FAMILIES.get(t.cls) == "person" and t.vec.size > 1 and t.id not in duplicates:
+                by_cam[t.camera_id].append(t)
+        for group in by_cam.values():
+            for members in recluster_camera(group, st):
+                for other in members[1:]:
+                    uf.union(members[0].id, other.id, st.reid_recluster_overlap_s)
+    clusters: dict[str, list[T]] = defaultdict(list)
+    for t in tracks:
+        clusters[uf.find(t.id)].append(t)
+    return list(clusters.values())
+
+
 def link_global_ids(workspace: Workspace | None = None, settings: IngestSettings | None = None) -> int:
     """Give every track of the workspace a global id; returns how many identities span two or more cameras."""
     from evora.perception.pipeline import resolve_workspace
@@ -491,6 +510,11 @@ def link_global_ids(workspace: Workspace | None = None, settings: IngestSettings
             cls = max({m.cls for m in members}, key=lambda k: sum(m.cls == k for m in members))
             c.execute("INSERT INTO global_ids(id, cls, label, created_at) VALUES(?,?,?,?)", (gid, cls, None, now))
             c.executemany("UPDATE tracks SET global_id=? WHERE id=?", [(gid, m.id) for m in members])
+        groups = group_tracks(tracks, clusters, st, frozenset(d for _, d in dupes))
+        for n, members in enumerate(sorted(groups, key=lambda m: min(t.t0 for t in m)), start=1):
+            c.executemany(
+                "UPDATE tracks SET attrs = json_set(CASE WHEN json_valid(attrs) THEN attrs ELSE '{}' END, '$.person_group', ?) "
+                "WHERE id = ?", [(f"p{n:06d}", m.id) for m in members])
     save_links(db, list(links.values()))
     multi = sum(1 for m in clusters if len({t.camera_id for t in m}) > 1)
     log.info("%d tracks -> %d identities, %d across cameras, %d camera links", len(tracks), len(clusters), multi, len(links))
