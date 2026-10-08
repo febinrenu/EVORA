@@ -62,7 +62,7 @@ class RetrievalConfig:
             attributes=bool(section.get("attributes", True)),
             expansion=section.get("expansion", "off"),
             weights={**DEFAULT_WEIGHTS, **(section.get("weights") or {})},
-            calibration=Calibration(cal.get("midpoint", 0.18), cal.get("scale", 0.04)),
+            calibration=Calibration(cal.get("midpoint", Calibration.midpoint), cal.get("scale", Calibration.scale)),
             ann_k=int(section.get("ann_k", 400)),
             scene_k=int(section.get("scene_k", 300)),
             pool_limit=int(section.get("pool_limit", 100)),

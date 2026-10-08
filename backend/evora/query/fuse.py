@@ -28,10 +28,15 @@ DEFAULT_WEIGHTS = {"image": 0.55, "attributes": 0.25, "caption": 0.10, "scene": 
 
 @dataclass(frozen=True)
 class Calibration:
-    """Maps a raw cosine to [0, 1] with a logistic. Placeholder values until tuned on dev (P3.16)."""
+    """Maps a raw cosine to [0, 1] with a logistic.
 
-    midpoint: float = 0.18
-    scale: float = 0.04
+    Fitted to real SigLIP2 text-to-crop cosines on the MEVA school workspace: a crop of the right class
+    scores about 0.105 to 0.12 against "a photo of a <class>", a crop of the wrong class about 0.04 to 0.07,
+    so the midpoint sits between them (0.09) and the scale spreads that gap over the logistic's slope.
+    """
+
+    midpoint: float = 0.09
+    scale: float = 0.015
 
     def __call__(self, cosine: float) -> float:
         z = (cosine - self.midpoint) / self.scale

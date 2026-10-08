@@ -122,6 +122,10 @@ def workspace_tz(db: Database) -> tzinfo:
     return parse_tz(db.get_meta("tz"))
 
 
+# only "my car" style references can be remembered; "something heavy" or "the vehicle" are just descriptions
+_REMEMBERED_OBJECT = re.compile(r"^(my|our|mine|that|this|these|those|his|her|their|the same)\b", re.IGNORECASE)
+
+
 def _repair_targets(targets: list[Target]) -> list[Target]:
     """Small models split "green jacket" into its own target, forget classes and drop attributes."""
     fixed: dict[str, Target] = {}
@@ -181,7 +185,7 @@ def sanitize(plan: QueryPlan, cameras: Sequence[CameraLike], question: str | Non
     unresolved = [r for r in plan.unresolved if fastpath.norm_name(r.text) not in by_name]
     if plan.place is not None and not any(r.text == plan.place.text for r in unresolved):
         unresolved.append(Referent(text=plan.place.text, role="place"))
-    plan.unresolved = unresolved
+    plan.unresolved = [r for r in unresolved if r.role != "object" or _REMEMBERED_OBJECT.match(r.text.strip())]
     return plan
 
 

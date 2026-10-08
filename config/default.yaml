@@ -78,7 +78,7 @@ retrieval:              # query side (M3); keys and defaults mirror backend/evor
   attributes: true      # ablation C2
   expansion: "off"      # off | lexicon | llm
   weights: {image: 0.55, attributes: 0.25, caption: 0.10, scene: 0.10}
-  calibration: {midpoint: 0.18, scale: 0.04}
+  calibration: {midpoint: 0.09, scale: 0.015}   # fitted on real SigLIP2 cosines, see PROGRESS
   ann_k: 400
   scene_k: 300
   pool_limit: 100

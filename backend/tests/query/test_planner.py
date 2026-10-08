@@ -277,3 +277,34 @@ async def test_ordinary_times_listed_as_unresolved_by_a_model_are_dropped_but_id
                     Referent(text="server room", role="place")])
     res = await Planner(FakeGateway(plan)).plan(HARD, CAMS, REF, IST)
     assert [(r.text, r.role) for r in res.plan.unresolved] == [("night shift", "time"), ("server room", "place")]
+
+
+def test_only_remembered_style_objects_stay_unresolved():
+    plan = model_plan(unresolved=[
+        Referent(text="my car", role="object"), Referent(text="that van", role="object"),
+        Referent(text="Our delivery", role="object"), Referent(text="something heavy", role="object"),
+        Referent(text="vehicle door", role="object"), Referent(text="the vehicle", role="object"),
+        Referent(text="the loading dock", role="place")])
+    kept = [(r.text, r.role) for r in sanitize(plan, CAMS).unresolved]
+    assert kept == [("my car", "object"), ("that van", "object"), ("Our delivery", "object"),
+                    ("the loading dock", "place")]
+
+
+def test_the_default_calibration_matches_real_siglip_scores():
+    from evora.query.fuse import Calibration
+
+    cal = Calibration()
+    assert cal(0.105) > 0.65   # a correct-class crop against "a photo of a <class>"
+    assert cal(0.045) < 0.1    # a wrong-class crop
+    assert cal(0.045) < cal(0.07) < cal(0.105) < cal(0.15)
+
+
+def test_only_possessive_or_pointed_at_objects_are_kept_as_referents_to_remember():
+    plan = model_plan(unresolved=[
+        Referent(text="my car", role="object"), Referent(text="that van", role="object"),
+        Referent(text="Our delivery", role="object"), Referent(text="something heavy", role="object"),
+        Referent(text="vehicle door", role="object"), Referent(text="a vehicle", role="object"),
+        Referent(text="the loading dock", role="place"),
+    ])
+    kept = [r.text for r in sanitize(plan, CAMS).unresolved]
+    assert kept == ["my car", "that van", "Our delivery", "the loading dock"]  # places are unaffected

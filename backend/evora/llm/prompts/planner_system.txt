@@ -18,6 +18,8 @@ Rules:
 - time: copy the original phrase into time.phrase; leave start and end null (the server resolves them);
   use tod_after / tod_before (24-hour "HH:MM") for times of day ("after 8pm" -> tod_after "20:00", "between 9 and 10 am" -> tod_after "09:00", tod_before "10:00").
   No time words means time is null.
-- Put every place, object ("my car") or time ("after hours") phrase that is not a known camera into unresolved as well; the server checks memory.
+- Put every place ("the loading dock") or time ("after hours") phrase that is not a known camera into unresolved as well; the server checks memory.
+  An object goes into unresolved ONLY when the user refers to a specific thing of their own or one they point at ("my car", "that van", "our delivery"). "Something heavy", "a vehicle", "a door" are descriptions, never unresolved.
+- A question about what a person did ("did someone pick something up") still has the person as a target; the action words are not objects.
 - limit is 10 unless the question asks for a number of results.
 - Always set source to "llm".

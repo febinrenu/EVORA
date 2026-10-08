@@ -11,9 +11,9 @@ ALLOWED_CLS = {"person", "bicycle", "car", "motorcycle", "bus", "truck", "backpa
 EXAMPLE_CAM_IDS = {c["id"] for c in EXAMPLE_CAMERAS}
 
 
-def test_twelve_examples_cover_every_intent():
+def test_examples_cover_every_intent():
     shots = load_examples()
-    assert len(shots) == 12
+    assert len(shots) == 13
     intents = {QueryPlan.model_validate(s["plan"]).intent for s in shots}
     assert intents == {"exists", "list", "count", "first", "last", "path", "describe", "standing"}
 
@@ -65,4 +65,4 @@ def test_system_prompt_carries_rules_shape_and_examples():
     text = planner_system_prompt()
     assert "Never invent camera ids" in text
     assert "PLAN SHAPE:" in text and '"unresolved"' in text and "$defs" not in text
-    assert text.count("QUESTION:") == 12
+    assert text.count("QUESTION:") == 13
