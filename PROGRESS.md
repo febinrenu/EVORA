@@ -28,10 +28,10 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 - Blockers:
 
 ### M3 — Reasoning, Retrieval & Science
-- State: not started
-- Doing:
-- Next: P3.1–P3.3
-- Blockers:
+- State: on track
+- Doing: P3.4 fast-path parser, P3.5 planner (against contracts/, no stores needed yet)
+- Next: P3.7 logic, P3.8 compose, P3.10 eval harness + B0
+- Blockers: need M1 core/db.py + vectors.py (P1.4) and M2 mini-index (~T+3:00) for real retrieval; Groq key not yet run through check_groq
 
 ### M4 — Experience
 - State: not started
@@ -86,3 +86,7 @@ State values: not started · on track · at risk · blocked · done
 - [09:57] [M1] P1.3 API skeleton done (cea238f): every §5.5 route on :8700 serving fixtures; `make dev`. Tagged cp0.
 - [09:57] [M1] HANDOFF: next is P1.4 (core/db.py, vectors.py, workspace.py), then P1.5 upload. Windows note: `make` via winget ezwinports.make; `uv` via `python -m uv` (Makefile handles both).
 - [10:20] [M1] P1.4 core db/vectors/workspace done (29b0148): migrations from contracts/schema.sql, WAL + one writer per file, LanceDB tables sized from meta dims, workspaces confined to workspaces/. 40 tests in make check.
+- [15:45] [M3] P3.1 done: scripts/check_groq.py lists models + rate-limit headers per key, keys masked (a4cd05e)
+- [15:45] [M3] P3.2 done: llm gateway with key pool, 429 rotation, circuit, repair retry, Ollama fallback, on-prem path; 34 tests (b709156)
+- [15:45] [M3] P3.3 done: planner prompt v0, 12 examples, static prefix ~2.2k tokens, byte-identical across calls (7b616db)
+
