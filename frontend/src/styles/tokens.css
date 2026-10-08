@@ -21,6 +21,7 @@
   --lights: 0;
   --bg: color-mix(in oklab, var(--void), var(--lightbox) calc(var(--lights) * 100%));
   --ink: color-mix(in oklab, var(--bone), var(--graphite) calc(var(--lights) * 100%));
+  --ink-72: color-mix(in oklab, var(--bone-72), rgb(43 49 55 / 0.82) calc(var(--lights) * 100%));
   --ink-48: color-mix(in oklab, var(--bone-48), rgb(43 49 55 / 0.6) calc(var(--lights) * 100%));
   --ink-16: color-mix(in oklab, var(--bone-16), rgb(43 49 55 / 0.16) calc(var(--lights) * 100%));
   --match: color-mix(in oklab, var(--chinagraph), var(--chinagraph-ink) calc(var(--lights) * 100%));

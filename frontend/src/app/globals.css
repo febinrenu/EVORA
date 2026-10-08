@@ -190,6 +190,8 @@ button {
   padding: calc(var(--gutter) * 0.8) var(--gutter);
   pointer-events: none;
   color: var(--ink);
+  /* the links stay readable over the bright scenes of the twin */
+  text-shadow: 0 0 14px color-mix(in oklab, var(--bg) 90%, transparent), 0 1px 3px color-mix(in oklab, var(--bg) 70%, transparent);
 }
 .nav > * {
   pointer-events: auto;
@@ -232,9 +234,41 @@ button {
   transform-origin: right;
   transition: transform 0.45s var(--ease-out);
 }
-.nav-link:hover::after {
+.nav-link:hover::after,
+.nav-link[aria-current]::after {
   transform: scaleX(1);
   transform-origin: left;
+}
+.nav-link {
+  color: var(--ink-72);
+  text-decoration: none;
+}
+.nav-link:hover,
+.nav-link[aria-current] {
+  color: var(--ink);
+}
+/* the product is one click away from anywhere in the story */
+.nav-cta {
+  background: color-mix(in oklab, var(--bg) 55%, transparent);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.95rem 0.55rem;
+  border: 1px solid var(--ink-48);
+  border-radius: 999px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-stretch: 100%;
+  white-space: nowrap;
+  transition: background-color 0.3s var(--ease-out), color 0.3s var(--ease-out), border-color 0.3s;
+}
+.nav-cta:hover,
+.nav-cta:focus-visible {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
 }
 .sound {
   display: inline-flex;
@@ -274,22 +308,13 @@ button {
   color: var(--ink-48);
   pointer-events: none;
 }
-.rail ol {
+.rail-now {
   display: flex;
   gap: 1.1rem;
   margin: 0 0 0.6rem;
-  padding: 0;
-  list-style: none;
+  white-space: nowrap;
 }
-.rail li {
-  transition: color 0.5s var(--ease-out);
-}
-.rail li + li::before {
-  content: "→";
-  margin-right: 1.1rem;
-  opacity: 0.4;
-}
-.rail li[data-current] {
+.rail-title {
   color: var(--ink);
 }
 .rail-track {
@@ -469,7 +494,7 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  font-size: clamp(2.8rem, 0.4rem + 9.4vw, 12rem);
+  font-size: clamp(2.2rem, min(0.2rem + 9.4vw, 15vh), 12rem);
   line-height: 0.84;
   --wdth: 125;
 }
@@ -492,10 +517,7 @@ button {
   visibility: hidden;
 }
 .cue {
-  position: absolute;
-  left: 50%;
-  bottom: calc(var(--gutter) * 3.2);
-  transform: translateX(-50%);
+  margin-top: clamp(1.6rem, 6vh, 3.6rem);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1850,9 +1872,12 @@ button {
   .why { width: min(360px, 44vw); }
 }
 @media (max-width: 639.98px) {
-  .nav ul { display: none; }
-  .rail ol { gap: 0.6rem; font-size: 9px; }
-  .rail li + li::before { margin-right: 0.6rem; }
+  .nav ul,
+  .nav-results,
+  .sound-word { display: none; }
+  .nav { gap: 1rem; }
+  .nav-cta { margin-left: auto; padding: 0.4rem 0.8rem 0.45rem; font-size: 0.8125rem; }
+  .rail-now { gap: 0.6rem; font-size: 9px; }
   .meta { flex-direction: column; gap: 0.35rem; }
   .meta span[aria-hidden] { display: none; }
   .ask { height: auto; min-height: 62px; padding: 0.7rem 1rem; }

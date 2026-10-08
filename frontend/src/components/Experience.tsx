@@ -160,7 +160,7 @@ export function Experience() {
           ))}
         </ul>
       </nav>
-      <Nav go={go} />
+      <Nav go={go} register={register} />
       <main className="overlay" id="top">
         <Opening />
         <Universe />
