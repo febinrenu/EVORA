@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import re
 import time
 from collections.abc import Callable
 from typing import Any, TypeVar
@@ -23,6 +24,9 @@ from evora.llm.replay import ReplayStore
 from evora.llm.schemas import GROQ_BASE_URL, GatewayConfig, LLMError
 
 log = logging.getLogger("evora.llm")
+
+NTFY_TIMEOUT_S = 5.0
+_NTFY_TOPIC = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 M = TypeVar("M", bound=BaseModel)
 
@@ -299,6 +303,32 @@ class Gateway:
             return _parse_answers(resp.json()["choices"][0]["message"]["content"], n)
         except (KeyError, IndexError, ValueError):
             return [None] * n
+
+    async def notify(self, topic: str, title: str, message: str) -> None:
+        """Send a text-only phone notification through ntfy (alerts, rule 9: all egress is here).
+
+        Refuses in on-prem mode. The topic works like a password, so neither it nor the message is
+        ever logged or put in an error: failures say only what went wrong.
+        """
+        if self._onprem():
+            raise LLMError("notifications are disabled in on-prem mode")
+        if not _NTFY_TOPIC.fullmatch(topic or ""):
+            raise LLMError("invalid ntfy topic")
+        safe_title = title.encode("latin-1", "replace").decode("latin-1")[:100]  # header values are latin-1
+        try:
+            resp = await self._client.post(
+                f"{self._cfg.ntfy_base.rstrip('/')}/{topic}",
+                content=message[:4000].encode("utf-8"),
+                headers={"Title": safe_title, "Content-Type": "text/plain; charset=utf-8"},
+                timeout=NTFY_TIMEOUT_S,
+            )
+        except httpx.HTTPError as exc:
+            self._log(task="notify", backend="ntfy", ok=False, error=type(exc).__name__)
+            raise LLMError("ntfy was unreachable") from None  # the exception text would contain the topic
+        ok = resp.status_code < 400
+        self._log(task="notify", backend="ntfy", ok=ok, status=resp.status_code)
+        if not ok:
+            raise LLMError(f"ntfy refused the notification (HTTP {resp.status_code})")
 
     async def transcribe(self, audio: bytes) -> str:
         if self._onprem():

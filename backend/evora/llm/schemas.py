@@ -32,6 +32,7 @@ class GatewayConfig:
     local_text_model: str = "qwen3.5:4b"
     local_vision_model: str = "qwen3-vl:2b"
     ollama_host: str = "http://127.0.0.1:11434"
+    ntfy_base: str = "https://ntfy.sh"
     reasoning_effort: str = "low"
     timeout_s: float = 30.0
     log_path: Path | None = Path("logs/llm.jsonl")

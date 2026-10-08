@@ -312,3 +312,88 @@ async def test_off_by_default_and_bad_entries_are_ignored(tmp_path):
     gw = make_replay(live, tmp_path, "auto")  # the damaged file does not stop startup
     await gw.chat_json("planner", MSG, Out)
     assert len(live.calls) == 3
+
+
+# ------------------------------------------------------------------ notify
+@pytest.mark.asyncio
+async def test_notify_posts_the_message_to_the_topic(tmp_path):
+    seen = []
+    cfg = GatewayConfig(log_path=tmp_path / "llm.jsonl")
+    transport = httpx.MockTransport(lambda r: (seen.append(r), httpx.Response(200))[1])
+    gw = Gateway(cfg, KeyPool([]), httpx.AsyncClient(transport=transport))
+    await gw.notify("secret-topic_123", "Alert: Gate", "Person at the gate — 09:14:03")
+    (req,) = seen
+    assert (req.method, req.url.host, req.url.path) == ("POST", "ntfy.sh", "/secret-topic_123")
+    assert req.content.decode("utf-8") == "Person at the gate — 09:14:03"  # the UTF-8 body survives
+    assert req.headers["title"] == "Alert: Gate"
+    log_text = (tmp_path / "llm.jsonl").read_text()
+    assert "secret-topic" not in log_text and "Person at the gate" not in log_text
+
+
+@pytest.mark.asyncio
+async def test_notify_goes_to_ntfy_not_to_groq_or_ollama():
+    hosts = []
+
+    def anywhere(request):
+        hosts.append(request.url.host)
+        return httpx.Response(200)
+
+    cfg = GatewayConfig(log_path=None)
+    gw = Gateway(cfg, KeyPool(["gsk_key_aaaa"]), httpx.AsyncClient(transport=httpx.MockTransport(anywhere)))
+    await gw.notify("topic1", "t", "m")
+    assert hosts == ["ntfy.sh"]  # never the model hosts, and never the Groq key
+    cfg2 = GatewayConfig(log_path=None, ntfy_base="http://127.0.0.1:2586/")
+    gw2 = Gateway(cfg2, KeyPool([]), httpx.AsyncClient(transport=httpx.MockTransport(anywhere)))
+    await gw2.notify("topic1", "t", "m")
+    assert hosts[-1] == "127.0.0.1"  # a self-hosted ntfy works too
+
+
+@pytest.mark.asyncio
+async def test_notify_is_refused_in_onprem_mode_without_any_request():
+    def boom(_):
+        raise AssertionError("no request may be made")
+
+    gw = Gateway(GatewayConfig(log_path=None), KeyPool([]), httpx.AsyncClient(transport=httpx.MockTransport(boom)),
+                 onprem=lambda: True)
+    with pytest.raises(LLMError, match="on-prem"):
+        await gw.notify("topic1", "t", "m")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("topic", ["", "has space", "../etc", "a/b", "x" * 65, "bad?query=1"])
+async def test_notify_rejects_topics_that_could_change_the_url(topic):
+    def boom(_):
+        raise AssertionError("no request may be made")
+
+    gw = Gateway(GatewayConfig(log_path=None), KeyPool([]), httpx.AsyncClient(transport=httpx.MockTransport(boom)))
+    with pytest.raises(LLMError, match="invalid ntfy topic"):
+        await gw.notify(topic, "t", "m")
+
+
+@pytest.mark.asyncio
+async def test_notify_failures_never_contain_the_topic_or_message(tmp_path):
+    def down(_):
+        raise httpx.ConnectError("could not reach https://ntfy.sh/secret-topic")
+
+    cfg = GatewayConfig(log_path=tmp_path / "llm.jsonl")
+    gw = Gateway(cfg, KeyPool([]), httpx.AsyncClient(transport=httpx.MockTransport(down)))
+    with pytest.raises(LLMError) as err:
+        await gw.notify("secret-topic", "Alert", "private message text")
+    assert "secret-topic" not in str(err.value) and err.value.__cause__ is None
+    assert "secret-topic" not in (tmp_path / "llm.jsonl").read_text()
+
+    gw500 = Gateway(cfg, KeyPool([]), httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(429))))
+    with pytest.raises(LLMError, match="HTTP 429") as err2:
+        await gw500.notify("secret-topic", "Alert", "private message text")
+    assert "secret-topic" not in str(err2.value) and "private message" not in str(err2.value)
+
+
+@pytest.mark.asyncio
+async def test_notify_survives_titles_and_messages_that_are_awkward():
+    seen = []
+    gw = Gateway(GatewayConfig(log_path=None), KeyPool([]),
+                 httpx.AsyncClient(transport=httpx.MockTransport(lambda r: (seen.append(r), httpx.Response(200))[1])))
+    await gw.notify("t1", "Alert — 😀 " + "x" * 300, "m" * 9000)
+    req = seen[0]
+    assert req.headers["title"] == ("Alert ? ? " + "x" * 300)[:100]  # characters a header cannot carry become "?"
+    assert len(req.content) == 4000
