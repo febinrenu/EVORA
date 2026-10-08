@@ -2,7 +2,7 @@
 
 L0  scene embeddings (full frame + 2x2 tiles every `scene_every_s`)  -> LanceDB `scenes`
 L1  detect + track + best-K crops + crop embeddings                    -> SQLite `tracks`, `track_points`, LanceDB `crops`
-L2  attributes, events, ReID (not implemented yet; skipped with a warning)
+L2  attributes (colour, vehicle type, carrying, infrared) and events from the stored tracks; ReID is added later
 L3  captions (not implemented yet; skipped with a warning)
 
 Paths stored in the database are relative to the workspace `media/` directory.
@@ -31,6 +31,7 @@ from evora.perception.crops import FinishedTrack, TrackBook, save_jpeg
 from evora.perception.decode import DecodeError, probe_video, read_frames
 from evora.perception.detect import load_detector
 from evora.perception.embed import SigLIP2Embedder, get_embedder
+from evora.perception.l2 import run_l2
 from evora.perception.motion import AdaptiveSampler
 from evora.perception.settings import IngestSettings, load_settings
 from evora.perception.track import FrameTracker
@@ -39,7 +40,7 @@ log = logging.getLogger("evora.perception.pipeline")
 
 ProgressFn = Callable[[IngestJob], None]
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_\-]+$")
-_IMPLEMENTED = ("L0", "L1")
+_IMPLEMENTED = ("L0", "L1", "L2")
 
 
 def resolve_workspace(slug: str | None = None) -> Workspace:
@@ -252,4 +253,7 @@ def ingest(
     if "L1" in todo:
         n_tracks, n_frames = _run_l1(cam, path, ws, db, store, st, embedder, duration, on_progress)
         log.info("%s L1: %d tracks from %d sampled frames", cam.id, n_tracks, n_frames)
+    if "L2" in todo:
+        stats = run_l2(cam, ws, db, store, st, embedder, on_progress)
+        log.info("%s L2: %s", cam.id, stats)
     log.info("%s ingest took %.1fs for %.1fs of video", cam.id, time.monotonic() - started, duration or 0.0)

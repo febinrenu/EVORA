@@ -1,4 +1,6 @@
 """Pipeline integration with a scripted detector and a fake embedder: no GPU, weights or network needed."""
+import json
+
 import numpy as np
 import pytest
 
@@ -12,6 +14,7 @@ from evora.core import cameras as cams  # noqa: E402
 from evora.core import workspace as wsmod  # noqa: E402
 from evora.core.db import open_db  # noqa: E402
 from evora.perception import pipeline  # noqa: E402
+from evora.perception.attributes import COLOURS  # noqa: E402
 from evora.perception.settings import IngestSettings  # noqa: E402
 from evora.perception.track import TrackedBox  # noqa: E402
 
@@ -20,6 +23,12 @@ DIM = 16
 
 class FakeEmbedder:
     dim = DIM
+
+    def embed_texts(self, texts):
+        out = np.zeros((len(texts), DIM), dtype=np.float32)
+        for i in range(len(texts)):
+            out[i, i % DIM] = 1.0
+        return out
 
     def embed_images(self, images):
         out = np.zeros((len(images), DIM), dtype=np.float32)
@@ -107,11 +116,29 @@ def test_reingest_replaces_rows_instead_of_duplicating(env):
     assert first[0] == 2
 
 
-def test_unimplemented_layers_are_skipped_not_reported_finished(env, caplog):
+def test_l2_writes_attributes_and_events(env):
+    ws, db, cam = env
+    events: list[IngestJob] = []
+    pipeline.ingest(cam, "cpu", {"L0", "L1", "L2"}, events.append, ws=ws, settings=_settings())
+    assert {e.layer for e in events if e.progress >= 1.0} == {"L0", "L1", "L2"}
+    with db.read() as c:
+        attrs = [json.loads(r["attrs"]) for r in c.execute("SELECT attrs FROM tracks ORDER BY id")]
+        kinds = sorted(r["kind"] for r in c.execute("SELECT kind FROM events"))
+        ir = c.execute("SELECT ir_fraction FROM cameras WHERE id=?", (cam.id,)).fetchone()[0]
+    assert len(attrs) == 2
+    for a in attrs:
+        assert a["size_rel"] == pytest.approx(0.6, abs=0.05)             # scripted boxes span 30%..90% of the height
+        assert a["is_ir"] is False and a["carrying"] == []
+        assert a["upper_color"] in COLOURS and a["lower_color"] in COLOURS and a["color"] == a["upper_color"]
+    assert kinds == ["appear", "appear", "disappear", "disappear"]
+    assert ir == 0.0
+
+
+def test_l3_is_skipped_and_never_reported_finished(env, caplog):
     ws, _, cam = env
     events: list[IngestJob] = []
     with caplog.at_level("WARNING"):
-        pipeline.ingest(cam, "cpu", {"L2", "L3"}, events.append, ws=ws, settings=_settings())
+        pipeline.ingest(cam, "cpu", {"L3"}, events.append, ws=ws, settings=_settings())
     assert events == []
     assert "not implemented" in caplog.text
 

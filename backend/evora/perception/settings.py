@@ -41,6 +41,10 @@ class IngestSettings(BaseModel):
     crop_jpeg_quality: int = 88
     crop_max_side: int = 256
     point_hz: float = 4.0             # track_points downsample rate
+    # events
+    dwell_s: float = 20.0             # continuous presence in a zone that counts as dwelling
+    line_hysteresis: float = 0.01     # normalised distance beyond a line before a crossing counts
+    zone_debounce: int = 2            # samples a zone enter/exit must persist
     # embeddings
     image_model: str = "google/siglip2-base-patch16-224"
     embed_batch: int = 32
