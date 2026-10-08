@@ -102,3 +102,38 @@ def test_cli_writes_the_file_and_reports_when_there_is_nothing(reports, tmp_path
     empty = tmp_path / "empty"
     empty.mkdir()
     assert rp.main(["--reports", str(empty)]) == 2
+
+
+def test_the_chance_level_is_computed_from_the_null_system_not_typed(tmp_path):
+    (tmp_path / "eval_dev_capabilities.json").write_text(json.dumps({
+        "ours": {"object": cap_report(9, **{"hit@1": (0.33, 9)})},
+        "null": {"object": cap_report(9, **{"hit@1": (0.44, 9)})}}))
+    rep = rp.build_report(tmp_path, tmp_path / "none.json")
+    assert any("Chance level" in x and "0.44" in x and "n=9" in x for x in rep["limits"])
+    without = tmp_path / "other"
+    without.mkdir()
+    (without / "eval_dev_capabilities.json").write_text(json.dumps({"ours": {"object": cap_report(9)}}))
+    assert not any("Chance level" in x for x in rp.build_report(without, without / "none.json")["limits"])
+
+
+def test_the_original_frozen_results_are_reported_beside_the_current_ones(tmp_path):
+    v1 = tmp_path / "frozen_v1"
+    v1.mkdir()
+    (tmp_path / "eval_dev_capabilities.json").write_text(json.dumps({"b0": {"object": cap_report(9, **{"hit@1": (1.0, 9)})}}))
+    (v1 / "eval_dev_capabilities.json").write_text(json.dumps({"b0": {"object": cap_report(9, **{"hit@1": (0.8, 9)})}}))
+    rep = rp.build_report(tmp_path, tmp_path / "none.json")
+    assert rep["pooled"]["b0"]["object"]["hit@1"]["value"] == 1.0
+    assert rep["pooled_as_first_frozen"]["b0"]["object"]["hit@1"]["value"] == 0.8
+
+
+def test_the_claims_no_longer_include_what_the_chance_baseline_disproved():
+    text = " ".join(rp.SUPPORTED).lower()
+    assert "timestamp" not in text and "camera is returned" not in text  # both were overstated against chance
+    assert any("nothing there" in c for c in rp.SUPPORTED)
+    assert any("chance" in x for x in rp.NOT_SHOWN) and any("track-centric" in x for x in rp.NOT_SHOWN)
+
+
+def test_the_post_freeze_fix_is_recorded_with_where_the_original_results_are():
+    frozen = json.loads(rp.FROZEN_FILE.read_text())
+    fix = frozen["post_freeze_fixes"][0]
+    assert "no threshold or weight changed" in fix["kind"] and fix["original_results"] == "eval/reports/frozen_v1"

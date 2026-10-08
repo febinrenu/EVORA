@@ -36,16 +36,20 @@ LIMITS = [
     "Thresholds were frozen before the test and judge_sim runs; nothing was tuned on them.",
 ]
 NOT_SHOWN = [
-    "Better recall than the frame baseline: it is lower here, limited by detector recall on small, distant people.",
-    "A benefit of track-centric indexing over frame-level retrieval (frame-level is not worse in the ablation).",
+    "Object retrieval better than chance: a random moment inside the same camera and window (the null system) scores "
+    "as well as or better than our object Hit@1 on every split, and the frame-similarity baseline is the only "
+    "system clearly above it.",
+    "Better timestamp localisation than chance or the frame baseline: after the time-window boundary fix the "
+    "differences are within noise, and the random baseline is not worse.",
+    "A benefit of track-centric indexing: frame-level retrieval is better than the full system in the ablation. "
+    "The track layer is limited by detector recall on small, distant people.",
     "Any effect of attribute scoring, verification or clarify-once memory: no evaluated query exercises them.",
 ]
 SUPPORTED = [
-    "Given a visible object class, a camera and a time window, evidence is localised to a moment inside the "
-    "window with a smaller timestamp error than the frame baseline. The correct camera is returned for most "
-    "queries, not all (see camera accuracy).",
-    "When nothing of that class is on the camera, the system says so; the frame-similarity baseline always "
-    "returns its best frames and never answers 'nothing there'.",
+    "When no object of the requested class is on the camera, the system says so. The frame-similarity baseline and "
+    "the random baseline always return something and never answer 'nothing there'.",
+    "Parsing the question into class, camera and time constraints is what makes the system work at all: replacing "
+    "the parsed plan with raw-text search collapses both object hits and negatives in the ablation.",
 ]
 
 
@@ -93,6 +97,26 @@ def build_report(reports_dir: Path = REPORTS_DIR, frozen_file: Path = FROZEN_FIL
         pooled[system] = {cap: {metric: pool(cap_by_split, system, cap, metric) for metric in metrics}
                           for cap, metrics in POOLED.items()}
 
+    limits = list(LIMITS)
+    chance = pooled.get("null", {}).get("object", {}).get("hit@1", {})
+    if chance.get("value") is not None:
+        limits.append(
+            f"Chance level: a random moment inside the same camera and window already scores object Hit@1 "
+            f"{chance['value']:.2f} (n={chance['n']}), because MEVA's annotated actors are dense in time. "
+            "Read every object result next to this row."
+        )
+    frozen_v1 = reports_dir / "frozen_v1"
+    if frozen_v1.is_dir():
+        v1 = {}
+        for split in SPLITS:
+            caps = _load(frozen_v1 / f"eval_{split}_capabilities.json")
+            if caps:
+                v1[split] = caps
+        pooled_v1 = {sys_: {cap: {m: pool(v1, sys_, cap, m) for m in metrics} for cap, metrics in POOLED.items()}
+                     for sys_ in sorted({x for caps in v1.values() for x in caps})}
+    else:
+        pooled_v1 = {}
+
     ablation_raw = _load(reports_dir / "ablation.json") or {}
     ablations = [
         {"label": label, "switch": row.get("switch"), "skipped": row.get("skipped"),
@@ -105,13 +129,14 @@ def build_report(reports_dir: Path = REPORTS_DIR, frozen_file: Path = FROZEN_FIL
         "frozen": _load(frozen_file),
         "splits": splits,
         "pooled": pooled,
+        "pooled_as_first_frozen": pooled_v1,
         "ablations": ablations,
         "capabilities_evaluated": [c for c in evaluated if not c.startswith("activity")],
         "diagnostics": [c for c in evaluated if c.startswith("activity")],
         "not_evaluated": {c: why for c, why in UNSUPPORTED_CAPABILITIES.items() if c not in evaluated},
         "supported_claims": SUPPORTED,
         "not_shown": NOT_SHOWN,
-        "limits": LIMITS,
+        "limits": limits,
     }
 
 

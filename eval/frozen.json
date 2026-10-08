@@ -9,5 +9,11 @@
   "planner_prompt": "v2 (compact plan shape, object referents only for possessives and demonstratives)",
   "query_expansion": "off",
   "verification": "filter mode, only for queries with colour, carrying or vehicle-type attributes",
+  "post_freeze_fixes": [
+    {"what": "time-of-day ranges ended at the end of the stated minute instead of at the stated time ('between 10:12 and 10:13' covered two minutes)",
+     "kind": "boundary bug, no threshold or weight changed",
+     "effect": "our results are unchanged on the object and negative rows; the frame baseline's timestamp error fell (it had been returning frames from the extra minute)",
+     "original_results": "eval/reports/frozen_v1"}
+  ],
   "splits_by_camera": {"dev": ["G328", "G419", "G423"], "test": ["G300", "G421"], "judge_sim": ["G299"]}
 }
