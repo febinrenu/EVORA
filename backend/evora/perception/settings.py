@@ -93,6 +93,13 @@ class IngestSettings(BaseModel):
     reid_recluster_min_pairs: int = 20       # concurrent pairs needed to know that level; fewer = no re-clustering
     reid_recluster_overlap_s: float = 0.5    # tracks overlapping longer than this are different people
     reid_stitch_reach: float = 0.06          # allowed jump (normalised) plus this much per second of gap
+    # duplicates: one object tracked twice at the same time (two ids on one body, or a partial box inside the full one)
+    reid_dedupe: bool = True
+    reid_dedupe_min_iou: float = 0.6         # boxes that coincide this much (median over shared moments) are one object
+    reid_dedupe_min_contain: float = 0.9     # ... or one box inside the other this much ...
+    reid_dedupe_min_iou_inside: float = 0.3  # ... while still overlapping at least this much (not a far, small box)
+    reid_dedupe_min_shared: int = 3          # shared moments needed before deciding
+    reid_dedupe_match_s: float = 0.15        # two points belong to the same moment when this close in time
     # embeddings
     image_model: str = "google/siglip2-base-patch16-224"
     embed_batch: int = 32

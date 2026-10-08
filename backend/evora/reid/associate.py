@@ -252,6 +252,72 @@ def _seen_together(a: T, b: T, overlap_s: float = 0.0) -> bool:
     return min(a.t1, b.t1) - max(a.t0, b.t0) > overlap_s
 
 
+def _box_agreement(a: list[tuple], b: list[tuple], match_s: float) -> tuple[list[float], list[float]]:
+    """IoU and containment (overlap / smaller box) at the moments both tracks have a point (nearest within `match_s`)."""
+    if not a or not b:
+        return [], []
+    times = np.array([p[0] for p in b])
+    ious, contains = [], []
+    for t, x1, y1, x2, y2 in a:
+        k = int(np.argmin(np.abs(times - t)))
+        if abs(times[k] - t) > match_s:
+            continue
+        _, u1, v1, u2, v2 = b[k]
+        iw, ih = max(0.0, min(x2, u2) - max(x1, u1)), max(0.0, min(y2, v2) - max(y1, v1))
+        inter = iw * ih
+        area_a, area_b = max((x2 - x1) * (y2 - y1), 1e-9), max((u2 - u1) * (v2 - v1), 1e-9)
+        ious.append(inter / (area_a + area_b - inter))
+        contains.append(inter / min(area_a, area_b))
+    return ious, contains
+
+
+def duplicate_pairs(db: Database, st: IngestSettings) -> list[tuple[str, str]]:
+    """(kept track, duplicate track): one object tracked twice at the same time by one camera.
+
+    The tracker sometimes follows a person with two ids at once (a second box on the same body, or a cut-off partial
+    box inside the full one). Every later step assumes two tracks seen together are two objects, so these duplicates
+    inflate counts and lower the look-alike bar used for re-clustering. Two tracks are one object when, at the moments
+    both have a box, the boxes coincide (median IoU) or one box sits inside the other while still overlapping well
+    (median containment), at enough shared moments. The longer track is kept.
+    """
+    if not st.reid_dedupe:
+        return []
+    with db.read() as c:
+        rows = c.execute("SELECT id, camera_id, cls, t_start, t_end FROM tracks").fetchall()
+        by_cam: dict[tuple[str, str], list] = defaultdict(list)
+        for r in rows:
+            family = FAMILIES.get(r["cls"])
+            if family is not None:
+                by_cam[(r["camera_id"], family)].append(r)
+        candidates: list[tuple] = []
+        for group in by_cam.values():
+            group.sort(key=lambda r: r["t_start"])
+            for i, a in enumerate(group):
+                for b in group[i + 1:]:
+                    if b["t_start"] > a["t_end"]:
+                        break
+                    candidates.append((a, b))
+        if not candidates:
+            return []
+        ids = sorted({r["id"] for pair in candidates for r in pair})
+        points: dict[str, list[tuple]] = defaultdict(list)
+        for i in range(0, len(ids), 400):
+            chunk = ids[i:i + 400]
+            for p in c.execute(f"SELECT track_id, t, x1, y1, x2, y2 FROM track_points WHERE track_id IN "  # noqa: S608
+                               f"({','.join('?' * len(chunk))}) ORDER BY track_id, t", chunk):
+                points[p["track_id"]].append((p["t"], p["x1"], p["y1"], p["x2"], p["y2"]))
+    out: list[tuple[str, str]] = []
+    for a, b in candidates:
+        shorter, longer = (a, b) if a["t_end"] - a["t_start"] <= b["t_end"] - b["t_start"] else (b, a)
+        ious, contains = _box_agreement(points[shorter["id"]], points[longer["id"]], st.reid_dedupe_match_s)
+        if len(ious) < st.reid_dedupe_min_shared:
+            continue
+        iou, contain = float(np.median(ious)), float(np.median(contains))
+        if iou >= st.reid_dedupe_min_iou or (contain >= st.reid_dedupe_min_contain and iou >= st.reid_dedupe_min_iou_inside):
+            out.append((longer["id"], shorter["id"]))
+    return out
+
+
 def recluster_camera(group: list[T], st: IngestSettings) -> list[list[T]]:
     """Fragments of the same people within one camera, by average-linkage clustering of the appearance vectors.
 
@@ -321,6 +387,7 @@ class _Union:
 
 def link_tracks(
     tracks: list[T], st: IngestSettings, links: dict[tuple[str, str], Link] | None = None,
+    duplicates: frozenset[str] = frozenset(),
 ) -> tuple[list[list[T]], dict[tuple[str, str], Link]]:
     """Groups of tracks judged to be the same identity, and the topology that was used."""
     from scipy.optimize import linear_sum_assignment
@@ -339,7 +406,8 @@ def link_tracks(
     if st.reid_recluster:
         by_cam: dict[str, list[T]] = defaultdict(list)
         for t in tracks:
-            if FAMILIES.get(t.cls) == "person" and t.vec.size > 1:
+            # a duplicate box of a person is not a second person: it would raise this camera's look-alike bar
+            if FAMILIES.get(t.cls) == "person" and t.vec.size > 1 and t.id not in duplicates:
                 by_cam[t.camera_id].append(t)
         for group in by_cam.values():
             for members in recluster_camera(group, st):
@@ -372,6 +440,30 @@ def link_tracks(
     return list(clusters.values()), links
 
 
+def merge_duplicates(clusters: list[list[T]], dupes: list[tuple[str, str]]) -> list[list[T]]:
+    """Join the identities of a track and its duplicate (seen at the same time on purpose: they are one object)."""
+    if not dupes:
+        return clusters
+    where = {t.id: i for i, members in enumerate(clusters) for t in members}
+    parent = list(range(len(clusters)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for kept, dup in dupes:
+        if kept in where and dup in where:
+            a, b = find(where[kept]), find(where[dup])
+            if a != b:
+                parent[b] = a
+    merged: dict[int, list[T]] = defaultdict(list)
+    for i, members in enumerate(clusters):
+        merged[find(i)] += members
+    return list(merged.values())
+
+
 def link_global_ids(workspace: Workspace | None = None, settings: IngestSettings | None = None) -> int:
     """Give every track of the workspace a global id; returns how many identities span two or more cameras."""
     from evora.perception.pipeline import resolve_workspace
@@ -380,13 +472,15 @@ def link_global_ids(workspace: Workspace | None = None, settings: IngestSettings
     st = settings or IngestSettings()
     db = open_db(ws.db_path)
     tracks = load_tracks(db, ws, st)
-    clusters, links = link_tracks(tracks, st)
+    dupes = duplicate_pairs(db, st)
+    clusters, links = link_tracks(tracks, st, duplicates=frozenset(d for _, d in dupes))
     linked = {t.id for m in clusters for t in m}
     with db.read() as c:   # tracks too short to link still get an identity of their own
         for r in c.execute("SELECT id, camera_id, cls, t_start, t_end FROM tracks").fetchall():
             if r["id"] not in linked:
                 alone = T(r["id"], r["camera_id"], r["cls"], r["t_start"], r["t_end"], np.zeros(1, dtype=np.float32), {})
                 clusters.append([alone])
+    clusters = merge_duplicates(clusters, dupes)
     clusters.sort(key=lambda c: min(t.t0 for t in c))
     now = time.time()
     with db.write() as c:
