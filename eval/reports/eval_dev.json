@@ -8,40 +8,48 @@
         "n": 18
       },
       "hit@5": {
-        "value": 0.5,
+        "value": 0.5556,
         "n": 18
       },
       "mrr": {
-        "value": 0.4444,
+        "value": 0.4731,
         "n": 18
       },
       "hit@1_strict": {
-        "value": 0.2778,
-        "n": 18
-      },
-      "hit@5_strict": {
-        "value": 0.5,
-        "n": 18
-      },
-      "mrr_strict": {
         "value": 0.3889,
         "n": 18
       },
+      "hit@5_strict": {
+        "value": 0.5556,
+        "n": 18
+      },
+      "mrr_strict": {
+        "value": 0.4731,
+        "n": 18
+      },
       "camera_accuracy": {
-        "value": 0.7222,
+        "value": 0.6667,
         "n": 18
       },
       "temporal_iou": {
-        "value": 0.0907,
+        "value": 0.0787,
         "n": 18
       },
       "timestamp_error_s": {
-        "value": 11.7023,
-        "n": 13
+        "value": 15.2552,
+        "n": 12
       },
       "existence_accuracy": {
         "value": 0.8571,
         "n": 28
+      },
+      "abstain_rate": {
+        "value": 0.1071,
+        "n": 28
+      },
+      "existence_accuracy_answered": {
+        "value": 0.96,
+        "n": 25
       },
       "existence_f1": {
         "value": 0.8824,
@@ -80,23 +88,23 @@
         "n": 0
       },
       "ttfa_p50_ms": {
-        "value": 118.1738,
+        "value": 10.8944,
         "n": 28
       },
       "ttfa_p95_ms": {
-        "value": 3734.3728,
+        "value": 349.6314,
         "n": 28
       },
       "ttva_p50_ms": {
-        "value": 119.8894,
+        "value": 17.1575,
         "n": 28
       },
       "ttva_p95_ms": {
-        "value": 3736.2814,
+        "value": 352.6893,
         "n": 28
       },
       "no_model_share": {
-        "value": 0.6071,
+        "value": 1.0,
         "n": 28
       },
       "errors": {
@@ -149,6 +157,14 @@
         "value": 0.6429,
         "n": 28
       },
+      "abstain_rate": {
+        "value": 0.0,
+        "n": 28
+      },
+      "existence_accuracy_answered": {
+        "value": 0.6429,
+        "n": 28
+      },
       "existence_f1": {
         "value": 0.7826,
         "n": 28
@@ -186,19 +202,19 @@
         "n": 0
       },
       "ttfa_p50_ms": {
-        "value": 44.0097,
+        "value": 53.79,
         "n": 28
       },
       "ttfa_p95_ms": {
-        "value": 47.6871,
+        "value": 60.9804,
         "n": 28
       },
       "ttva_p50_ms": {
-        "value": 44.0097,
+        "value": 53.79,
         "n": 28
       },
       "ttva_p95_ms": {
-        "value": 47.6871,
+        "value": 60.9804,
         "n": 28
       },
       "no_model_share": {
@@ -255,6 +271,14 @@
         "value": 0.6429,
         "n": 28
       },
+      "abstain_rate": {
+        "value": 0.0,
+        "n": 28
+      },
+      "existence_accuracy_answered": {
+        "value": 0.6429,
+        "n": 28
+      },
       "existence_f1": {
         "value": 0.7826,
         "n": 28
@@ -292,19 +316,19 @@
         "n": 0
       },
       "ttfa_p50_ms": {
-        "value": 0.9223,
+        "value": 0.9234,
         "n": 28
       },
       "ttfa_p95_ms": {
-        "value": 1.5454,
+        "value": 1.3531,
         "n": 28
       },
       "ttva_p50_ms": {
-        "value": 0.9223,
+        "value": 0.9234,
         "n": 28
       },
       "ttva_p95_ms": {
-        "value": 1.5454,
+        "value": 1.3531,
         "n": 28
       },
       "no_model_share": {

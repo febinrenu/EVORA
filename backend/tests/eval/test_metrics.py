@@ -227,3 +227,29 @@ def test_strict_metrics_are_reported_next_to_the_lenient_ones():
                             ev("cam_01", t(10, 12, 3), t(10, 12, 6), peak=t(10, 12, 5), eid="e1")])
     m = score(items, [run("a", second)]).metrics
     assert m["hit@1_strict"].value == 0.0 and m["hit@5_strict"].value == 1.0 and m["mrr_strict"].value == 0.5
+
+
+def test_abstaining_is_reported_apart_from_being_right_or_wrong():
+    hit = [gt("cam_01", t(10, 12, 0), t(10, 12, 10))]
+    items = [item("yes_answered", hits=hit), item("no_answered"), item("no_abstained"), item("yes_abstained", hits=hit),
+             item("yes_wrong", hits=hit)]
+    good = answer("yes", [ev("cam_01", t(10, 12, 3), t(10, 12, 6), eid="e1")])
+    refuse = answer("partial", [])
+    refuse.unsupported_action = "picking something up"
+    results = [run("yes_answered", good), run("no_answered", answer("no")), run("no_abstained", refuse),
+               run("yes_abstained", refuse), run("yes_wrong", answer("no"))]
+    m = score(items, results).metrics
+    assert m["abstain_rate"].value == pytest.approx(2 / 5) and m["abstain_rate"].n == 5
+    assert m["existence_accuracy_answered"].value == pytest.approx(2 / 3)       # 2 of the 3 it committed to
+    assert m["existence_accuracy_answered"].n == 3
+    # a refusal makes no "yes", so it is right on a no and wrong on a yes
+    assert m["existence_accuracy"].value == pytest.approx(3 / 5)
+    assert m["negative_precision"].value == pytest.approx(1 / 2)                # but a refusal is not a "no" answer
+
+
+def test_without_any_abstention_the_answered_accuracy_equals_the_plain_one():
+    hit = [gt("cam_01", t(10, 12, 0), t(10, 12, 10))]
+    items = [item("a", hits=hit), item("b")]
+    results = [run("a", answer("yes", [ev("cam_01", t(10, 12, 3), t(10, 12, 6))])), run("b", answer("yes", [ev("cam_01", 1, 2)]))]
+    m = score(items, results).metrics
+    assert m["abstain_rate"].value == 0.0 and m["existence_accuracy_answered"].value == m["existence_accuracy"].value == 0.5

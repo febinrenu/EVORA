@@ -137,6 +137,7 @@ CAPABILITY_COLUMNS = [
     ("Cam acc", "camera_accuracy", "{:.2f}"), ("Ts err (s)", "timestamp_error_s", "{:.1f}"),
     ("Neg prec", "negative_precision", "{:.2f}"), ("Count acc", "count_accuracy", "{:.2f}"),
     ("Count MAE", "count_mae", "{:.2f}"), ("Within 1", "count_within_1", "{:.2f}"),
+    ("Abstained", "abstain_rate", "{:.2f}"), ("Acc when answered", "existence_accuracy_answered", "{:.2f}"),
 ]
 
 

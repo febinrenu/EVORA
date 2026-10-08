@@ -145,6 +145,9 @@ def build_extended(reports_dir: Path) -> dict[str, Any]:
     verification = _colour_verification(reports_dir)
     if verification:
         out["colour_verification"] = verification
+    actions = _actions(reports_dir)
+    if actions:
+        out["actions"] = actions
     return out
 
 
@@ -188,6 +191,26 @@ def _strict_note(pooled: dict[str, Any]) -> str:
             "and the labelled one, so a system that returns long windows is right almost by construction; the strict "
             "score needs the returned peak moment inside the labelled window widened by 2 s. Compare systems on the "
             "strict score.")
+
+
+def _actions(reports_dir: Path) -> dict[str, Any] | None:
+    data = _load(reports_dir / "actions.json")
+    if not data:
+        return None
+    return {
+        "what": "The activity questions (get in or out of a vehicle, stop, start, turn, reverse, talk, pick up ...) answered "
+                "three ways on the same workspace: as any question (plain), with an honest 'cannot recognise' plus the people "
+                "nearest to fitting it (estimates), and from perception's detected events with 'I can't verify that' and no "
+                "evidence for actions nothing detects (detected, the current behaviour). Abstaining is reported apart from "
+                "being right or wrong.",
+        "settings": {name: {k: data[name]["metrics"].get(k) for k in ("hit@1", "hit@1_strict", "hit@5", "negative_precision",
+                                                                         "existence_accuracy", "abstain_rate",
+                                                                         "existence_accuracy_answered")}
+                     for name in ("plain", "estimates", "detected") if name in data},
+        "detector_vs_labels": data.get("detector_vs_labels", {}),
+        "caveat": "MEVA labels only the activities its annotators chose, so a detected event on a camera with no label for that "
+                  "activity counts against precision: read precision as a lower bound. Windows are one 5-minute clip per camera.",
+    }
 
 
 def build_report(reports_dir: Path = REPORTS_DIR, frozen_file: Path = FROZEN_FILE) -> dict[str, Any]:

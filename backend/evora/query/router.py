@@ -91,6 +91,7 @@ ACTION_VIEWS = {
     "vehicle_in": ("a person next to a vehicle", "a photo of a person standing next to a vehicle", "a person next to a vehicle"),
     "vehicle_out": ("a person next to a vehicle", "a photo of a person standing next to a vehicle", "a person next to a vehicle"),
 }
+MAX_ACTION_EVIDENCE = 10     # events shown with a count of detected actions (the count itself is of all of them)
 MAX_LOOK_CAMERAS = 3       # cameras shown to the vision model for one question
 MAX_OBJECT_EVIDENCE = 6   # boxes shown from the clearest frame of a camera
 SAMPLE_FRAMES = 12        # stored frames looked at per camera for an object question
@@ -623,7 +624,7 @@ class Router:
         camera_by_id = {c.id: c for c in cameras}
         scope = [c for c in sorted(set(plan.camera_ids) | bound.camera_ids) if c in camera_by_id] or sorted(camera_by_id)
         rows = self._action_events(detected.kinds, scope, plan.time, tz, detected.subject)
-        shown = rows if plan.intent == "count" else rows[: max(1, plan.limit)]
+        shown = rows[: MAX_ACTION_EVIDENCE if plan.intent == "count" else max(1, plan.limit)]
         if plan.intent == "last":
             shown = rows[-1:]
         elif plan.intent == "first":
@@ -640,7 +641,8 @@ class Router:
         if plan.camera_ids or bound.camera_ids:
             where = "on " + " or ".join(camera_by_id[c].name for c in scope)
         composed = compose_actions(plan, detected.label, detected.cue, len(rows), evidence, where=where, tz=tz,
-                                   source_names={c.id: c.source_name for c in cameras if c.source_name}, reference_now=ref_now)
+                                   source_names={c.id: c.source_name for c in cameras if c.source_name}, reference_now=ref_now,
+                                   plural=detected.plural)
         validate(composed.sentences, {e.id for e in evidence})
         for ev in evidence:
             self._register(ev)

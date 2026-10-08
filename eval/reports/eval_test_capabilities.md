@@ -1,10 +1,10 @@
 System: ours
 
-| Capability | n | Hit@1 | Strict Hit@1 | Hit@5 | Strict Hit@5 | MRR | Cam acc | Ts err (s) | Neg prec | Count acc | Count MAE | Within 1 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| object | 8 | 0.62 | 0.62 | 0.75 | 0.75 | 0.69 | 0.75 | 5.7 | n/a | n/a | n/a | n/a |
-| negative | 4 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 1.00 | n/a | n/a | n/a |
-| activity (diagnostic) | 7 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.20 | 78.4 | 0.00 | n/a | n/a | n/a |
+| Capability | n | Hit@1 | Strict Hit@1 | Hit@5 | Strict Hit@5 | MRR | Cam acc | Ts err (s) | Neg prec | Count acc | Count MAE | Within 1 | Abstained | Acc when answered |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| object | 8 | 0.50 | 0.50 | 0.88 | 0.88 | 0.67 | 1.00 | 4.2 | n/a | n/a | n/a | n/a | 0.00 | 1.00 |
+| negative | 4 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 1.00 | n/a | n/a | n/a | 0.00 | 1.00 |
+| activity (diagnostic) | 7 | 0.00 | 0.00 | 0.40 | 0.40 | 0.09 | 0.20 | 253.9 | 0.00 | n/a | n/a | n/a | 0.43 | 0.50 |
 
 Not evaluated (no reliable ground truth in the available data):
 - count: MEVA labels only actors in annotated activities (parked cars and bystanders are unlabelled), so annotated counts are lower bounds and exact counts cannot be scored
@@ -14,11 +14,11 @@ Not evaluated (no reliable ground truth in the available data):
 
 System: b0
 
-| Capability | n | Hit@1 | Strict Hit@1 | Hit@5 | Strict Hit@5 | MRR | Cam acc | Ts err (s) | Neg prec | Count acc | Count MAE | Within 1 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| object | 8 | 1.00 | 0.62 | 1.00 | 0.62 | 1.00 | 1.00 | 5.9 | n/a | n/a | n/a | n/a |
-| negative | 4 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 0.00 | n/a | n/a | n/a |
-| activity (diagnostic) | 7 | 0.00 | 0.00 | 0.20 | 0.20 | 0.17 | 0.40 | 119.9 | 0.00 | n/a | n/a | n/a |
+| Capability | n | Hit@1 | Strict Hit@1 | Hit@5 | Strict Hit@5 | MRR | Cam acc | Ts err (s) | Neg prec | Count acc | Count MAE | Within 1 | Abstained | Acc when answered |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| object | 8 | 1.00 | 0.62 | 1.00 | 0.62 | 1.00 | 1.00 | 5.9 | n/a | n/a | n/a | n/a | 0.00 | 1.00 |
+| negative | 4 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 0.00 | n/a | n/a | n/a | 0.00 | 0.00 |
+| activity (diagnostic) | 7 | 0.00 | 0.00 | 0.20 | 0.20 | 0.17 | 0.40 | 119.9 | 0.00 | n/a | n/a | n/a | 0.00 | 0.71 |
 
 Not evaluated (no reliable ground truth in the available data):
 - count: MEVA labels only actors in annotated activities (parked cars and bystanders are unlabelled), so annotated counts are lower bounds and exact counts cannot be scored
@@ -28,11 +28,11 @@ Not evaluated (no reliable ground truth in the available data):
 
 System: null
 
-| Capability | n | Hit@1 | Strict Hit@1 | Hit@5 | Strict Hit@5 | MRR | Cam acc | Ts err (s) | Neg prec | Count acc | Count MAE | Within 1 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| object | 8 | 0.75 | 0.75 | 1.00 | 1.00 | 0.85 | 1.00 | 2.9 | n/a | n/a | n/a | n/a |
-| negative | 4 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 0.00 | n/a | n/a | n/a |
-| activity (diagnostic) | 7 | 0.00 | 0.00 | 0.40 | 0.40 | 0.17 | 0.60 | 55.3 | 0.00 | n/a | n/a | n/a |
+| Capability | n | Hit@1 | Strict Hit@1 | Hit@5 | Strict Hit@5 | MRR | Cam acc | Ts err (s) | Neg prec | Count acc | Count MAE | Within 1 | Abstained | Acc when answered |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| object | 8 | 0.75 | 0.75 | 1.00 | 1.00 | 0.85 | 1.00 | 2.9 | n/a | n/a | n/a | n/a | 0.00 | 1.00 |
+| negative | 4 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 0.00 | n/a | n/a | n/a | 0.00 | 0.00 |
+| activity (diagnostic) | 7 | 0.00 | 0.00 | 0.40 | 0.40 | 0.17 | 0.60 | 55.3 | 0.00 | n/a | n/a | n/a | 0.00 | 0.71 |
 
 Not evaluated (no reliable ground truth in the available data):
 - count: MEVA labels only actors in annotated activities (parked cars and bystanders are unlabelled), so annotated counts are lower bounds and exact counts cannot be scored

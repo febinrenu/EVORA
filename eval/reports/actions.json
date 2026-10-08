@@ -1,0 +1,1021 @@
+{
+  "plain": {
+    "metrics": {
+      "hit@1": {
+        "value": 0.17647058823529413,
+        "n": 17
+      },
+      "hit@5": {
+        "value": 0.29411764705882354,
+        "n": 17
+      },
+      "mrr": {
+        "value": 0.23088235294117648,
+        "n": 17
+      },
+      "hit@1_strict": {
+        "value": 0.17647058823529413,
+        "n": 17
+      },
+      "hit@5_strict": {
+        "value": 0.29411764705882354,
+        "n": 17
+      },
+      "mrr_strict": {
+        "value": 0.23088235294117648,
+        "n": 17
+      },
+      "camera_accuracy": {
+        "value": 0.47058823529411764,
+        "n": 17
+      },
+      "temporal_iou": {
+        "value": 0.029994118914884682,
+        "n": 17
+      },
+      "timestamp_error_s": {
+        "value": 61.825400829315186,
+        "n": 8
+      },
+      "existence_accuracy": {
+        "value": 0.6363636363636364,
+        "n": 22
+      },
+      "abstain_rate": {
+        "value": 0.0,
+        "n": 22
+      },
+      "existence_accuracy_answered": {
+        "value": 0.6363636363636364,
+        "n": 22
+      },
+      "existence_f1": {
+        "value": 0.7777777777777778,
+        "n": 22
+      },
+      "negative_precision": {
+        "value": 0.0,
+        "n": 5
+      },
+      "count_accuracy": {
+        "value": null,
+        "n": 0
+      },
+      "count_mae": {
+        "value": null,
+        "n": 0
+      },
+      "count_within_1": {
+        "value": null,
+        "n": 0
+      },
+      "ask_precision": {
+        "value": 0.0,
+        "n": 2
+      },
+      "ask_recall": {
+        "value": null,
+        "n": 0
+      },
+      "reask_count": {
+        "value": 2.0,
+        "n": 22
+      },
+      "path_hop_accuracy": {
+        "value": null,
+        "n": 0
+      },
+      "ttfa_p50_ms": {
+        "value": 196.53800000014598,
+        "n": 22
+      },
+      "ttfa_p95_ms": {
+        "value": 2906.1734000024444,
+        "n": 22
+      },
+      "ttva_p50_ms": {
+        "value": 198.55529999767896,
+        "n": 22
+      },
+      "ttva_p95_ms": {
+        "value": 2906.2135000021954,
+        "n": 22
+      },
+      "no_model_share": {
+        "value": 1.0,
+        "n": 22
+      },
+      "errors": {
+        "value": 0.0,
+        "n": 22
+      }
+    },
+    "queries": [
+      {
+        "id": "meva_20180309_1010_person_enters_scene_through_structure",
+        "text": "Did a person walk in through a building entrance on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": null,
+        "evidence": 0,
+        "unsupported": null,
+        "asked": true
+      },
+      {
+        "id": "meva_20180309_1010_person_carries_heavy_object",
+        "text": "Did a person carry something heavy on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_exits_scene_through_structure",
+        "text": "Did a person walk out through a building entrance on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": null,
+        "evidence": 0,
+        "unsupported": null,
+        "asked": true
+      },
+      {
+        "id": "meva_20180309_1010_person_puts_down_object",
+        "text": "Did a person put something down on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_talks_to_person",
+        "text": "Were two people talking to each other on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "count",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_opens_facility_door",
+        "text": "Did a person open a door on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_picks_up_object",
+        "text": "Did a person pick something up on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_texts_on_phone",
+        "text": "Was a person texting on a phone on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 12,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_sits_down",
+        "text": "Did a person sit down on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 12,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_closes_vehicle_door",
+        "text": "Did a person close a vehicle door on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_exits_vehicle",
+        "text": "Did a person get out of a vehicle on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_opens_vehicle_door",
+        "text": "Did a person open a vehicle door on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_stops",
+        "text": "Did a vehicle stop on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_turns_left",
+        "text": "Did a vehicle turn left on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_enters_vehicle",
+        "text": "Did a person get into a vehicle on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_starts",
+        "text": "Did a vehicle start moving on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_makes_u_turn",
+        "text": "Did a vehicle make a U-turn on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_closes_trunk",
+        "text": "Did a person close the trunk of a vehicle on 9 March between 10:10 and 10:15?",
+        "expected": "no",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_opens_trunk",
+        "text": "Did a person open the trunk of a vehicle on 9 March between 10:10 and 10:15?",
+        "expected": "no",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_stands_up",
+        "text": "Did a person stand up on 9 March between 10:10 and 10:15?",
+        "expected": "no",
+        "verdict": "partial",
+        "evidence": 12,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_reverses",
+        "text": "Did a vehicle reverse on 9 March between 10:10 and 10:15?",
+        "expected": "no",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_turns_right",
+        "text": "Did a vehicle turn right on 9 March between 10:10 and 10:15?",
+        "expected": "no",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      }
+    ]
+  },
+  "estimates": {
+    "metrics": {
+      "hit@1": {
+        "value": 0.17647058823529413,
+        "n": 17
+      },
+      "hit@5": {
+        "value": 0.35294117647058826,
+        "n": 17
+      },
+      "mrr": {
+        "value": 0.25049019607843137,
+        "n": 17
+      },
+      "hit@1_strict": {
+        "value": 0.17647058823529413,
+        "n": 17
+      },
+      "hit@5_strict": {
+        "value": 0.35294117647058826,
+        "n": 17
+      },
+      "mrr_strict": {
+        "value": 0.25049019607843137,
+        "n": 17
+      },
+      "camera_accuracy": {
+        "value": 0.5882352941176471,
+        "n": 17
+      },
+      "temporal_iou": {
+        "value": 0.029994118914884682,
+        "n": 17
+      },
+      "timestamp_error_s": {
+        "value": 67.71650004386902,
+        "n": 10
+      },
+      "existence_accuracy": {
+        "value": 0.6818181818181818,
+        "n": 22
+      },
+      "abstain_rate": {
+        "value": 0.5909090909090909,
+        "n": 22
+      },
+      "existence_accuracy_answered": {
+        "value": 0.5555555555555556,
+        "n": 9
+      },
+      "existence_f1": {
+        "value": 0.8108108108108109,
+        "n": 22
+      },
+      "negative_precision": {
+        "value": 0.0,
+        "n": 5
+      },
+      "count_accuracy": {
+        "value": null,
+        "n": 0
+      },
+      "count_mae": {
+        "value": null,
+        "n": 0
+      },
+      "count_within_1": {
+        "value": null,
+        "n": 0
+      },
+      "ask_precision": {
+        "value": 0.0,
+        "n": 2
+      },
+      "ask_recall": {
+        "value": null,
+        "n": 0
+      },
+      "reask_count": {
+        "value": 2.0,
+        "n": 22
+      },
+      "path_hop_accuracy": {
+        "value": null,
+        "n": 0
+      },
+      "ttfa_p50_ms": {
+        "value": 212.95069999905536,
+        "n": 22
+      },
+      "ttfa_p95_ms": {
+        "value": 2812.588400000095,
+        "n": 22
+      },
+      "ttva_p50_ms": {
+        "value": 214.68969999841647,
+        "n": 22
+      },
+      "ttva_p95_ms": {
+        "value": 2812.6168999988295,
+        "n": 22
+      },
+      "no_model_share": {
+        "value": 1.0,
+        "n": 22
+      },
+      "errors": {
+        "value": 0.0,
+        "n": 22
+      }
+    },
+    "queries": [
+      {
+        "id": "meva_20180309_1010_person_enters_scene_through_structure",
+        "text": "Did a person walk in through a building entrance on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": null,
+        "evidence": 0,
+        "unsupported": null,
+        "asked": true
+      },
+      {
+        "id": "meva_20180309_1010_person_carries_heavy_object",
+        "text": "Did a person carry something heavy on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_exits_scene_through_structure",
+        "text": "Did a person walk out through a building entrance on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": null,
+        "evidence": 0,
+        "unsupported": null,
+        "asked": true
+      },
+      {
+        "id": "meva_20180309_1010_person_puts_down_object",
+        "text": "Did a person put something down on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 10,
+        "unsupported": "putting something down",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_talks_to_person",
+        "text": "Were two people talking to each other on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 10,
+        "unsupported": "talking",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_opens_facility_door",
+        "text": "Did a person open a door on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 10,
+        "unsupported": "opening or closing something",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_picks_up_object",
+        "text": "Did a person pick something up on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 10,
+        "unsupported": "picking something up",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_texts_on_phone",
+        "text": "Was a person texting on a phone on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 12,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_sits_down",
+        "text": "Did a person sit down on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 12,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_closes_vehicle_door",
+        "text": "Did a person close a vehicle door on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 10,
+        "unsupported": "opening or closing something",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_exits_vehicle",
+        "text": "Did a person get out of a vehicle on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 10,
+        "unsupported": "getting out of a vehicle",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_opens_vehicle_door",
+        "text": "Did a person open a vehicle door on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 10,
+        "unsupported": "opening or closing something",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_stops",
+        "text": "Did a vehicle stop on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_turns_left",
+        "text": "Did a vehicle turn left on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 10,
+        "unsupported": "turning left",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_enters_vehicle",
+        "text": "Did a person get into a vehicle on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 10,
+        "unsupported": "getting into a vehicle",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_starts",
+        "text": "Did a vehicle start moving on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_makes_u_turn",
+        "text": "Did a vehicle make a U-turn on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 10,
+        "unsupported": "turning around",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_closes_trunk",
+        "text": "Did a person close the trunk of a vehicle on 9 March between 10:10 and 10:15?",
+        "expected": "no",
+        "verdict": "partial",
+        "evidence": 10,
+        "unsupported": "opening or closing something",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_opens_trunk",
+        "text": "Did a person open the trunk of a vehicle on 9 March between 10:10 and 10:15?",
+        "expected": "no",
+        "verdict": "partial",
+        "evidence": 10,
+        "unsupported": "opening or closing something",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_stands_up",
+        "text": "Did a person stand up on 9 March between 10:10 and 10:15?",
+        "expected": "no",
+        "verdict": "partial",
+        "evidence": 12,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_reverses",
+        "text": "Did a vehicle reverse on 9 March between 10:10 and 10:15?",
+        "expected": "no",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_turns_right",
+        "text": "Did a vehicle turn right on 9 March between 10:10 and 10:15?",
+        "expected": "no",
+        "verdict": "partial",
+        "evidence": 10,
+        "unsupported": "turning right",
+        "asked": false
+      }
+    ]
+  },
+  "detected": {
+    "metrics": {
+      "hit@1": {
+        "value": 0.11764705882352941,
+        "n": 17
+      },
+      "hit@5": {
+        "value": 0.4117647058823529,
+        "n": 17
+      },
+      "mrr": {
+        "value": 0.2088235294117647,
+        "n": 17
+      },
+      "hit@1_strict": {
+        "value": 0.11764705882352941,
+        "n": 17
+      },
+      "hit@5_strict": {
+        "value": 0.4117647058823529,
+        "n": 17
+      },
+      "mrr_strict": {
+        "value": 0.2088235294117647,
+        "n": 17
+      },
+      "camera_accuracy": {
+        "value": 0.29411764705882354,
+        "n": 17
+      },
+      "temporal_iou": {
+        "value": 0.0,
+        "n": 17
+      },
+      "timestamp_error_s": {
+        "value": 149.6669843196869,
+        "n": 5
+      },
+      "existence_accuracy": {
+        "value": 0.5454545454545454,
+        "n": 22
+      },
+      "abstain_rate": {
+        "value": 0.3181818181818182,
+        "n": 22
+      },
+      "existence_accuracy_answered": {
+        "value": 0.6666666666666666,
+        "n": 15
+      },
+      "existence_f1": {
+        "value": 0.6428571428571429,
+        "n": 22
+      },
+      "negative_precision": {
+        "value": 0.2,
+        "n": 5
+      },
+      "count_accuracy": {
+        "value": null,
+        "n": 0
+      },
+      "count_mae": {
+        "value": null,
+        "n": 0
+      },
+      "count_within_1": {
+        "value": null,
+        "n": 0
+      },
+      "ask_precision": {
+        "value": 0.0,
+        "n": 2
+      },
+      "ask_recall": {
+        "value": null,
+        "n": 0
+      },
+      "reask_count": {
+        "value": 2.0,
+        "n": 22
+      },
+      "path_hop_accuracy": {
+        "value": null,
+        "n": 0
+      },
+      "ttfa_p50_ms": {
+        "value": 10.589299999992363,
+        "n": 22
+      },
+      "ttfa_p95_ms": {
+        "value": 2749.859200001083,
+        "n": 22
+      },
+      "ttva_p50_ms": {
+        "value": 13.6335000024701,
+        "n": 22
+      },
+      "ttva_p95_ms": {
+        "value": 2749.8912999981258,
+        "n": 22
+      },
+      "no_model_share": {
+        "value": 1.0,
+        "n": 22
+      },
+      "errors": {
+        "value": 0.0,
+        "n": 22
+      }
+    },
+    "queries": [
+      {
+        "id": "meva_20180309_1010_person_enters_scene_through_structure",
+        "text": "Did a person walk in through a building entrance on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": null,
+        "evidence": 0,
+        "unsupported": null,
+        "asked": true
+      },
+      {
+        "id": "meva_20180309_1010_person_carries_heavy_object",
+        "text": "Did a person carry something heavy on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_exits_scene_through_structure",
+        "text": "Did a person walk out through a building entrance on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": null,
+        "evidence": 0,
+        "unsupported": null,
+        "asked": true
+      },
+      {
+        "id": "meva_20180309_1010_person_puts_down_object",
+        "text": "Did a person put something down on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 0,
+        "unsupported": "putting something down",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_talks_to_person",
+        "text": "Were two people talking to each other on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "count",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_opens_facility_door",
+        "text": "Did a person open a door on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 0,
+        "unsupported": "opening or closing something",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_picks_up_object",
+        "text": "Did a person pick something up on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 0,
+        "unsupported": "picking something up",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_texts_on_phone",
+        "text": "Was a person texting on a phone on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 12,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_sits_down",
+        "text": "Did a person sit down on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 12,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_closes_vehicle_door",
+        "text": "Did a person close a vehicle door on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 0,
+        "unsupported": "opening or closing something",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_exits_vehicle",
+        "text": "Did a person get out of a vehicle on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_opens_vehicle_door",
+        "text": "Did a person open a vehicle door on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "partial",
+        "evidence": 0,
+        "unsupported": "opening or closing something",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_stops",
+        "text": "Did a vehicle stop on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_turns_left",
+        "text": "Did a vehicle turn left on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 3,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_enters_vehicle",
+        "text": "Did a person get into a vehicle on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_starts",
+        "text": "Did a vehicle start moving on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 10,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_makes_u_turn",
+        "text": "Did a vehicle make a U-turn on 9 March between 10:10 and 10:15?",
+        "expected": "yes",
+        "verdict": "yes",
+        "evidence": 4,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_closes_trunk",
+        "text": "Did a person close the trunk of a vehicle on 9 March between 10:10 and 10:15?",
+        "expected": "no",
+        "verdict": "partial",
+        "evidence": 0,
+        "unsupported": "opening or closing something",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_opens_trunk",
+        "text": "Did a person open the trunk of a vehicle on 9 March between 10:10 and 10:15?",
+        "expected": "no",
+        "verdict": "partial",
+        "evidence": 0,
+        "unsupported": "opening or closing something",
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_person_stands_up",
+        "text": "Did a person stand up on 9 March between 10:10 and 10:15?",
+        "expected": "no",
+        "verdict": "partial",
+        "evidence": 12,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_reverses",
+        "text": "Did a vehicle reverse on 9 March between 10:10 and 10:15?",
+        "expected": "no",
+        "verdict": "no",
+        "evidence": 0,
+        "unsupported": null,
+        "asked": false
+      },
+      {
+        "id": "meva_20180309_1010_vehicle_turns_right",
+        "text": "Did a vehicle turn right on 9 March between 10:10 and 10:15?",
+        "expected": "no",
+        "verdict": "yes",
+        "evidence": 2,
+        "unsupported": null,
+        "asked": false
+      }
+    ]
+  },
+  "detector_vs_labels": {
+    "meva_20180309_1010_person_talks_to_person": {
+      "action": "talk",
+      "events": 203,
+      "labelled_windows": 33,
+      "precision": 0.714,
+      "recall": 0.667,
+      "median_seconds_from_a_labelled_window": 0.0,
+      "events_on_cameras_with_no_label": 53
+    },
+    "meva_20180309_1010_person_exits_vehicle": {
+      "action": "vehicle_out",
+      "events": 15,
+      "labelled_windows": 5,
+      "precision": 0.0,
+      "recall": 0.0,
+      "median_seconds_from_a_labelled_window": 14.5,
+      "events_on_cameras_with_no_label": 5
+    },
+    "meva_20180309_1010_vehicle_stops": {
+      "action": "stop",
+      "events": 14,
+      "labelled_windows": 5,
+      "precision": 0.286,
+      "recall": 0.8,
+      "median_seconds_from_a_labelled_window": 0.1,
+      "events_on_cameras_with_no_label": 10
+    },
+    "meva_20180309_1010_vehicle_turns_left": {
+      "action": "turn_left",
+      "events": 3,
+      "labelled_windows": 5,
+      "precision": 0.667,
+      "recall": 0.4,
+      "median_seconds_from_a_labelled_window": 0.0,
+      "events_on_cameras_with_no_label": 1
+    },
+    "meva_20180309_1010_person_enters_vehicle": {
+      "action": "vehicle_in",
+      "events": 16,
+      "labelled_windows": 3,
+      "precision": 0.125,
+      "recall": 1.0,
+      "median_seconds_from_a_labelled_window": 51.4,
+      "events_on_cameras_with_no_label": 10
+    },
+    "meva_20180309_1010_vehicle_starts": {
+      "action": "start",
+      "events": 16,
+      "labelled_windows": 3,
+      "precision": 0.125,
+      "recall": 0.667,
+      "median_seconds_from_a_labelled_window": 6.5,
+      "events_on_cameras_with_no_label": 10
+    },
+    "meva_20180309_1010_vehicle_makes_u_turn": {
+      "action": "u_turn",
+      "events": 4,
+      "labelled_windows": 1,
+      "precision": 0.25,
+      "recall": 1.0,
+      "median_seconds_from_a_labelled_window": 113.5,
+      "events_on_cameras_with_no_label": 2
+    },
+    "meva_20180309_1010_vehicle_reverses": {
+      "action": "reverse",
+      "events": 0,
+      "labelled_windows": 0,
+      "precision": null,
+      "recall": null,
+      "median_seconds_from_a_labelled_window": null,
+      "events_on_cameras_with_no_label": 0
+    },
+    "meva_20180309_1010_vehicle_turns_right": {
+      "action": "turn_right",
+      "events": 2,
+      "labelled_windows": 0,
+      "precision": 0.0,
+      "recall": null,
+      "median_seconds_from_a_labelled_window": null,
+      "events_on_cameras_with_no_label": 2
+    }
+  }
+}

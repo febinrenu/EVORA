@@ -165,6 +165,14 @@ def score(items: list[QueryItem], results: list[RunResult], split: str = "all") 
         fp += predicted and not actual
         fn += (not predicted) and actual
     m["existence_accuracy"] = Metric(correct / len(exist) if exist else None, len(exist))
+    # an answer that says "I can't verify that action" is neither right nor wrong: report how often it abstains and how
+    # often it is right when it does answer, so honesty is not scored as a miss and an abstention is not hidden
+    abstained = [i for i in exist if (a := answered(i)) is not None and a.unsupported_action]
+    committed = [i for i in exist if i not in abstained]
+    right = sum(1 for i in committed if (bool((a := answered(i)) and a.verdict in POSITIVE_VERDICTS and a.evidence))
+                == bool(i.expected.hits))
+    m["abstain_rate"] = Metric(len(abstained) / len(exist) if exist else None, len(exist))
+    m["existence_accuracy_answered"] = Metric(right / len(committed) if committed else None, len(committed))
     f1_den = 2 * tp + fp + fn
     m["existence_f1"] = Metric(2 * tp / f1_den if f1_den else None, len(exist))
 

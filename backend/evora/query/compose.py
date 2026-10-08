@@ -476,8 +476,10 @@ def compose_actions(
     tz: tzinfo = UTC,
     source_names: Mapping[str, str] | None = None,
     reference_now: float | None = None,
+    plural: bool = False,
 ) -> Composed:
     """Answer about an action that perception detects: a yes, a count or a list only from matching events."""
+    was = "were" if plural else "was"
     sources = dict(source_names or {})
     days = {datetime.fromtimestamp(e.t_peak, tz).date() for e in evidence}
     ref_day = datetime.fromtimestamp(reference_now, tz).date() if reference_now is not None else None
@@ -501,12 +503,12 @@ def compose_actions(
     first = min(evidence, key=lambda e: e.t_peak)
     last = max(evidence, key=lambda e: e.t_peak)
     if plan.intent == "count":
-        sentences.append(Sentence(f"{_sentence_case(label)} was detected {events} time{'s' if events != 1 else ''}{spot}{when}.",
-                                  ids, "fact"))
+        times = f"{events} time{'s' if events != 1 else ''}"
+        sentences.append(Sentence(f"{_sentence_case(label)} {was} detected {times}{spot}{when}.", ids, "fact"))
         sentences.append(Sentence(f"First at {stamped(first)}.", (first.id,)))
         return Composed("count", sentences, notes, events)
     if plan.intent == "exists":
-        yes = f"Yes. {_sentence_case(label)} was detected{spot}{when}: {stamped(evidence[0])}."
+        yes = f"Yes. {_sentence_case(label)} {was} detected{spot}{when}: {stamped(evidence[0])}."
         sentences.append(Sentence(yes.replace("  ", " "), (evidence[0].id,)))
         if events > 1:
             sentences.append(Sentence(f"{events - 1} more time{'s' if events > 2 else ''} detected.", ids[1:]))
@@ -516,7 +518,7 @@ def compose_actions(
         sentences.append(Sentence(f"The {plan.intent} time {label} was detected{spot}{when}: {stamped(pick)}.".replace("  ", " "),
                                   (pick.id,)))
         return Composed("found", sentences, notes)
-    sentences.append(Sentence(f"{_sentence_case(label)} was detected {events} time{'s' if events != 1 else ''}{spot}{when}."
+    sentences.append(Sentence(f"{_sentence_case(label)} {was} detected {events} time{'s' if events != 1 else ''}{spot}{when}."
                               .replace("  ", " "), ids, "fact"))
     sentences.append(Sentence(f"Earliest: {stamped(first)}.", (first.id,)))
     return Composed("found", sentences, notes)

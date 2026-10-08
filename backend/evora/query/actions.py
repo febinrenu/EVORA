@@ -68,6 +68,7 @@ class DetectedAction:
     subject: str               # "vehicle" or "person": the kind of track the event belongs to
     label: str                 # what the answer calls it: "a vehicle turning left"
     cue: str                   # how it is found, for the note: "from how the vehicle moved"
+    plural: bool = False       # the label has a plural subject: "two people standing together were detected"
 
 
 # (pattern, action); first match wins. Only what perception/actions.py detects: nothing here is a guess.
@@ -97,7 +98,7 @@ _DETECTED: list[tuple[re.Pattern[str], DetectedAction]] = [(re.compile(p, re.IGN
      DetectedAction("stop", ("vehicle_stop",), "vehicle", "a vehicle stopping", "from the vehicle's speed")),
     (r"\b(?:talk|talks|talked|talking|chat|chats|chatted|chatting|conversation)\b",
      DetectedAction("talk", ("people_close",), "person", "two people standing together",
-                    "from two people standing close together and still")),
+                    "from two people standing close together and still", plural=True)),
 ]]
 _PHONE = re.compile(r"\bphone|\bcall(?:ing)?\b|\btext(?:ing)?\b", re.IGNORECASE)
 _VEHICLE_WORDS = re.compile(rf"\b{_VEHICLE}\b", re.IGNORECASE)

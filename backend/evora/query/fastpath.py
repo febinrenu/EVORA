@@ -247,6 +247,57 @@ def _embed_text(noun: str, colours: list[str], carrying: list[str], is_person: b
     return "a photo of a " + " ".join([*colours, shown])
 
 
+def parse_action(text: str, cameras: Sequence[CameraLike] = ()) -> QueryPlan | None:
+    """A plan for a question about an action perception detects ("did a vehicle reverse", "were two people talking").
+
+    The router answers these from the events table and reads the action from the question itself, so the plan only has
+    to carry the subject (a vehicle or a person), the intent, the time and any camera the question names. Anything it
+    cannot place with confidence (an unreadable time, an intent it does not know) is left to the planner.
+    """
+    from evora.query.actions import detected_action
+
+    norm = _normalize(text)
+    if not norm:
+        return None
+    timed = _extract_time(norm)
+    if timed is None:
+        return None
+    norm, window = timed
+    norm = re.sub(r"\s+", " ", norm).strip()
+    tokens = norm.split()
+    classes: list[str] = []
+    noun = None
+    for tok in tokens:
+        if tok in VEHICLES:
+            noun, vclasses, _ = VEHICLES[tok]
+            classes = list(vclasses)
+            break
+        if tok in PERSON_GENERIC or tok in PERSON_SPECIFIC:
+            noun, classes = tok, ["person"]
+            break
+    action = detected_action(norm, classes)
+    if action is None:
+        return None
+    intent = _split_intent(norm)
+    if intent is not None:
+        kind, _rest, limit = intent
+    elif tokens and tokens[0] in ("did", "do", "does", "was", "were", "is", "are", "has", "have"):
+        kind, limit = "exists", 10
+    else:
+        return None
+    if action.subject == "vehicle":
+        classes = classes or ["car", "truck", "bus", "motorcycle"]
+        noun = noun if noun in VEHICLES else "vehicle"
+        embed = f"a photo of a {noun}"
+    else:
+        classes, noun = ["person"], "person"
+        embed = "a photo of a person"
+    asked = norm_name(norm)
+    named = [c.id for c in cameras if norm_name(c.name) and re.search(r"\b" + re.escape(norm_name(c.name)) + r"\b", asked)]
+    return QueryPlan(intent=kind, targets=[Target(noun=noun, cls=classes, embed_text=embed)], action="any", time=window,
+                     camera_ids=named, limit=limit, source="fastpath")
+
+
 def parse(text: str, cameras: Sequence[CameraLike] = ()) -> QueryPlan | None:
     """Return a plan for a recognised question shape, else None."""
     norm = _normalize(text)

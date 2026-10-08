@@ -292,7 +292,7 @@ class Planner:
         notes: list[str] = []
         timings: dict[str, float] = {}
 
-        plan = fastpath.parse(text, cameras)
+        plan = fastpath.parse(text, cameras) or fastpath.parse_action(text, cameras)
         if plan is not None:
             timings["plan_fastpath"] = _ms(started)
         else:

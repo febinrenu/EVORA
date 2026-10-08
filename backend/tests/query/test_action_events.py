@@ -264,3 +264,20 @@ async def test_the_events_table_payloads_are_read_as_json(ws):
                   ("v1:vehicle_u_turn:-:0", "cam_01", "v1", "vehicle_u_turn", None, 1105.0, json.dumps({"turn_deg": -171.5})))
     ans = of(await collect(asking(ws, plan_for()).answer("did a car make a u-turn", "s1")), "answer")[0]
     assert "path turned 172 degrees" in ans["evidence"][0]["why"]
+
+
+@pytest.mark.asyncio
+async def test_the_verb_agrees_with_the_subject(ws):
+    person(ws, "p1")
+    vehicle(ws)
+    add_event(ws, "p1:people_close:-:0", "p1", "people_close", 1105.0, with_track="p2", seconds=6.0)
+    add_event(ws, "p1:people_close:-:1", "p1", "people_close", 1107.0, with_track="p2", seconds=6.0)
+    add_event(ws, "v1:vehicle_stop:-:0", "v1", "vehicle_stop", 1103.0)
+    people = of(await collect(asking(ws, plan_for(noun="person", cls=("person",))).answer("were two people talking", "s1")),
+                "answer")[0]
+    assert people["text"].startswith("Yes. Two people standing together were detected")
+    count = of(await collect(asking(ws, plan_for("count", noun="person", cls=("person",))).answer(
+        "how many times were two people talking", "s2")), "answer")[0]
+    assert count["text"].startswith("Two people standing together were detected 2 times")
+    car = of(await collect(asking(ws, plan_for()).answer("did a car stop", "s3")), "answer")[0]
+    assert car["text"].startswith("Yes. A vehicle stopping was detected")

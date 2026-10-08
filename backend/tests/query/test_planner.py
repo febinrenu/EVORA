@@ -404,3 +404,35 @@ def test_a_carried_item_becomes_a_carrying_attribute_of_the_person():
         Target(noun="person", cls=["person"], embed_text="a photo of a person"),
         Target(noun="red jacket", cls=[], attributes=["red"], embed_text="a photo of a red jacket")])
     assert shirt[0].attributes == ["red"] and shirt[0].embed_text == "a photo of a person wearing red jacket"
+
+
+# ------------------------------------------------- questions about actions perception detects need no model to plan
+@pytest.mark.asyncio
+@pytest.mark.parametrize("question,intent,noun", [
+    ("did a vehicle reverse in the last hour", "exists", "vehicle"),
+    ("did a person get out of a vehicle", "exists", "person"),
+    ("how many times did a car stop", "count", "car"),
+    ("when did a car first start moving", "first", "car"),
+    ("were two people talking to each other", "exists", "person"),
+])
+async def test_an_action_the_system_detects_is_planned_without_a_model(question, intent, noun):
+    gw = FakeGateway()
+    res = await Planner(gw).plan(question, CAMS, REF, IST)
+    assert gw.calls == [] and res.plan.source == "fastpath"
+    assert res.plan.intent == intent and res.plan.targets[0].noun == noun and res.plan.action == "any"
+
+
+@pytest.mark.asyncio
+async def test_the_action_plan_keeps_the_time_the_camera_and_the_right_subject_classes():
+    res = await Planner(FakeGateway()).plan("did a vehicle make a u-turn on Lobby in the last hour", CAMS, REF, IST)
+    assert res.plan.camera_ids == ["cam_02"] and (res.plan.time.start, res.plan.time.end) == (REF - 3600, REF)
+    assert set(res.plan.targets[0].cls) == {"car", "truck", "bus", "motorcycle"}
+    person = await Planner(FakeGateway()).plan("did a person get into a vehicle", CAMS, REF, IST)
+    assert person.plan.targets[0].cls == ["person"]               # the person is the one acting, the vehicle is not a target
+
+
+@pytest.mark.asyncio
+async def test_actions_nobody_detects_still_go_to_the_planner():
+    gw = FakeGateway(plan=model_plan())
+    res = await Planner(gw).plan("did a person pick something up", CAMS, REF, IST)
+    assert len(gw.calls) == 1 and res.plan.source == "llm", "an undetected action is not shortcut: the planner is asked"

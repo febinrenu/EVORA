@@ -47,6 +47,17 @@
       "what": "a remembered place that is a whole camera view also covers cameras whose views are at least 95% alike (mean whole-frame embedding)",
       "kind": "scope widening, always stated in the answer; switch RouterConfig.same_place = 1.01 turns it off",
       "effect": "no change on the evaluation sets (they name cameras, or bind places to cameras that no other camera resembles)"
+    },
+    {
+      "what": "questions about actions perception detects (vehicle turns, U-turn, reverse, stop, start; getting into or out of a vehicle; people standing together) are answered from its events; an action nothing detects is answered 'I can't verify that' with no evidence; those questions are planned by the fast path with no model",
+      "kind": "answer rule and a new capability; no threshold or weight changed",
+      "effect": "object and negative rows identical with and without the action events (0 differences); the activity diagnostic is reported separately (eval/reports/actions.json): a reverse that never happened is now 'no' instead of 'yes' with 10 people",
+      "workspace": "meva-school-workspace-v7-linked (identities linked) with the action events produced by perception's detector over its stored trajectories"
+    },
+    {
+      "what": "the main, sparse and conversation sets were re-run on the linked v7 workspace",
+      "kind": "workspace change by M2 (detector fix, identity linking), not a change to the system under test",
+      "effect": "object camera accuracy 1.00 on every split (was 0.78), pooled Hit@5 0.83 (was 0.67), pooled Hit@1 0.56 (was 0.50, equal to the random baseline); negatives 1.00 on every split; the previous results are in eval/reports/ws_v5"
     }
   ],
   "splits_by_camera": {

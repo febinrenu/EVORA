@@ -173,3 +173,15 @@ def test_the_report_states_lenient_and_strict_hit_side_by_side(tmp_path):
     assert "n=10" in note and "Compare systems on the strict score" in note
     bare = rp.build_report(tmp_path / "empty", tmp_path / "none.json")["limits"]
     assert any(x.startswith("Hit@1 is reported two ways.") for x in bare)           # no data: the definition still shows
+
+
+def test_the_action_results_go_into_the_report_with_their_caveat(tmp_path):
+    metrics = {"hit@1": {"value": 0.1, "n": 4}, "abstain_rate": {"value": 0.3, "n": 4}}
+    data = {name: {"metrics": metrics, "queries": []} for name in ("plain", "estimates", "detected")}
+    data["detector_vs_labels"] = {"q1": {"action": "stop", "events": 14, "precision": 0.29, "recall": 0.8}}
+    (tmp_path / "actions.json").write_text(json.dumps(data))
+    out = rp.build_extended(tmp_path)["actions"]
+    assert set(out["settings"]) == {"plain", "estimates", "detected"}
+    assert out["settings"]["detected"]["abstain_rate"] == {"value": 0.3, "n": 4}
+    assert out["detector_vs_labels"]["q1"]["action"] == "stop" and "lower bound" in out["caveat"]
+    assert "actions" not in rp.build_extended(tmp_path / "nowhere")
