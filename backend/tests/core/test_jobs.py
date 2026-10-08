@@ -40,6 +40,17 @@ def fake_ingest(fail_for=()):
     return run
 
 
+def finishing(spy=None, only=None):
+    """An ingest that reports each requested layer as finished (progress 1.0), optionally only some of them."""
+    def run(cam, profile, layers, on_progress):
+        if spy is not None:
+            spy(set(layers))
+        for layer in sorted(layers):
+            if only is None or layer in only:
+                on_progress(IngestJob(id="", camera_id=cam.id, state="running", layer=layer, progress=1.0))
+    return run
+
+
 def test_camera_ids_increment(db):
     assert [add_cam(db, n).id for n in "abc"] == ["cam_01", "cam_02", "cam_03"]
 
@@ -69,10 +80,7 @@ def test_finished_layers_are_skipped_on_resubmit(db):
     cams.add_layers(db, cam.id, ["L0", "L1"])
     seen: list[set[str]] = []
 
-    def spy(c, p, layers, cb):
-        seen.append(set(layers))
-
-    runner = JobRunner(db, Bus(), workers=1, ingest_fn=spy)
+    runner = JobRunner(db, Bus(), workers=1, ingest_fn=finishing(seen.append))
     job = runner.submit([cam.id])[0]
     assert wait_for(lambda: runner.get(job.id).state == "done")
     assert seen == [{"L2", "L3"}]
@@ -86,7 +94,11 @@ def test_duplicate_submit_while_active_returns_same_job(db):
     import threading
 
     gate = threading.Event()
-    runner = JobRunner(db, Bus(), workers=1, ingest_fn=lambda c, p, ly, cb: gate.wait(5))
+    def gated(cam, profile, layers, on_progress):
+        gate.wait(5)
+        finishing()(cam, profile, layers, on_progress)
+
+    runner = JobRunner(db, Bus(), workers=1, ingest_fn=gated)
     first = runner.submit([cam.id])[0]
     assert runner.submit([cam.id])[0].id == first.id
     gate.set()
@@ -100,7 +112,7 @@ def test_recover_requeues_interrupted_job(db):
     with db.write() as c:
         c.execute("INSERT INTO ingest_jobs(id,camera_id,state,updated_at) VALUES('job_old',?,'running',0)", (cam.id,))
     seen = []
-    runner = JobRunner(db, Bus(), workers=1, ingest_fn=lambda c, p, ly, cb: seen.append(set(ly)))
+    runner = JobRunner(db, Bus(), workers=1, ingest_fn=finishing(seen.append))
     assert runner.recover() == 1
     assert wait_for(lambda: bool(seen))
     assert seen == [{"L1", "L2", "L3"}]
@@ -152,3 +164,27 @@ def test_bus_heartbeat_when_idle():
         return json.loads(msg["data"])["kind"], len(bus._subs)
 
     assert asyncio.run(scenario()) == ("heartbeat", 0)
+
+
+def test_only_layers_that_finished_are_recorded(db):
+    cam = add_cam(db)
+    seen: list[set[str]] = []
+    runner = JobRunner(db, Bus(), workers=1, ingest_fn=finishing(seen.append, only={"L0", "L1"}))
+    job = runner.submit([cam.id])[0]
+    assert wait_for(lambda: runner.get(job.id).state == "done")
+    done = cams.get_camera(db, cam.id)
+    assert done.layers == ["L0", "L1"] and done.status == "ready"
+    again = runner.submit([cam.id])[0]  # L2 and L3 were skipped, so a later ingest tries just those
+    assert wait_for(lambda: runner.get(again.id).state == "done")
+    assert seen == [{"L0", "L1", "L2", "L3"}, {"L2", "L3"}]
+    runner.shutdown()
+
+
+def test_ingest_that_completes_nothing_is_an_error(db):
+    cam = add_cam(db)
+    runner = JobRunner(db, Bus(), workers=1, ingest_fn=lambda c, p, ly, cb: None)
+    job = runner.submit([cam.id])[0]
+    assert wait_for(lambda: runner.get(job.id).state == "error")
+    assert "without completing" in runner.get(job.id).error
+    assert cams.get_camera(db, cam.id).status == "error"
+    runner.shutdown()

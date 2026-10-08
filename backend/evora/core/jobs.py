@@ -107,7 +107,8 @@ class JobRunner:
         try:
             cam = cams.get_camera(self.db, job.camera_id)
             self._ingest(cam, self.profile, todo, on_progress)
-            cams.add_layers(self.db, job.camera_id, sorted(todo))
+            if not cams.get_camera(self.db, job.camera_id).layers:
+                raise RuntimeError("ingest finished without completing any layer")
         except Exception as exc:  # noqa: BLE001 - a failing camera must never stop other jobs
             log.exception("ingest failed for %s", job.camera_id)
             cams.set_status(self.db, job.camera_id, "error")
