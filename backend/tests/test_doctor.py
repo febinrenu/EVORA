@@ -230,10 +230,10 @@ def test_the_web_interface_check_understands_a_next_app(tmp_path):
     no_deps = by_id(run_checks(base))["ui"]
     assert no_deps.status == WARN and no_deps.fix == "cd frontend && npm ci"
     (f / "node_modules").mkdir()
+    (f / "dist" / "index.html").unlink()  # the healthy() fixture starts with a build in place
     unbuilt = by_id(run_checks(base))["ui"]
     assert unbuilt.status == WARN and unbuilt.fix == "cd frontend && npm run build"
-    (f / ".next").mkdir()
-    (f / ".next" / "BUILD_ID").write_text("x")
+    (f / "dist" / "index.html").write_text("<html></html>")
     assert by_id(run_checks(base))["ui"].status == OK
 
 

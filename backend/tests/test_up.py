@@ -210,10 +210,10 @@ def frontend(tmp_path, built=True, deps=True):
     if deps:
         (f / "node_modules").mkdir()
     if built:
-        (f / ".next").mkdir()
-        (f / ".next" / "BUILD_ID").write_text("id")
+        (f / "dist").mkdir()
+        (f / "dist" / "index.html").write_text("<html></html>")
         later = time.time() + 5
-        os.utime(f / ".next" / "BUILD_ID", (later, later))
+        os.utime(f / "dist" / "index.html", (later, later))
     return f
 
 
@@ -337,3 +337,21 @@ def test_no_ui_flag_skips_the_interface(wired, monkeypatch, capsys):
     monkeypatch.setattr(launcher, "start_ui", lambda *a, **k: pytest.fail("the UI must not start"))
     assert launcher.main(["--no-ui"]) == 0
     assert "API only (--no-ui)" in capsys.readouterr().out
+
+
+def test_a_static_export_is_not_rebuilt_on_every_start(tmp_path):
+    """The UI is a static export: only dist/index.html says it is built (a stale .next/BUILD_ID check rebuilt it every time)."""
+    f = frontend(tmp_path, built=True)
+    assert not (f / ".next").exists() and launcher.ui_needs_build(f) is False
+    e, builds = ui_env(tmp_path, ["free", "busy"])
+    launcher.start_ui(e, "http://127.0.0.1:8700", spawn=lambda *a, **k: UiChild(), sleep=lambda s: None)
+    assert builds == [], "no build step when the export is current"
+
+
+def test_public_files_count_as_sources(tmp_path):
+    f = frontend(tmp_path, built=True)
+    (f / "public").mkdir()
+    (f / "public" / "logo.svg").write_text("x")
+    later = time.time() + 60
+    os.utime(f / "public" / "logo.svg", (later, later))
+    assert launcher.ui_needs_build(f) is True

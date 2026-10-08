@@ -60,13 +60,15 @@ def ui_dir(env: doctor.Env) -> Path:
 
 
 def ui_needs_build(frontend: Path) -> bool:
-    """True when there is no production build or a source file is newer than it."""
-    marker = frontend / ".next" / "BUILD_ID"
+    """True when there is no production build (frontend/dist/index.html) or a source file is newer than it."""
+    marker = frontend / "dist" / "index.html"  # the UI is a static export; it never writes .next/BUILD_ID
     if not marker.is_file():
         return True
     built = marker.stat().st_mtime
     watched = [frontend / "package.json", frontend / "next.config.ts"]
-    watched += [p for p in (frontend / "src").rglob("*") if p.is_file()] if (frontend / "src").is_dir() else []
+    for folder in ("src", "public"):
+        if (frontend / folder).is_dir():
+            watched += [p for p in (frontend / folder).rglob("*") if p.is_file()]
     return any(p.is_file() and p.stat().st_mtime > built for p in watched)
 
 

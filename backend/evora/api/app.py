@@ -103,6 +103,7 @@ def create_app(
             "onprem": bool(state["settings"]["onprem"]), "layers_ready": ready,
             "egress_blocked": guard.blocked, "blur": ctx.media.blur_status(bool(state["settings"]["blur_faces"])),
             "recordings": [] if ctx.mock else ctx.recorder.status(),
+            "tz": "UTC" if ctx.mock else (ctx.db.get_meta("tz") or "UTC"),  # the zone the answer text uses for clock times
         }
 
     @app.get("/api/workspaces")

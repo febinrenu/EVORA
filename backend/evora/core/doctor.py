@@ -457,7 +457,7 @@ def check_ui(env: Env) -> list[Check]:
     frontend = env.root / "frontend"
     if (frontend / "package.json").is_file():
         have_node = bool(env.which("node") and env.which("npm"))
-        built = (frontend / ".next" / "BUILD_ID").is_file()
+        built = (frontend / "dist" / "index.html").is_file()
         if not have_node:
             return [Check("ui", "Web interface", WARN, "Node.js is not installed: `make up` serves the API only",
                           "Install Node 20+ (winget install OpenJS.NodeJS.LTS).")]
@@ -465,7 +465,7 @@ def check_ui(env: Env) -> list[Check]:
             return [Check("ui", "Web interface", WARN, "dependencies are not installed", "cd frontend && npm ci",
                           [Fix(["npm", "ci"], "frontend")])]
         return [Check("ui", "Web interface", OK if built else WARN,
-                      "Next.js build is ready" if built else "not built yet: `make up` builds it on first start",
+                      "UI build is ready" if built else "not built yet: `make up` builds it on first start",
                       "" if built else "cd frontend && npm run build")]
     ui = env.root / env.cfg.get("server", {}).get("ui_dir", "frontend/dist") / "index.html"
     return [Check("ui", "Web interface", OK if ui.is_file() else WARN,

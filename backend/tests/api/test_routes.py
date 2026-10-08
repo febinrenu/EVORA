@@ -70,3 +70,18 @@ def test_report_serves_the_saved_evaluation_report(client, tmp_path, monkeypatch
     saved = {"pooled": {"ours": {"object": {"hit_at_1": {"value": 0.5, "n": 18}}}}, "splits": ["dev"], "limits": ["n is small"]}
     (tmp_path / "report.json").write_text(json.dumps(saved), encoding="utf-8")
     assert client.get("/api/report").json() == saved
+
+
+def test_health_reports_the_site_time_zone(client, tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from evora.api.app import create_app
+
+    monkeypatch.setenv("evora_WORKSPACE", "tzsite")
+    real = TestClient(create_app(workspaces_root=tmp_path / "ws", gateway=object()))
+    assert real.get("/api/health").json()["tz"] == "UTC", "the zone answers use when none was recorded"
+    real.app.state.ctx.db.set_meta("tz", "+05:30")
+    assert real.get("/api/health").json()["tz"] == "+05:30"
+    real.app.state.ctx.db.set_meta("tz", "Asia/Kolkata")
+    assert real.get("/api/health").json()["tz"] == "Asia/Kolkata"
+    assert client.get("/api/health").json()["tz"] == "UTC", "mock mode"
