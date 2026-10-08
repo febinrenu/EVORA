@@ -1,0 +1,13 @@
+{
+  "code_commit": "9325b7e",
+  "frozen_before": ["test", "judge_sim"],
+  "note": "Thresholds and weights were fixed at this commit before the test and judge_sim splits were run. No query in dev has a colour or carrying attribute, so attribute weights and verification could not be tuned and keep their defaults.",
+  "calibration": {"midpoint": 0.09, "scale": 0.015, "fitted_on": "real SigLIP2 text-to-crop cosines, class separation, not on queries"},
+  "accept_threshold": 0.40,
+  "fusion_weights": {"image": 0.55, "attributes": 0.25, "caption": 0.10, "scene": 0.10},
+  "presence_rule": "at least 2 track points spanning at least 0.5 s inside the query window",
+  "planner_prompt": "v2 (compact plan shape, object referents only for possessives and demonstratives)",
+  "query_expansion": "off",
+  "verification": "filter mode, only for queries with colour, carrying or vehicle-type attributes",
+  "splits_by_camera": {"dev": ["G328", "G419", "G423"], "test": ["G300", "G421"], "judge_sim": ["G299"]}
+}
