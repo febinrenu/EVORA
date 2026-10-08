@@ -12,7 +12,7 @@ from starlette.datastructures import UploadFile
 
 from evora.api.context import AppContext
 from evora.core import cameras as cams
-from evora.core import media, perception_adapter
+from evora.core import clock_shift, media, perception_adapter
 from evora.evidence import audit
 
 CHUNK = 1024 * 1024
@@ -131,8 +131,14 @@ def make_router(ctx: AppContext) -> APIRouter:
         if name is not None and not str(name).strip():
             raise HTTPException(422, "name cannot be empty")
         t0 = body.get("t0")
-        if t0 is not None and not isinstance(t0, int | float):
+        if t0 is not None and (isinstance(t0, bool) or not isinstance(t0, int | float)):
             raise HTTPException(422, "t0 must be epoch seconds")
-        return cams.update_camera(ctx.db, cid, name=name, t0=t0, site_xy=tuple(site) if site else None)
+        if t0 is not None:
+            try:  # everything already indexed moves with the clock, so answers and clips stay right
+                clock_shift.set_camera_clock(ctx.db, ctx.ws.vectors_dir, cid, float(t0), source="manual")
+            except clock_shift.ClockBusy as exc:
+                raise HTTPException(409, str(exc)) from None
+            ctx.bus.publish("camera", {"camera_id": cid, "status": cams.get_camera(ctx.db, cid).status, "clock": "manual"})
+        return cams.update_camera(ctx.db, cid, name=name, site_xy=tuple(site) if site else None)
 
     return router
