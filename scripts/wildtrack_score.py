@@ -72,6 +72,7 @@ def label_tracks(db, gt) -> tuple[dict[str, int | None], dict, dict, int, int]:
         spans = {r["id"]: r["t_end"] - r["t_start"] for r in c.execute("SELECT id, t_start, t_end FROM tracks")}
     person_of: dict[str, int | None] = {}
     total_gt = hit_gt = 0
+    switched: set[str] = set()      # tracks that follow two different people (an identity switch)
     for name, (cid, t0) in sorted(cams.items()):
         view = int(name.lstrip("Cc")) - 1
         frames = gt.get(view, {})
@@ -98,7 +99,10 @@ def label_tracks(db, gt) -> tuple[dict[str, int | None], dict, dict, int, int]:
             pid, n = cnt.most_common(1)[0]
             if n >= 0.5 * sum(cnt.values()):
                 person_of[tid] = pid
+            if len(cnt) > 1 and cnt.most_common(2)[1][1] >= 0.2 * sum(cnt.values()):
+                switched.add(tid)
     # tracks without any matched ground truth are unlabelled people or false detections: not counted either way
+    person_of["__switched__"] = len(switched)
     return person_of, cams, spans, hit_gt, total_gt
 
 
@@ -126,6 +130,9 @@ def main(argv: list[str] | None = None) -> int:
     identity_of = {t.id: i for i, members in enumerate(clusters) for t in members}
 
     print(f"settings: {args.set or 'defaults'}  tracks scored: {len(tracks)}")
+    switched_tracks = person_of.pop("__switched__")
+    labelled = sum(1 for v in person_of.values() if v is not None)
+    print(f"tracks that switch between two people: {switched_tracks} of {labelled} labelled")
     print(f"detection recall (ground-truth boxes with a person track box, IoU>={IOU_MIN}): "
           f"{hit_gt}/{total_gt} = {hit_gt / max(1, total_gt):.0%}")
     print(f"{'camera':8}{'people':>8}{'tracks':>8}{'tr/person':>10}{'identities':>11}{'id/person':>10}{'wrong merges':>13}")

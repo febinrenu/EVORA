@@ -31,6 +31,7 @@ class IngestSettings(BaseModel):
     det_imgsz_max: int = 1280         # largest automatic size: small, distant objects need it, a 4x cost per frame
     tracker: str = "bytetrack.yaml"
     track_high_thresh: float = 0.25   # ByteTrack first-stage score (stock); 0.2 gave no more people and split parked cars
+    track_match_thresh: float = 0.9   # ByteTrack association cost limit (stock 0.8): WILDTRACK recall 65% -> 71%, EPFL 6p 33 -> 22 tracks
     track_new_thresh: float = 0.25    # 0.15 gave the same people and 58% more car tracks (MEVA)
     classes: list[str] = Field(default_factory=lambda: [
         "person", "bicycle", "car", "motorcycle", "bus", "truck",

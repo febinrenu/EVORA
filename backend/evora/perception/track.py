@@ -32,6 +32,7 @@ def tracker_overrides(cfg: IngestSettings) -> dict[str, float | int]:
     return {
         "track_high_thresh": cfg.track_high_thresh,
         "new_track_thresh": cfg.track_new_thresh,
+        "match_thresh": cfg.track_match_thresh,
         "track_buffer": max(30, int(math.ceil(cfg.track_lost_s * cfg.fps_ceil))),
     }
 
