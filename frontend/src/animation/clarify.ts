@@ -4,7 +4,7 @@
 import { getStroke } from "perfect-freehand";
 import { S } from "@/animation/sceneState";
 import { sfx } from "@/lib/audio/engine";
-import { strokePath } from "./projectors";
+import { strokePath } from "@/lib/draw";
 import { seenBy, type FeedLibrary } from "./feeds";
 
 const VIEW_W = 480;

@@ -1,0 +1,84 @@
+"use client";
+
+// The operator product on the light table (PLAN §10.4): cameras on the left,
+// the case log with the ask bar in the centre, site plan and known places on
+// the right, timeline lanes across the bottom.
+import { useEffect, useState } from "react";
+import { subscribeEvents } from "@/lib/api/stream";
+import type { IngestJob } from "@/lib/api/client";
+import { useEvora } from "./store";
+import { TopBar } from "./TopBar";
+import { CameraRail } from "./CameraRail";
+import { CaseLog } from "./CaseLog";
+import { AskBar } from "./AskBar";
+import { SidePanel } from "./SidePanel";
+import { Timeline } from "./Timeline";
+import { Shortcuts } from "./Shortcuts";
+
+export function AppShell() {
+  const [help, setHelp] = useState(false);
+
+  useEffect(() => {
+    // `?debug` exposes the store for UI tests that must not touch real workspaces
+    if (new URLSearchParams(window.location.search).has("debug")) Object.assign(window, { __evoraStore: useEvora });
+    const s = useEvora.getState();
+    void s.refreshHealth();
+    void s.refreshCameras();
+    void s.refreshMemory();
+    const health = window.setInterval(() => void useEvora.getState().refreshHealth(), 15000);
+    const off = subscribeEvents(
+      (n) => {
+        const st = useEvora.getState();
+        if (n.kind === "ingest" && n.job && typeof n.job === "object") st.setJob(n.job as IngestJob);
+        else if (n.kind === "camera" && typeof n.camera_id === "string") {
+          st.setCameraStatus(n.camera_id, n.status as never);
+          if (n.status === "ready") void st.refreshCameras();
+        } else if (n.kind === "privacy") void st.refreshHealth();
+      },
+      (connected) => useEvora.getState().setConnected(connected),
+    );
+    return () => {
+      window.clearInterval(health);
+      off();
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && (e.target.closest("input, textarea, [contenteditable]") !== null);
+      if (typing) {
+        if (e.key === "Escape") (e.target as HTMLElement).blur();
+        return;
+      }
+      if (e.key === "/") {
+        e.preventDefault();
+        document.getElementById("ask-input")?.focus();
+      } else if (e.key === "?") setHelp((h) => !h);
+      else if (e.key === "Escape") setHelp(false);
+      else if (e.key === "[" || e.key === "]") {
+        const { cases, focus, setFocus } = useEvora.getState();
+        const c = cases.find((x) => x.id === focus?.caseId) ?? cases[cases.length - 1];
+        if (!c || !c.evidence.length) return;
+        const i = Math.max(0, c.evidence.findIndex((ev) => ev.id === focus?.evidenceId));
+        const j = Math.min(c.evidence.length - 1, Math.max(0, i + (e.key === "]" ? 1 : -1)));
+        setFocus({ caseId: c.id, evidenceId: c.evidence[j].id });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  return (
+    <div className="lt">
+      <TopBar onHelp={() => setHelp(true)} />
+      <CameraRail />
+      <main className="lt-case" aria-label="Case log">
+        <CaseLog />
+        <AskBar />
+      </main>
+      <SidePanel />
+      <Timeline />
+      {help ? <Shortcuts onClose={() => setHelp(false)} /> : null}
+    </div>
+  );
+}
