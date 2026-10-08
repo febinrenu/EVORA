@@ -55,7 +55,8 @@ alerts:
     window_s: 60
 jobs:
   workers: 0            # 0 = auto (cpu cores / 4, at least 1)
-  default_layers: [L0, L1, L2, L3]
+  default_layers: [L0, L1, L2]
+  deferred_layers: [L3]  # captions run after every camera is searchable, never beside the indexing
   stub_tick_s: 0.05     # used only while the perception pipeline is not installed
 ingest:                 # perception pipeline (M2); keys and defaults mirror backend/evora/perception/settings.py
   motion_gate: true     # false = fixed sampling rate (ablation C6)

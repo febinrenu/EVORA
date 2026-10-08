@@ -377,3 +377,11 @@ def test_no_recording_row_when_recording_is_off(tmp_path):
     env = healthy(tmp_path)
     env.cfg["live"]["record"] = False
     assert "recording" not in by_id(run_checks(env))
+
+
+def test_a_running_ollama_without_the_one_model_setting_gets_a_hint(tmp_path):
+    hint = by_id(run_checks(healthy(tmp_path)))["ollama"]
+    assert hint.status == OK and "OLLAMA_MAX_LOADED_MODELS=1" in hint.detail
+    env = healthy(tmp_path)
+    env.environ["OLLAMA_MAX_LOADED_MODELS"] = "1"
+    assert "OLLAMA_MAX_LOADED_MODELS" not in by_id(run_checks(env))["ollama"].detail

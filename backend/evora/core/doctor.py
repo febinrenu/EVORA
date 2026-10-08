@@ -382,7 +382,10 @@ def check_ollama(env: Env) -> list[Check]:
         return [Check("ollama", "Ollama (local language and vision models)", needed_status,
                       f"running; missing {', '.join(missing)} model", "ollama pull " + " && ollama pull ".join(wanted),
                       [Fix(["ollama", "pull", tag]) for tag in wanted])]
-    return [Check("ollama", "Ollama (local language and vision models)", OK, f"running; {len(have)} models")]
+    detail = f"running; {len(have)} models"
+    if not env.environ.get("OLLAMA_MAX_LOADED_MODELS"):
+        detail += "; on a laptop GPU start it with OLLAMA_MAX_LOADED_MODELS=1 (`make up` does when it starts Ollama)"
+    return [Check("ollama", "Ollama (local language and vision models)", OK, detail)]
 
 
 def check_groq(env: Env) -> list[Check]:

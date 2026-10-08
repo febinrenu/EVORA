@@ -42,7 +42,11 @@ def ensure_ollama(
         return "not installed", None
     if not want:
         return "installed, not running", None
-    child = spawn([exe, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
+    # one resident model at a time: the vision model next to SigLIP2, YOLO and OSNet leaves a laptop almost no free memory
+    child_env = {**env.environ, "OLLAMA_MAX_LOADED_MODELS": env.environ.get("OLLAMA_MAX_LOADED_MODELS") or "1"}
+    child = spawn(
+        [exe, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, env=child_env,
+    )
     waited = 0.0
     while waited < wait_s:
         if ollama_running(env):

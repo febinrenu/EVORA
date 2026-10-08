@@ -50,6 +50,7 @@ Numbers quoted on stage come from `make eval` on the tagged commit, never from m
 | No GPU | CPU profile: L0 finishes first, L1 progressively. | Start answering as soon as "Searchable now" shows; mention refinement continues. |
 | A file will not decode | The upload is rejected with the reason (no video stream, truncated file). | A truncated file cannot be repaired; ask for the original. Other odd codecs are converted automatically. |
 | Clocks unknown | The clock source says `manual` and uses the file time. | Type the start time with `PATCH /api/cameras/{id}` and continue; both timestamps stay checkable. |
+| Upload is slow | Files with no clock in the name or metadata wait up to 25 s each while the on-screen clock is read (eight such files took over two minutes). | Name files with their start time before the demo, or set the clock by hand. Captions (layer L3) start only after every camera is searchable, so they never delay the first answers. |
 | Night or infrared footage | Colour is suppressed with a note. | Ask by class and place instead of colour. |
 | Zero matches | A grounded "not found" with the nearest miss. | Show the nearest miss and its score. |
 | Server restarted mid-clarification | The pending question is stored. | Answer the card again; it resumes. |

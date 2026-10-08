@@ -355,3 +355,22 @@ def test_public_files_count_as_sources(tmp_path):
     later = time.time() + 60
     os.utime(f / "public" / "logo.svg", (later, later))
     assert launcher.ui_needs_build(f) is True
+
+
+def started_env(given):
+    e = env(running=False)
+    if given:
+        e.environ["OLLAMA_MAX_LOADED_MODELS"] = given
+    seen: dict = {}
+
+    def spawn(args, **kw):
+        seen.update(kw)
+        return Child()
+
+    launcher.ensure_ollama(e, True, spawn=spawn, sleep=lambda _: e.answers.update(up=True))
+    return seen["env"]["OLLAMA_MAX_LOADED_MODELS"]
+
+
+def test_ollama_is_started_with_one_resident_model_unless_told_otherwise():
+    assert started_env(None) == "1"
+    assert started_env("2") == "2"

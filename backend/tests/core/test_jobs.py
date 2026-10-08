@@ -305,3 +305,119 @@ def test_the_router_is_built_with_the_gateway(tmp_path, monkeypatch):
     monkeypatch.setenv("evora_WORKSPACE", "gw")
     client = TestClient(create_app(workspaces_root=tmp_path / "ws", gateway=gateway))
     assert client.app.state.ctx.router._gateway is gateway
+
+
+# ---- captions run after indexing, not beside it -------------------------------------------------------------------------
+
+class Log:
+    """Records what each ingest call did, in order, and which camera status was visible when it started."""
+
+    def __init__(self, db, fail_late=(), slow=()):
+        self.db, self.events, self.fail_late, self.slow = db, [], set(fail_late), set(slow)
+        self.statuses: dict[tuple[str, str], str] = {}
+
+    def __call__(self, cam, profile, layers, on_progress):
+        late = layers == {"L3"}
+        self.statuses[(cam.id, "late" if late else "main")] = cams.get_camera(self.db, cam.id).status
+        self.events.append(("start", cam.id, sorted(layers)))
+        if cam.id in self.slow and not late:
+            time.sleep(0.3)
+        if late and cam.id in self.fail_late:
+            self.events.append(("fail", cam.id, ["L3"]))
+            raise RuntimeError("caption model unavailable")
+        for layer in sorted(layers):
+            on_progress(IngestJob(id="", camera_id=cam.id, state="running", layer=layer, progress=1.0))
+        self.events.append(("end", cam.id, sorted(layers)))
+
+
+def deferred_runner(db, log, idles=None, dones=None, workers=2):
+    runner = JobRunner(
+        db, Bus(), workers=workers, ingest_fn=log, default_layers=["L0", "L1", "L2"], deferred_layers=["L3"],
+    )
+    if idles is not None:
+        runner.on_idle = lambda: idles.append(len(log.events))
+    if dones is not None:
+        runner.on_done = dones.append
+    return runner
+
+
+def all_idle(runner, db):
+    def check():
+        with db.read() as c:
+            return c.execute("SELECT count(*) FROM ingest_jobs WHERE state IN ('queued','running')").fetchone()[0] == 0
+    return check
+
+
+def test_captions_start_only_after_every_camera_finished_the_other_layers(db):
+    a, b = add_cam(db, "a"), add_cam(db, "b")
+    log = Log(db, slow={b.id})
+    runner = deferred_runner(db, log)
+    runner.submit([a.id, b.id])
+    assert wait_for(lambda: len([e for e in log.events if e[0] == "end" and e[2] == ["L3"]]) == 2, 10)
+    main_ends = [i for i, e in enumerate(log.events) if e[0] == "end" and e[2] == ["L0", "L1", "L2"]]
+    late_starts = [i for i, e in enumerate(log.events) if e[0] == "start" and e[2] == ["L3"]]
+    assert len(main_ends) == 2 and len(late_starts) == 2
+    assert min(late_starts) > max(main_ends), "no caption pass began before both cameras were searchable"
+    assert [cams.get_camera(db, c.id).layers for c in (a, b)] == [["L0", "L1", "L2", "L3"]] * 2
+    runner.shutdown()
+
+
+def test_a_camera_stays_searchable_while_its_captions_run(db):
+    a = add_cam(db, "a")
+    log = Log(db)
+    runner = deferred_runner(db, log)
+    runner.submit([a.id])
+    assert wait_for(lambda: ("end", a.id, ["L3"]) in log.events and all_idle(runner, db)())
+    assert log.statuses[(a.id, "late")] == "ready", "captions never flip a searchable camera back to ingesting"
+    assert cams.get_camera(db, a.id).status == "ready"
+    runner.shutdown()
+
+
+def test_hooks_run_for_indexing_not_for_captions(db):
+    a, b = add_cam(db, "a"), add_cam(db, "b")
+    log, idles, dones = Log(db), [], []
+    runner = deferred_runner(db, log, idles, dones)
+    runner.submit([a.id, b.id])
+    assert wait_for(lambda: len([e for e in log.events if e == ("end", a.id, ["L3"]) or e == ("end", b.id, ["L3"])]) == 2, 10)
+    assert wait_for(all_idle(runner, db))
+    time.sleep(0.2)
+    assert sorted(dones) == [a.id, b.id], "on_done (zones, alerts) ran once per camera, after indexing"
+    assert len(idles) == 1, "identities were linked once, before captions, not again after them"
+    runner.shutdown()
+
+
+def test_a_failing_caption_pass_is_tried_once_and_leaves_the_camera_ready(db):
+    a = add_cam(db, "a")
+    log = Log(db, fail_late={a.id})
+    runner = deferred_runner(db, log)
+    job = runner.submit([a.id])[0]
+    assert wait_for(lambda: ("fail", a.id, ["L3"]) in log.events)
+    assert wait_for(all_idle(runner, db))
+    time.sleep(0.3)
+    assert [e for e in log.events if e[0] == "fail"] == [("fail", a.id, ["L3"])], "no retry loop"
+    assert cams.get_camera(db, a.id).status == "ready" and cams.get_camera(db, a.id).layers == ["L0", "L1", "L2"]
+    assert runner.get(job.id).state == "done"
+    with db.read() as c:
+        states = [r["state"] for r in c.execute("SELECT state FROM ingest_jobs WHERE camera_id=?", (a.id,))]
+    assert sorted(states) == ["done", "error"]
+    runner.shutdown()
+
+
+def test_asking_for_all_layers_explicitly_still_runs_them_together(db):
+    a = add_cam(db, "a")
+    log = Log(db)
+    runner = deferred_runner(db, log)
+    runner.submit([a.id], ["L0", "L1", "L2", "L3"])
+    assert wait_for(lambda: any(e[0] == "end" for e in log.events) and all_idle(runner, db)())
+    assert log.events[0] == ("start", a.id, ["L0", "L1", "L2", "L3"])
+    runner.shutdown()
+
+
+def test_the_app_defers_captions_from_config(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from evora.api.app import create_app
+
+    monkeypatch.setenv("evora_WORKSPACE", "deferwire")
+    runner = TestClient(create_app(workspaces_root=tmp_path / "ws", gateway=object())).app.state.ctx.runner
+    assert runner.default_layers == ["L0", "L1", "L2"] and runner.deferred_layers == ["L3"]

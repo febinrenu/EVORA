@@ -31,10 +31,15 @@ class JobRunner:
     def __init__(
         self, db: Database, bus: Bus, *, profile: str = "cpu", workers: int = 0,
         default_layers: list[str] | None = None, ingest_fn: IngestFn | None = None, stub_tick_s: float = 0.05,
-        ws: Any | None = None,
+        ws: Any | None = None, deferred_layers: list[str] | None = None,
     ):
         self.db, self.bus, self.profile = db, bus, profile
         self.default_layers = list(default_layers or LAYERS)
+        # Layers that run only after every camera has reached the others (captions: slow, and they must never hold up
+        # searchable footage). They are submitted by the runner itself once the batch is idle, once per camera.
+        self.deferred_layers = [ly for ly in (deferred_layers or []) if ly in LAYERS]
+        self._deferred_tried: set[str] = set()
+        self._index_work_done = False  # real indexing finished since the last idle hook
         self._ingest = ingest_fn or (
             lambda c, p, ly, cb: perception_adapter.ingest(c, p, ly, cb, tick_s=stub_tick_s, ws=ws)
         )
@@ -83,6 +88,8 @@ class JobRunner:
             if active is not None:
                 return self._row_to_job(active)
             todo = {ly for ly in wanted if ly not in cam.layers}
+            if todo - set(self.deferred_layers):
+                self._deferred_tried.discard(cam.id)  # new indexing work: captions may follow again
             job_id = f"job_{uuid.uuid4().hex[:8]}"
             state = "queued" if todo else "done"
             with self.db.write() as c:
@@ -101,8 +108,10 @@ class JobRunner:
         job = self.get(job_id)
         todo = self._wanted.pop(job_id, set())
         self._update(job_id, state="running")
-        cams.set_status(self.db, job.camera_id, "ingesting")
-        self.bus.publish("camera", {"camera_id": job.camera_id, "status": "ingesting"})
+        late_only = bool(todo) and todo <= set(self.deferred_layers)  # captions after indexing: the camera stays searchable
+        if not late_only:
+            cams.set_status(self.db, job.camera_id, "ingesting")
+            self.bus.publish("camera", {"camera_id": job.camera_id, "status": "ingesting"})
         started = time.monotonic()
 
         def on_progress(p: IngestJob) -> None:
@@ -118,35 +127,58 @@ class JobRunner:
                 raise RuntimeError("ingest finished without completing any layer")
         except Exception as exc:  # noqa: BLE001 - a failing camera must never stop other jobs
             log.exception("ingest failed for %s", job.camera_id)
-            cams.set_status(self.db, job.camera_id, "error")
-            self.bus.publish("camera", {"camera_id": job.camera_id, "status": "error"})
+            if not late_only:  # a failed caption pass must not mark a searchable camera as broken
+                cams.set_status(self.db, job.camera_id, "error")
+                self.bus.publish("camera", {"camera_id": job.camera_id, "status": "error"})
             self._update(job_id, state="error", error=str(exc) or exc.__class__.__name__)
-            self._maybe_idle()  # the cameras that did finish still deserve linking when the failed one was the last
+            # the cameras that did finish still deserve linking when the failed one was the last
+            self._maybe_idle(index_work=not late_only)
             return
         log.info("ingest %s done in %.1fs", job.camera_id, time.monotonic() - started)
         cams.set_status(self.db, job.camera_id, "ready")  # camera first, so a finished job never sees a stale camera
         self.bus.publish("camera", {"camera_id": job.camera_id, "status": "ready"})
-        if self.on_done is not None:
+        if self.on_done is not None and not late_only:
             try:
                 self.on_done(job.camera_id)
             except Exception:  # noqa: BLE001 - a follow-up step must never turn a finished ingest into a failed one
                 log.exception("post-ingest hook failed for %s", job.camera_id)
         self._update(job_id, state="done", progress=1.0)
-        self._maybe_idle()
+        self._maybe_idle(index_work=not late_only)
 
-    def _maybe_idle(self) -> None:
-        """After the last camera of a batch: identities can now be linked across cameras."""
-        if self.on_idle is None:
-            return
+    def _maybe_idle(self, index_work: bool = True) -> None:
+        """After the last camera of a batch: link identities across cameras, then queue the deferred layers (captions)."""
         with self._idle_lock:
+            self._index_work_done = self._index_work_done or index_work
             with self.db.read() as c:
                 busy = c.execute("SELECT count(*) FROM ingest_jobs WHERE state IN ('queued','running')").fetchone()[0]
             if busy:
                 return
+            if self.on_idle is not None and self._index_work_done:  # a captions-only batch has nothing new to link
+                self._index_work_done = False
+                try:
+                    self.on_idle()
+                except Exception:  # noqa: BLE001 - a follow-up step must never turn a finished ingest into a failed one
+                    log.exception("post-batch hook failed")
+            self._index_work_done = False
+            self._submit_deferred()
+
+    def _submit_deferred(self) -> None:
+        """Queue the deferred layers for every searchable camera that lacks them, once per camera."""
+        if not self.deferred_layers:
+            return
+        wanted = set(self.deferred_layers)
+        with self.db.read() as c:
+            ready = [r["id"] for r in c.execute("SELECT id FROM cameras WHERE status='ready' AND kind='file'")]
+        for cid in ready:
+            if cid in self._deferred_tried:
+                continue
             try:
-                self.on_idle()
-            except Exception:  # noqa: BLE001 - a follow-up step must never turn a finished ingest into a failed one
-                log.exception("post-batch hook failed")
+                cam = cams.get_camera(self.db, cid)
+            except cams.CameraNotFound:
+                continue
+            self._deferred_tried.add(cid)
+            if wanted - set(cam.layers):
+                self._enqueue(cam, wanted)
 
     def _update(self, job_id: str, **fields: object) -> None:
         cols = ", ".join(f"{k}=?" for k in fields)
