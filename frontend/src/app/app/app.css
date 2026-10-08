@@ -323,9 +323,30 @@
   color: var(--g48);
   font-size: 0.8125rem;
 }
+/* notes change how an answer reads ("counts separate appearances"): ink, not grey */
 .lt-notes {
-  margin: 0.8rem 0 0;
-  padding-left: 1rem;
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0.1rem 0 0.1rem 0.8rem;
+  border-left: 2px solid var(--g16);
+  display: grid;
+  gap: 0.3rem;
+  max-width: 72ch;
+  font-size: 0.875rem;
+  color: var(--graphite);
+}
+.lt-notes.is-partial {
+  border-left-color: var(--graphite);
+}
+.lt-verdict.is-partial {
+  display: inline-block;
+  padding: 0 0.35rem 0.05rem;
+  border: 1.5px dashed var(--graphite);
+}
+.lt-partial,
+.lt-shown {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
   color: var(--g48);
 }
 
@@ -343,6 +364,31 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+/* the whole camera frame, letterboxed: marks are laid over the drawn image */
+.lt-frame.is-contain {
+  background: #1d2226;
+}
+.lt-frame.is-contain img {
+  object-fit: contain;
+}
+/* while a thumbnail is being rendered on demand */
+.lt-frame.is-loading {
+  background: #d5dbde;
+  animation: lt-skeleton 1.4s ease-in-out infinite;
+}
+@keyframes lt-skeleton {
+  50% {
+    background-color: #c4cbcf;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lt-frame.is-loading {
+    animation: none;
+  }
+}
+.lt-frame-box {
+  position: absolute;
 }
 .lt-frame-missing {
   width: 100%;
@@ -898,7 +944,7 @@
   position: relative;
   max-width: 44rem;
 }
-.lt-spot-frame svg {
+.lt-spot-frame .lt-frame-box svg {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -996,12 +1042,33 @@
   gap: 0.3rem 0.6rem;
   align-items: center;
   font-size: 0.8125rem;
-  opacity: 0;
-  transition: opacity 0.2s;
 }
-.lt-fact:hover .lt-fact-actions,
-.lt-fact:focus-within .lt-fact-actions {
-  opacity: 1;
+/* what the fact does to answers, said plainly */
+.lt-fact-means {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--graphite);
+}
+.lt-fact-edit {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.5rem 0 0.2rem;
+  font-size: 0.8125rem;
+}
+.lt-fact-edit .lt-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.lt-fact-edit input,
+.lt-fact-edit select {
+  font: inherit;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--g16);
+  border-radius: 4px;
+  background: var(--diffuser);
+  color: inherit;
 }
 .lt-fact-actions button {
   border: 0;

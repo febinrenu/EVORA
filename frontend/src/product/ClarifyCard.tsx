@@ -13,11 +13,26 @@ import { Frame } from "./Frame";
 
 type Option = NonNullable<ClarifyRequest["options"]>[number];
 
-export function ClarifyPanel({ req, onAnswer }: { req: ClarifyRequest; onAnswer: (resp: ClarifyResponse, label: string) => void }) {
+interface Copy {
+  label: string;
+  placeholder: string;
+  submit: string;
+}
+
+/** The typed answer's wording follows what is being asked: a place, hours, or which object. */
+function copyFor(req: ClarifyRequest): Copy {
+  if (req.kind === "time_range" || req.referent.role === "time") return { label: "Or give the hours", placeholder: "8pm to 6am", submit: "Save hours" };
+  if (req.kind === "choose_known") return { label: "Or say which one", placeholder: "the north gate…", submit: "Use this" };
+  if (req.kind === "choose_track" || req.referent.role === "object") return { label: "Or describe it", placeholder: "the one in the red jacket…", submit: "Save" };
+  return { label: "Or answer in words", placeholder: "camera 2, the lobby one…", submit: "Save place" };
+}
+
+export function ClarifyPanel({ req, onAnswer, error }: { req: ClarifyRequest; onAnswer: (resp: ClarifyResponse, label: string) => void; error?: string }) {
   const [typed, setTyped] = useState("");
   const [chosen, setChosen] = useState<Option | null>(null);
   const what = req.referent.text;
   const placeLike = req.kind === "choose_camera" && req.referent.role === "place";
+  const copy = copyFor(req);
 
   const answerCamera = (o: Option, zone: Zone | null) =>
     onAnswer({ query_id: req.query_id, camera_id: o.camera_id, zone }, `“${what}” is ${o.camera_name}${zone ? (zone.kind === "line" ? ", marked line" : ", marked area") : ""}`);
@@ -26,6 +41,11 @@ export function ClarifyPanel({ req, onAnswer }: { req: ClarifyRequest; onAnswer:
     <div className="lt-clarify" role="group" aria-label="One question before answering">
       <span className="lt-tab">Clarify once</span>
       <p className="lt-clarify-q">{req.question}</p>
+      {error ? (
+        <p className="lt-error" role="alert">
+          {error}
+        </p>
+      ) : null}
       {chosen ? (
         <SpotMarker option={chosen} what={what} onBack={() => setChosen(null)} onDone={(zone) => answerCamera(chosen, zone)} />
       ) : (
@@ -50,11 +70,11 @@ export function ClarifyPanel({ req, onAnswer }: { req: ClarifyRequest; onAnswer:
             }}
           >
             <label>
-              <span>Or answer in words</span>
-              <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="camera 2, the lobby one…" />
+              <span>{copy.label}</span>
+              <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={copy.placeholder} />
             </label>
             <button type="submit" disabled={!typed.trim()}>
-              Save place
+              {copy.submit}
             </button>
           </form>
         </>
@@ -66,7 +86,7 @@ export function ClarifyPanel({ req, onAnswer }: { req: ClarifyRequest; onAnswer:
 /** The question card inside a case: answers continue the paused query. */
 export function ClarifyCard({ c, req }: { c: Case; req: ClarifyRequest }) {
   const clarify = useEvora((s) => s.clarify);
-  return <ClarifyPanel req={req} onAnswer={(resp, label) => clarify(c.id, resp, label)} />;
+  return <ClarifyPanel req={req} error={c.clarifyError} onAnswer={(resp, label) => clarify(c.id, resp, label)} />;
 }
 
 type Mode = "line" | "area";
@@ -107,34 +127,36 @@ function SpotMarker({ option, what, onBack, onDone }: { option: Option; what: st
         <span className="lt-spot-hint">{mode === "line" ? `Drag across ${what}.` : area.length < 3 ? "Click the corners of the area." : "Close it with Save place, or keep adding corners."}</span>
       </div>
       <div className="lt-spot-frame">
-        <Frame src={option.thumb_url} alt={`${option.camera_name}: mark ${what}`} />
-        <svg
-          ref={svg}
-          viewBox={`0 0 ${W} ${H}`}
-          preserveAspectRatio="none"
-          aria-label={`Drawing surface over ${option.camera_name}`}
-          onPointerDown={(e) => {
-            const [x, y] = local(e);
-            if (mode === "line") {
-              drawing.current = true;
-              (e.target as Element).setPointerCapture(e.pointerId);
-              setStroke([[x, y, e.pressure || 0.5]]);
-            } else setArea((a) => [...a, [x, y]]);
-          }}
-          onPointerMove={(e) => {
-            if (!drawing.current) return;
-            const [x, y] = local(e);
-            setStroke((s) => [...s, [x, y, e.pressure || 0.5]]);
-          }}
-          onPointerUp={() => (drawing.current = false)}
-        >
-          {pencil ? <path className="lt-pencil" d={pencil} /> : null}
-          {line ? <line className="lt-pencil-axis" x1={line[0][0] * W} y1={line[0][1] * H} x2={line[1][0] * W} y2={line[1][1] * H} /> : null}
-          {area.length ? <polygon className="lt-pencil-area" points={area.map(([x, y]) => `${x * W},${y * H}`).join(" ")} /> : null}
-          {area.map(([x, y], i) => (
-            <circle key={i} className="lt-pencil-dot" cx={x * W} cy={y * H} r={9} />
-          ))}
-        </svg>
+        {/* the drawing surface lies on the image itself, so points are fractions of the full camera frame */}
+        <Frame src={option.thumb_url} alt={`${option.camera_name}: mark ${what}`} fit="contain">
+          <svg
+            ref={svg}
+            viewBox={`0 0 ${W} ${H}`}
+            preserveAspectRatio="none"
+            aria-label={`Drawing surface over ${option.camera_name}`}
+            onPointerDown={(e) => {
+              const [x, y] = local(e);
+              if (mode === "line") {
+                drawing.current = true;
+                (e.target as Element).setPointerCapture(e.pointerId);
+                setStroke([[x, y, e.pressure || 0.5]]);
+              } else setArea((a) => [...a, [x, y]]);
+            }}
+            onPointerMove={(e) => {
+              if (!drawing.current) return;
+              const [x, y] = local(e);
+              setStroke((s) => [...s, [x, y, e.pressure || 0.5]]);
+            }}
+            onPointerUp={() => (drawing.current = false)}
+          >
+            {pencil ? <path className="lt-pencil" d={pencil} /> : null}
+            {line ? <line className="lt-pencil-axis" x1={line[0][0] * W} y1={line[0][1] * H} x2={line[1][0] * W} y2={line[1][1] * H} /> : null}
+            {area.length ? <polygon className="lt-pencil-area" points={area.map(([x, y]) => `${x * W},${y * H}`).join(" ")} /> : null}
+            {area.map(([x, y], i) => (
+              <circle key={i} className="lt-pencil-dot" cx={x * W} cy={y * H} r={9} />
+            ))}
+          </svg>
+        </Frame>
       </div>
       <div className="lt-spot-actions">
         <button type="button" className="lt-save" disabled={!ready} onClick={() => onDone(zone())}>

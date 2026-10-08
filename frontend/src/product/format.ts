@@ -1,6 +1,6 @@
 // Wording and numbers for the product UI (PLAN §10.6): plain verbs, sentence
 // case, every timestamp shown twice (clock and offset into the camera's file).
-import type { CameraInfo, Evidence } from "@/lib/api/client";
+import type { CameraInfo, Evidence, QueryPlan } from "@/lib/api/client";
 
 const two = (n: number) => String(Math.floor(n)).padStart(2, "0");
 
@@ -93,21 +93,24 @@ export function span(ev: Evidence): string {
   return a === b ? a : `${a} to ${b}`;
 }
 
-/** The headline of an answer sheet, from the verdict and count. */
+/**
+ * The headline of an answer sheet. Only a count verdict carries a number: the
+ * evidence list is capped, so its length is how many are shown, not how many happened.
+ */
 export function verdictLine(verdict: string, count: number | null | undefined, n: number): string {
   switch (verdict) {
     case "yes":
-      return n > 1 ? `Yes, ${n === 2 ? "twice" : `${n} times`}.` : "Yes.";
+      return "Yes.";
     case "no":
       return "No.";
     case "count":
       return `${count ?? n}.`;
     case "found":
-      return n === 1 ? "Found it." : `Found ${n}.`;
+      return n === 1 ? "Found it." : "Found.";
     case "not_found":
       return "Not found.";
     case "partial":
-      return "Partly.";
+      return "Partly answered.";
     default:
       return "Answered.";
   }
@@ -116,4 +119,44 @@ export function verdictLine(verdict: string, count: number | null | undefined, n
 export function seconds(ms: number | undefined): string {
   if (ms === undefined) return "";
   return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`;
+}
+
+const ACTION: Record<string, string> = {
+  pass_through: "passing through",
+  enter: "entering",
+  exit: "leaving",
+  dwell: "staying at",
+  appear: "appearing at",
+};
+
+const withArticle = (phrase: string): string => (/^(a|an|the|any)\s/i.test(phrase) ? phrase : `${/^[aeiou]/i.test(phrase) ? "an" : "a"} ${phrase}`);
+
+/**
+ * What to watch for, said plainly from the answer's plan ("a person in a red
+ * jacket passing through the main gate"), or null when the question cannot be
+ * watched: no object to look for, or a route across cameras.
+ */
+export function watchSentence(plan: QueryPlan | undefined, cameras: Pick<CameraInfo, "id" | "name">[]): string | null {
+  const targets = plan?.targets ?? [];
+  if (!plan || !targets.length || plan.intent === "path") return null;
+  const what = targets
+    .map((t) => {
+      // "a red car", but "a person in brown" and "a person in a red jacket"
+      const attrs = (t.attributes ?? []).filter(Boolean);
+      const person = /^(person|people|man|woman|child|someone)$/i.test(t.noun);
+      const single = attrs.filter((x) => !x.includes(" "));
+      const multi = attrs.filter((x) => x.includes(" "));
+      const built = person
+        ? `${t.noun}${attrs.length ? ` in ${[...single, ...multi.map(withArticle)].join(" and ")}` : ""}`
+        : [...single, t.noun].join(" ") + (multi.length ? ` with ${multi.map(withArticle).join(" and ")}` : "");
+      return withArticle(t.embed_text?.trim() || built);
+    })
+    .join(" or ");
+  const names = (plan.camera_ids ?? []).map((id) => cameras.find((c) => c.id === id)?.name ?? id);
+  const on = names.length === 1 ? `the ${names[0]} camera` : `the ${names.join(" or ")} cameras`;
+  const place = plan.place?.text ? (/^the\s/i.test(plan.place.text) ? plan.place.text : `the ${plan.place.text}`) : null;
+  const action = plan.action && plan.action !== "any" ? ACTION[plan.action] : null;
+  if (place) return `${what} ${action ?? "at"} ${place}`;
+  if (names.length) return `${what}${action ? ` ${action.replace(/ (through|at)$/, "")}` : ""} on ${on}`;
+  return `${what}${action ? ` ${action.replace(/ (through|at)$/, "")}` : ""}`;
 }

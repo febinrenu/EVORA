@@ -70,12 +70,10 @@ export interface Health {
   tz?: string;
 }
 
+/** one tracked position, as GET /api/tracks/{id} sends it: bbox normalised to the full frame */
 export interface TrackPoint {
   t: number;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
+  bbox: [number, number, number, number];
   conf?: number;
 }
 
@@ -158,7 +156,8 @@ export const endpoints = {
   },
   ingest: (cameraIds: string[]) => api<IngestJob[]>("/api/ingest", { method: "POST", body: JSON.stringify({ camera_ids: cameraIds }) }),
   memory: () => api<MemoryFact[]>("/api/memory"),
-  patchMemory: (id: string, body: { canonical?: string; aliases?: string[]; confirm_aliases?: string[] }) =>
+  /** a new binding is recorded as a correction: the old fact is superseded */
+  patchMemory: (id: string, body: { canonical?: string; aliases?: string[]; confirm_aliases?: string[]; binding?: Record<string, unknown> }) =>
     api<MemoryFact>(`/api/memory/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteMemory: (id: string) => api<unknown>(`/api/memory/${encodeURIComponent(id)}`, { method: "DELETE" }),
   watches: () => api<StandingQuery[]>("/api/standing"),

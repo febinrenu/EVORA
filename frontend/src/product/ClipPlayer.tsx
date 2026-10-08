@@ -7,10 +7,19 @@ import { apiUrl, endpoints, withUnblur, type Evidence, type TrackPoint } from "@
 
 const PRE_ROLL = 3;
 
+type Box = [number, number, number, number];
+
+/** points as the API sends them ({t, bbox}); older fixtures spell the corners out */
+function pointBox(p: TrackPoint): Box | null {
+  if (Array.isArray(p.bbox) && p.bbox.length === 4) return p.bbox;
+  const flat = p as unknown as Partial<Record<"x1" | "y1" | "x2" | "y2", number>>;
+  return [flat.x1, flat.y1, flat.x2, flat.y2].every((v) => typeof v === "number") ? [flat.x1!, flat.y1!, flat.x2!, flat.y2!] : null;
+}
+
 export function ClipPlayer({ ev, token, onClose }: { ev: Evidence; token?: string | null; onClose: () => void }) {
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const [points, setPoints] = useState<TrackPoint[]>([]);
+  const [points, setPoints] = useState<{ t: number; box: Box }[]>([]);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -18,7 +27,13 @@ export function ClipPlayer({ ev, token, onClose }: { ev: Evidence; token?: strin
     let live = true;
     endpoints
       .track(ev.track_id)
-      .then((t) => live && setPoints(t.points ?? []))
+      .then((t) => {
+        if (!live) return;
+        setPoints((t.points ?? []).flatMap((p) => {
+          const box = pointBox(p);
+          return box ? [{ t: p.t, box }] : [];
+        }));
+      })
       .catch(() => undefined);
     return () => {
       live = false;
@@ -43,8 +58,16 @@ export function ClipPlayer({ ev, token, onClose }: { ev: Evidence; token?: strin
       }
       ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
       ctx.clearRect(0, 0, w, h);
+      // the video is letterboxed inside the element: boxes are fractions of the picture itself
+      const vw = v.videoWidth || 16;
+      const vh = v.videoHeight || 9;
+      const s = Math.min(w / vw, h / vh);
+      const pw = vw * s;
+      const ph = vh * s;
+      const ox = (w - pw) / 2;
+      const oy = (h - ph) / 2;
       const t = clipStart + v.currentTime;
-      let box: [number, number, number, number] | null = null;
+      let box: Box | null = null;
       if (points.length) {
         let j = points.findIndex((p) => p.t >= t);
         if (j === -1) j = points.length - 1;
@@ -52,7 +75,7 @@ export function ClipPlayer({ ev, token, onClose }: { ev: Evidence; token?: strin
         const b = points[j];
         if (t >= points[0].t - 0.5 && t <= points[points.length - 1].t + 0.5) {
           const k = b.t === a.t ? 0 : Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t)));
-          box = [a.x1 + (b.x1 - a.x1) * k, a.y1 + (b.y1 - a.y1) * k, a.x2 + (b.x2 - a.x2) * k, a.y2 + (b.y2 - a.y2) * k];
+          box = a.box.map((v, i) => v + (b.box[i] - v) * k) as Box;
         }
       } else if (ev.bbox && Math.abs(t - ev.t_peak) < 1.5) {
         box = ev.bbox;
@@ -60,7 +83,7 @@ export function ClipPlayer({ ev, token, onClose }: { ev: Evidence; token?: strin
       if (box) {
         ctx.strokeStyle = "#C8102E";
         ctx.lineWidth = 2;
-        ctx.strokeRect(box[0] * w, box[1] * h, (box[2] - box[0]) * w, (box[3] - box[1]) * h);
+        ctx.strokeRect(ox + box[0] * pw, oy + box[1] * ph, (box[2] - box[0]) * pw, (box[3] - box[1]) * ph);
       }
       handle = v.requestVideoFrameCallback ? v.requestVideoFrameCallback(draw) : requestAnimationFrame(draw);
     };

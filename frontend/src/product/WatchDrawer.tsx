@@ -22,6 +22,8 @@ export function WatchDrawer() {
   const [prevDraft, setPrevDraft] = useState(draft);
   const [clarify, setClarify] = useState<ClarifyRequest | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  // the server's refusal ("I could not tell what to watch for") shown as is, next to the form
+  const [refusal, setRefusal] = useState<string | null>(null);
   if (draft !== prevDraft) {
     setPrevDraft(draft);
     setText(draft);
@@ -37,6 +39,7 @@ export function WatchDrawer() {
 
   const create = async (t: string) => {
     setStatus("Compiling the watch…");
+    setRefusal(null);
     try {
       await endpoints.watch(t);
       setText("");
@@ -47,17 +50,23 @@ export function WatchDrawer() {
       if (e instanceof ApiError && e.status === 409 && e.body && typeof e.body === "object" && "clarify" in e.body) {
         setClarify((e.body as { clarify: ClarifyRequest }).clarify);
         setStatus(null);
-      } else setStatus(e instanceof ApiError ? e.message : "The watch could not be saved.");
+      } else {
+        setStatus(null);
+        setRefusal(e instanceof ApiError ? e.message : "The watch could not be saved: the API did not answer.");
+      }
     }
   };
 
   const answerClarify = async (resp: ClarifyResponse) => {
-    setStatus("Saving the place…");
+    setStatus(clarify?.kind === "time_range" ? "Saving the hours…" : "Saving the answer…");
     let failed: string | null = null;
     await postStream("/api/clarify", resp, (m) => {
       if (m.type === "error") failed = typeof m.data.message === "string" ? m.data.message : "That answer did not save.";
     }).catch(() => (failed = "That answer did not reach the API."));
-    if (failed) return setStatus(failed);
+    if (failed) {
+      setStatus(null);
+      return setRefusal(failed);
+    }
     void useEvora.getState().refreshMemory();
     await create(text);
   };
@@ -85,6 +94,11 @@ export function WatchDrawer() {
           Watch for this
         </button>
       </form>
+      {refusal ? (
+        <p className="lt-error" role="alert">
+          {refusal}
+        </p>
+      ) : null}
       {status ? <p className="lt-watch-status">{status}</p> : null}
       {clarify ? <ClarifyPanel req={clarify} onAnswer={(resp) => void answerClarify(resp)} /> : null}
 

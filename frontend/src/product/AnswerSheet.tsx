@@ -1,7 +1,7 @@
 "use client";
 
 import type { Evidence } from "@/lib/api/client";
-import { clock, confidence, seconds, verdictLine } from "./format";
+import { clock, confidence, seconds, verdictLine, watchSentence } from "./format";
 import { useEvora, type Case } from "./store";
 import { EvidenceSheet } from "./EvidenceSheet";
 import { ClarifyCard } from "./ClarifyCard";
@@ -11,6 +11,7 @@ import { Frame } from "./Frame";
 export function AnswerSheet({ c }: { c: Case }) {
   const focus = useEvora((s) => s.focus);
   const setFocus = useEvora((s) => s.setFocus);
+  const cameras = useEvora((s) => s.cameras);
 
   if (c.status === "clarify" && c.clarify) return <ClarifyCard c={c} req={c.clarify} />;
 
@@ -54,10 +55,15 @@ export function AnswerSheet({ c }: { c: Case }) {
   const activeId = focus?.caseId === c.id ? focus.evidenceId : evidence[0]?.id;
   const active = evidence.find((e) => e.id === activeId) ?? evidence[0];
   const verifiedCount = Object.values(c.verified).filter((v) => v === true).length;
+  const watch = watchSentence(a.plan ?? c.plan, cameras);
+  const notes = [...(a.notes ?? []), ...c.notes];
+  const partial = a.verdict === "partial";
 
   return (
     <div className="lt-sheet">
-      <p className="lt-verdict">{verdictLine(a.verdict, a.count, evidence.length)}</p>
+      <p className={`lt-verdict${partial ? " is-partial" : ""}`}>{verdictLine(a.verdict, a.count, evidence.length)}</p>
+      {partial ? <p className="lt-partial">Some of this could not be checked. The notes below say what.</p> : null}
+      {a.verdict !== "count" && evidence.length > 1 ? <p className="lt-shown">{evidence.length} shown</p> : null}
       <p className="lt-answer">{a.text}</p>
       {c.resolved.length ? <p className="lt-learned">Learned {c.resolved.join(", ")}. This will not be asked again.</p> : null}
       {active ? <EvidenceSheet key={active.id} ev={active} verified={c.verified[active.id]} first={active.id === evidence[0]?.id} /> : null}
@@ -77,18 +83,20 @@ export function AnswerSheet({ c }: { c: Case }) {
           <Frame src={a.nearest_miss.thumb_url} alt={`Closest candidate on ${a.nearest_miss.camera_name}`} bbox={a.nearest_miss.bbox} markId={undefined} />
         </div>
       ) : null}
-      {a.notes?.length || c.notes.length ? (
-        <ul className="lt-notes">
-          {[...(a.notes ?? []), ...c.notes].map((n, i) => (
+      {notes.length ? (
+        <ul className={`lt-notes${partial ? " is-partial" : ""}`} aria-label="Notes on this answer">
+          {notes.map((n, i) => (
             <li key={i}>{n}</li>
           ))}
         </ul>
       ) : null}
-      <div className="lt-sheet-actions">
-        <button type="button" onClick={() => useEvora.getState().setDrawer(true, c.question)}>
-          Watch for this
-        </button>
-      </div>
+      {watch ? (
+        <div className="lt-sheet-actions">
+          <button type="button" onClick={() => useEvora.getState().setDrawer(true, watch)}>
+            Watch for this
+          </button>
+        </div>
+      ) : null}
       <p className="lt-meta">
         {c.ttfa !== undefined ? `First answer in ${seconds(c.ttfa)}` : null}
         {verifiedCount ? ` · ${verifiedCount} confirmed by a second look` : null}
