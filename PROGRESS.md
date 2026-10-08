@@ -29,9 +29,9 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M3 — Reasoning, Retrieval & Science
 - State: on track
-- Doing: waiting on M2 mini-index + M1 stores for P3.6 retrieve+fuse; meanwhile P3.9 router skeleton, P3.15 meva_to_queries
-- Next: P3.6 retrieve+fuse on the mini-index, register ours/b0 systems in eval/harness.py, first make eval
-- Blockers: need M1 core/db.py + vectors.py (P1.4) and M2 mini-index (~T+3:00) for real retrieval; Groq key not yet run through check_groq
+- Doing: P3.15 meva_to_queries (annotations cloned locally); then P3.9 router once M1 memory.resolve lands
+- Next: run retrieval on M2 mini-index and calibrate (P3.16), register ours/b0 in eval/harness.py, first make eval
+- Blockers: M2 mini-index (+ SigLIP2 text embedder) for real retrieval numbers; M1 memory.resolve for the router. Groq: 4 keys verified live (gpt-oss-20b/120b, qwen3.8-27b, whisper all listed)
 
 ### M4 — Experience
 - State: not started
@@ -112,3 +112,10 @@ State values: not started · on track · at risk · blocked · done
 - [11:40] [M1] P1.7 media service done (31e0d13, store e7ebd64): real frames, cached thumbnails with box, clips (3 s pre/post roll, faststart, HTTP range), face blur hook with honest `unavailable` state, audited unblur tokens. Bug fixed on the way: seeking past the last frame returned nothing.
 - [16:06] [M2] P2.1 and P2.2 done: fetch_epfl, fetch_wildtrack, fetch_meva, transcode, manifest and models_download scripts (0dbf4b8). One-line fix in .gitignore: `data/` -> `/data/` because it also ignored scripts/data.
 - [12:10] [M1] P1.5/P1.7 improvements done (88f5477), approved by Adhu: byte-identical uploads reuse the camera (`X-Evora-Duplicate`), unusual codecs (Indeo, MPEG-2...) are converted to H.264 on upload with an audit entry, media cache capped (LRU, `media.cache_max_bytes`), top-3 thumbnails and clips pre-rendered via `ctx.prerender`.
+- [17:40] [M3] P3.6 done: query/retrieve.py + fuse.py. Track-centric (max-mean over crops), attributes (IR-aware), BM25 captions, scene support, per-camera fallback to scene windows while L1 is missing; switches unit/attributes/expansion; 24 tests on a real LanceDB (cfd7dc7)
+- [17:40] [M3] DECISION: final score is a weighted blend of absolute signals, not reciprocal-rank fusion. Why: the not-found threshold (P3.12) needs a magnitude and RRF throws it away. Impact: weights/calibration are config, to be tuned on dev (P3.16).
+- [17:40] [M3] DECISION: planner prompt uses a compact plan shape + plain JSON mode (about 2.1k tokens) instead of sending the full JSON schema too (about 3.1k). Measured live: 5/5 valid plans. Why: 8K tokens per minute per org. Also keypool now sticks to one key while it has room. Impact: none for others.
+- [17:40] [M3] Approved improvements done: LLM record/replay (zero Groq calls on eval reruns), no-model share metric in eval, synonym expansion (off|lexicon|llm). Keys: GROQ_KEY-1..N and GROQ_KEYS both accepted.
+- [17:40] [M3] → M1 REQUEST (additive): add an optional `retrieval:` section to config/default.yaml: unit (track|frame), attributes (true|false), expansion (off|lexicon|llm), weights {image, attributes, caption, scene}, calibration {midpoint, scale}, ann_k, scene_k, pool_limit. M3 reads it with RetrievalConfig.from_cfg; every key has a default, so nothing breaks until it exists.
+- [17:40] [M3] → M2 REQUEST: expose the SigLIP2 TEXT encoder as `embed_text(str) -> np.ndarray` (L2-normalised, same space as the crops/scenes vectors) and set meta.embed_dim_image; fill tracks.attrs with the TrackAttrs JSON and tracks.best_t. Retrieval needs only those. Crops with cls 'person' etc. must match the detector class names in the plan.
+- [17:40] [M3] → M1: noted your evidence.store.register and prerender requests; the router (P3.9) will call both for every Evidence including nearest_miss.
