@@ -4,7 +4,7 @@
 // frames, an optional "mark the exact spot" step where the operator draws the
 // line or area with the grease pencil, or a typed answer. Used by questions
 // and by watches; whoever shows it decides what happens with the answer.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getStroke } from "perfect-freehand";
 import type { ClarifyRequest, ClarifyResponse, Zone } from "@/lib/api/client";
 import { strokePath } from "@/lib/draw";
@@ -21,7 +21,7 @@ interface Copy {
 
 /** The typed answer's wording follows what is being asked: a place, hours, or which object. */
 function copyFor(req: ClarifyRequest): Copy {
-  if (req.kind === "time_range" || req.referent.role === "time") return { label: "Or give the hours", placeholder: "8pm to 6am", submit: "Save hours" };
+  if (req.kind === "time_range" || req.referent.role === "time") return { label: "Or type them", placeholder: "8pm to 6am", submit: "Save" };
   if (req.kind === "choose_known") return { label: "Or say which one", placeholder: "the north gate…", submit: "Use this" };
   if (req.kind === "choose_track" || req.referent.role === "object") return { label: "Or describe it", placeholder: "the one in the red jacket…", submit: "Save" };
   return { label: "Or answer in words", placeholder: "camera 2, the lobby one…", submit: "Save place" };
@@ -33,6 +33,16 @@ export function ClarifyPanel({ req, onAnswer, error }: { req: ClarifyRequest; on
   const what = req.referent.text;
   const placeLike = req.kind === "choose_camera" && req.referent.role === "place";
   const copy = copyFor(req);
+  const hours = req.kind === "time_range" || req.referent.role === "time";
+  const [after, setAfter] = useState("20:00");
+  const [before, setBefore] = useState("06:00");
+  // "which of these did you mean": the candidates are facts EVORA already knows
+  const memory = useEvora((s) => s.memory);
+  const candidates = (req.known_candidates ?? []).map((id) => ({ id, fact: memory.find((f) => f.id === id) }));
+  const missing = candidates.some((c) => !c.fact);
+  useEffect(() => {
+    if (missing) void useEvora.getState().refreshMemory();
+  }, [missing]);
 
   const answerCamera = (o: Option, zone: Zone | null) =>
     onAnswer({ query_id: req.query_id, camera_id: o.camera_id, zone }, `“${what}” is ${o.camera_name}${zone ? (zone.kind === "line" ? ", marked line" : ", marked area") : ""}`);
@@ -50,6 +60,40 @@ export function ClarifyPanel({ req, onAnswer, error }: { req: ClarifyRequest; on
         <SpotMarker option={chosen} what={what} onBack={() => setChosen(null)} onDone={(zone) => answerCamera(chosen, zone)} />
       ) : (
         <>
+          {req.kind === "choose_known" && candidates.length ? (
+            <ul className="lt-known-pick">
+              {candidates.map(({ id, fact }) => (
+                <li key={id}>
+                  <button type="button" className="lt-marker" onClick={() => onAnswer({ query_id: req.query_id, fact_id: id }, `“${what}” is ${fact?.canonical ?? "the one you picked"}`)}>
+                    {fact?.canonical ?? "A place EVORA knows"}
+                  </button>
+                  {fact ? <span className="lt-place-meta">{fact.aliases?.length ? `also ${fact.aliases.join(", ")}` : null}</span> : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {hours ? (
+            <form
+              className="lt-clarify-hours"
+              onSubmit={(e) => {
+                e.preventDefault();
+                onAnswer({ query_id: req.query_id, tod_after: after, tod_before: before }, `“${what}” is ${after} to ${before}`);
+              }}
+            >
+              <label>
+                <span>From</span>
+                <input type="time" value={after} onChange={(e) => setAfter(e.target.value)} required />
+              </label>
+              <label>
+                <span>to</span>
+                <input type="time" value={before} onChange={(e) => setBefore(e.target.value)} required />
+              </label>
+              <span className="lt-place-meta">{after > before ? "Overnight, every day" : "Every day"}</span>
+              <button type="submit" disabled={!after || !before || after === before}>
+                Save hours
+              </button>
+            </form>
+          ) : null}
           {req.options?.length ? (
             <ul className="lt-contact">
               {req.options.map((o) => (

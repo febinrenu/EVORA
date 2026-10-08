@@ -613,6 +613,73 @@
 .lt-contact button:focus-visible .lt-frame {
   outline: 3px solid var(--marker);
 }
+.lt-known-pick {
+  list-style: none;
+  margin: 0 0 0.8rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+.lt-known-pick li {
+  display: grid;
+  gap: 0.15rem;
+}
+.lt-known-pick .lt-marker {
+  border: 0;
+  cursor: pointer;
+}
+.lt-clarify-hours {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.8rem;
+  align-items: flex-end;
+  margin-bottom: 0.8rem;
+}
+.lt-clarify-hours label {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--g48);
+  font-size: 0.8125rem;
+}
+.lt-clarify-hours input {
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--g16);
+  border-radius: 6px;
+  background: var(--lightbox);
+  color: var(--graphite);
+}
+.lt-clarify-hours .lt-place-meta {
+  padding-bottom: 0.5rem;
+}
+.lt-clarify-hours button {
+  border: 0;
+  background: var(--marker);
+  color: var(--graphite);
+  font-weight: 650;
+  padding: 0.5rem 0.8rem;
+  border-radius: 6px;
+}
+.lt-stale {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.8rem;
+  align-items: baseline;
+  margin: 0 0 0.9rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--g16);
+  border-left: 3px solid var(--cyanotype);
+  font-size: 0.8125rem;
+}
+.lt-stale button {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--cyanotype);
+}
 .lt-clarify-typed {
   display: flex;
   gap: 0.5rem;
