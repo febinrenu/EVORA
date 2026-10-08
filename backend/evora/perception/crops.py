@@ -49,6 +49,17 @@ def _unit(x: float) -> float:
     return min(max(x, 0.0), 1.0)
 
 
+@dataclass
+class ActiveTrack:
+    seq: int
+    cls: str
+    cls_conf: float
+    t_start: float
+    t_end: float
+    n_obs: int
+    points: list[tuple[float, float, float, float, float, float]]    # t, x1, y1, x2, y2, conf (normalized)
+
+
 def sharpness(grey: np.ndarray) -> float:
     v = float(cv2.Laplacian(grey, cv2.CV_64F).var())
     return v / (v + SHARP_SCALE)
@@ -98,10 +109,10 @@ class _State:
 class TrackBook:
     """Accumulates observations per tracker id and hands back finished tracks."""
 
-    def __init__(self, cfg: IngestSettings):
+    def __init__(self, cfg: IngestSettings, first_seq: int = 1):
         self.cfg = cfg
         self._states: dict[int, _State] = {}
-        self._next_seq = 1
+        self._next_seq = first_seq
 
     def observe(self, pts_s: float, boxes: list[TrackedBox], frame: np.ndarray) -> None:
         cfg = self.cfg
@@ -155,6 +166,14 @@ class TrackBook:
             n_obs=st.n_obs, points=st.points, crops=crops,
             quality=float(np.mean([c.quality for c in crops])), direction=direction_of(st.points),
         )
+
+    def active(self) -> list[ActiveTrack]:
+        """Tracks still being followed, for callers that need results before a track ends (live ingest)."""
+        out = []
+        for st in self._states.values():
+            cls = max(st.votes.items(), key=lambda kv: kv[1])[0]
+            out.append(ActiveTrack(st.seq, cls, st.conf_sum / max(st.n_obs, 1), st.t_start, st.t_end, st.n_obs, list(st.points)))
+        return out
 
     def finalize_stale(self, now_s: float) -> list[FinishedTrack]:
         """Tracks unseen for `track_lost_s` are closed so memory stays bounded on long files."""
