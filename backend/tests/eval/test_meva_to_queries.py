@@ -76,7 +76,7 @@ def test_find_windows_ranks_by_camera_count(root):
 
 def test_generated_queries_have_exact_ground_truth_windows(root):
     clips = m.window_clips(m.activity_files(root), "2018-03-09", "10-10-00")
-    items, skipped = m.build_queries(clips, TZ, split="test", camera_map={"G340": "cam_01"})
+    items, skipped = m.build_queries(clips, TZ, split="test", camera_map={"G340": "cam_01", "G341": "cam_02"})
     by_id = {i["id"]: i for i in items}
     heavy = by_id["meva_20180309_1010_person_carries_heavy_object"]
     assert heavy["text"] == "Did a person carry something heavy on 9 March between 10:10 and 10:15?"
@@ -86,7 +86,7 @@ def test_generated_queries_have_exact_ground_truth_windows(root):
                                           "end": "2018-03-09T10:10:15.000+05:30"}]
     stops = by_id["meva_20180309_1010_person_carries_heavy_object".replace("person_carries_heavy_object",
                                                                           "vehicle_stops")]
-    assert [h["camera_id"] for h in stops["expected"]["hits"]] == ["G341", "cam_01"]  # time ordered, mapped ids
+    assert [h["camera_id"] for h in stops["expected"]["hits"]] == ["cam_02", "cam_01"]  # time ordered, mapped ids
     assert skipped == {"person_transfers_object": 1}
 
 
@@ -135,3 +135,66 @@ def test_cli_errors_and_find(root, tmp_path, capsys):
     capsys.readouterr()
     assert m.main(["find", "--annotations", str(root), "--min-cams", "2"]) == 0
     assert "2018-03-09  10-10-00" in capsys.readouterr().out
+
+
+def test_only_mapped_cameras_contribute_ground_truth(root):
+    clips = m.window_clips(m.activity_files(root), "2018-03-09", "10-10-00")
+    everything, _ = m.build_queries(clips, TZ)
+    restricted, _ = m.build_queries(clips, TZ, camera_map={"G340": "cam_01"})  # G341 was not ingested
+    stops_all = next(i for i in everything if i["id"].endswith("vehicle_stops"))
+    stops = next(i for i in restricted if i["id"].endswith("vehicle_stops"))
+    assert len(stops_all["expected"]["hits"]) == 2 and len(stops["expected"]["hits"]) == 1
+    assert all(h["camera_id"] == "cam_01" for i in restricted for h in i["expected"]["hits"])
+    assert m.build_queries(clips, TZ, camera_map={"G999": "x"}) == ([], {})  # nothing mapped: nothing to ask
+
+
+def test_splits_give_each_activity_type_to_exactly_one_split_and_follow_the_ratios():
+    acts = list(m.TEMPLATES)
+    items = [{"id": f"meva_x_{a}", "tags": ["meva", a, "person"], "split": "dev",
+              "expected": {"hits": [{}] * (i + 1)}} for i, a in enumerate(acts)]
+    ratios = {"dev": 0.6, "test": 0.25, "judge_sim": 0.15}
+    counts = m.assign_splits(items, ratios)
+    assert sum(counts.values()) == len(acts) and all(counts[k] >= 2 for k in ratios)
+    assert counts["dev"] > counts["test"] > counts["judge_sim"]
+    again = [dict(i, split="dev") for i in items]
+    m.assign_splits(again, ratios)
+    assert [i["split"] for i in items] == [i["split"] for i in again]  # deterministic
+
+
+def test_every_split_gets_some_of_the_rich_queries():
+    items = [{"id": f"meva_x_{a}", "tags": ["meva", a], "split": "dev", "expected": {"hits": [{}] * n}}
+             for a, n in zip(list(m.TEMPLATES)[:9], [50, 40, 30, 20, 10, 9, 8, 7, 6], strict=True)]
+    m.assign_splits(items, {"dev": 0.5, "test": 0.3, "judge_sim": 0.2})
+    for split in ("dev", "test", "judge_sim"):
+        assert max(len(i["expected"]["hits"]) for i in items if i["split"] == split) >= 20, split
+
+
+def test_negatives_follow_their_activity_into_the_same_split():
+    pos = {"id": "meva_a_vehicle_stops", "tags": ["meva", "vehicle_stops"], "split": "dev",
+           "expected": {"hits": [{}]}}
+    neg = {"id": "meva_b_vehicle_stops", "tags": ["meva", "vehicle_stops", "negative"], "split": "dev",
+           "expected": {"hits": []}}
+    m.assign_splits([pos, neg], {"dev": 1, "test": 1, "judge_sim": 1})
+    assert pos["split"] == neg["split"]
+
+
+def test_parse_ratios():
+    assert m.parse_ratios("dev:0.6,test:0.4") == {"dev": 0.6, "test": 0.4}
+    for bad in ("dev", "train:1", "dev:"):
+        with pytest.raises(ValueError):
+            m.parse_ratios(bad)
+
+
+def test_cli_with_splits_and_a_camera_map(root, tmp_path, capsys):
+    cmap = tmp_path / "map.json"
+    cmap.write_text(json.dumps({"G340": "cam_01"}))
+    out = tmp_path / "meva.yaml"
+    assert m.main(["generate", "--annotations", str(root), "--date", "2018-03-09", "--start", "10-10-00",
+                   "--camera-map", str(cmap), "--splits", "dev:1,test:1", "--out", str(out)]) == 0
+    printed = capsys.readouterr().out
+    assert "queries per split:" in printed
+    assert {i.split for i in load_queries([out])} <= {"dev", "test"}
+    nothing = tmp_path / "none.json"
+    nothing.write_text(json.dumps({"G999": "x"}))
+    assert m.main(["generate", "--annotations", str(root), "--date", "2018-03-09", "--start", "10-10-00",
+                   "--camera-map", str(nothing), "--out", str(tmp_path / "o.yaml")]) == 2
