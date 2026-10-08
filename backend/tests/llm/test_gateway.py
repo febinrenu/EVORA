@@ -580,3 +580,29 @@ async def test_a_reasoning_model_that_answers_in_the_thinking_field_still_gives_
 async def test_an_empty_reply_without_thinking_is_still_undecided():
     rec = Recorder(no_groq, lambda r: httpx.Response(200, json={"message": {"content": ""}}))
     assert await make(rec, keys=()).vision_yesno(b"jpeg", ["a?"]) == [None]
+
+
+@pytest.mark.asyncio
+async def test_vision_text_can_use_a_named_local_model_and_falls_back_when_it_is_not_installed():
+    seen = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        seen.append(body["model"])
+        if body["model"] == "not-installed:1b":
+            return httpx.Response(404, json={"error": "model 'not-installed:1b' not found"})
+        return ollama_text("Four people.")(request)
+
+    gw = make(Recorder(no_groq, handler))
+    assert await gw.vision_text(b"x", "How many?", model="qwen3.5:4b") == "Four people."
+    assert seen == ["qwen3.5:4b"]
+    seen.clear()
+    assert await gw.vision_text(b"x", "How many?", model="not-installed:1b") == "Four people."
+    assert seen == ["not-installed:1b", "qwen3-vl:2b"]               # the configured model answers instead
+    assert gw.look_model == "qwen3.5:4b"
+
+
+def test_the_look_model_is_configurable_from_the_environment():
+    from evora.llm.schemas import GatewayConfig
+    assert GatewayConfig().local_look_model == "qwen3.5:4b"
+    assert GatewayConfig.from_env({"OLLAMA_LOOK_MODEL": "gemma3:4b"}).local_look_model == "gemma3:4b"

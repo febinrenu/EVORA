@@ -834,3 +834,69 @@ async def test_the_widening_can_be_switched_off(ws):
     ans = of(await collect(room_router(ws, same_place=1.01).answer("how many people are in the room", "s1")), "answer")[0]
     assert {e["camera_id"] for e in ans["evidence"]} == {"cam_01"}
     assert not any("shows the same place" in n for n in ans["notes"])
+
+
+# ------------------------------------------------- a question only the picture can answer goes to the vision model
+class FakeLook:
+    def __init__(self, answer):
+        self.answer, self.asked = answer, []
+
+    async def ask(self, question, camera_name, frames, tz=None):
+        self.asked.append((question, camera_name, [f.path for f in frames]))
+        return self.answer
+
+
+def looking_router(ws, plan, look):
+    router = make_router(ws)
+    router._planner = StubPlanner(plan)
+    router._look = look
+    return router
+
+
+@pytest.mark.asyncio
+async def test_a_posture_question_shows_the_frames_to_the_vision_model_and_returns_them_as_evidence(ws):
+    for t in (1100.0, 1105.0, 1110.0, 1115.0, 1120.0):
+        ws.scene("cam_01", t, E[0])
+    plan = QueryPlan(intent="exists", targets=[Target(noun="person", cls=["person"], embed_text="a photo of a person")],
+                     action="any")
+    look = FakeLook("No one is sitting down; everyone is standing.")
+    events = await collect(looking_router(ws, plan, look).answer("is anyone sitting down", "s1"))
+    assert types(events) == ["plan", "evidence", "evidence", "evidence", "evidence", "answer", "done"]
+    ans = of(events, "answer")[0]
+    assert ans["verdict"] == "no" and ans["text"] == "No one is sitting down; everyone is standing."
+    assert len(ans["evidence"]) == 4 and all(e["track_id"] is None and e["bbox"] is None for e in ans["evidence"])
+    assert any("local vision model looking at 4 frames of Gate" in n and "check the frames" in n for n in ans["notes"])
+    assert look.asked[0][0] == "is anyone sitting down" and len(look.asked[0][2]) == 4
+
+
+@pytest.mark.asyncio
+async def test_a_description_is_answered_from_the_picture_and_an_unsure_model_gives_partial(ws):
+    ws.scene("cam_01", 1100.0, E[0])
+    describe = QueryPlan(intent="describe", targets=[], action="any")
+    ans = of(await collect(looking_router(ws, describe, FakeLook("A blue carpet and red chairs.")).answer(
+        "what is in the room", "s1")), "answer")[0]
+    assert ans["verdict"] == "found" and ans["text"] == "A blue carpet and red chairs."
+    unsure = of(await collect(looking_router(ws, describe, FakeLook("I can't tell from these frames.")).answer(
+        "what is in the room", "s2")), "answer")[0]
+    assert unsure["verdict"] == "partial"
+
+
+@pytest.mark.asyncio
+async def test_if_the_vision_model_cannot_answer_the_usual_route_still_does(ws):
+    ws.scene("cam_01", 1100.0, E[0])
+    plan = QueryPlan(intent="describe", targets=[], action="any")
+    events = await collect(looking_router(ws, plan, FakeLook(None)).answer("what is in the room", "s1"))
+    ans = of(events, "answer")[0]
+    assert any("could not be reached" in n for n in ans["notes"])       # said so ...
+    assert ans["text"] and ans["verdict"] == "not_found" and not any(       # ... and the usual route answered (no events here)
+        "vision model looking at" in n for n in ans["notes"])
+
+
+@pytest.mark.asyncio
+async def test_questions_the_tracker_answers_never_reach_the_vision_model(ws):
+    look = FakeLook("should not be used")
+    red_car_crossing(ws)
+    router = make_router(ws)
+    router._look = look
+    ans = of(await collect(router.answer(GATE_Q, "s2")), "answer")[0]
+    assert look.asked == [] and ans["verdict"] == "yes" and ans["text"].startswith("Yes. A red car passed through")

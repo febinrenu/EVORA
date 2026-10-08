@@ -64,6 +64,7 @@ from evora.query.logic import (
     instant_in_window,
     order_matches,
 )
+from evora.query.look import LookAnswerer, cannot_tell, pick_frames, wants_look, yes_no
 from evora.query.objects import FrameRef, OpenObjectSurveyor, Survey, labels_for
 from evora.query.planner import Planner, PlanningError, reference_now, workspace_tz
 from evora.query.retrieve import Retriever, SearchScope
@@ -73,6 +74,7 @@ log = logging.getLogger("evora.query.router")
 TRACK_PAD_S = 5.0     # evidence window around the best frame of a track
 EVENT_PAD_S = 1.5     # evidence window around a crossing / entry / dwell
 MAX_DESCRIBE_EVIDENCE = 8
+MAX_LOOK_CAMERAS = 3       # cameras shown to the vision model for one question
 MAX_OBJECT_EVIDENCE = 6   # boxes shown from the clearest frame of a camera
 SAMPLE_FRAMES = 12        # stored frames looked at per camera for an object question
 EVENT_CHUNK = 400     # SQLite parameter budget when loading events
@@ -150,7 +152,10 @@ class Router:
         path_for: Callable[[str], list[PathHop]] | None = None,
         file_offset: Callable[[str, float | None, float], float | None] | None = None,
         objects: OpenObjectSurveyor | None = None,
+        look: LookAnswerer | None = None,
     ) -> None:
+        # shows frames to the local vision model for questions only the picture can answer (sitting, a phone, a colour)
+        self._look = look
         # looks for things the tracker does not follow (chairs, carpets, "red objects") in the stored frames
         self._objects = objects
         # (camera id, camera duration, wall-clock time) -> seconds into the recorded file, or None to use t - t0.
@@ -222,6 +227,14 @@ class Router:
             return
 
         plan = self._with_bound_time(plan, bound)
+
+        if self._look is not None and wants_look(plan, text) and not any(
+                z.kind != "frame" for z in bound.zones.values()):
+            looked = await self._look_answer(query_id, text, plan, notes, timings, started, cameras, tz, ref_now, bound)
+            if looked is not None:
+                for ev in looked:
+                    yield ev
+                return
 
         if plan.intent == "describe":
             async for ev in self._describe(query_id, text, plan, notes, timings, started, cameras, tz, ref_now, bound):
@@ -535,6 +548,75 @@ class Router:
         timings["ttva"] = _ms(started)
         self._log_query(query_id, text, plan, answer)
         yield _event("done", {"query_id": query_id})
+
+    async def _look_answer(self, query_id: str, text: str, plan: QueryPlan, notes: list[str], timings: dict[str, float],
+                           started: float, cameras: list[_Camera], tz: tzinfo, ref_now: float,
+                           bound: _Bound) -> list[StreamEvent] | None:
+        """Show frames of the camera(s) to the local vision model; None when it cannot answer (the usual path follows)."""
+        t = time.perf_counter()
+        camera_by_id = {c.id: c for c in cameras}
+        scope = [c for c in sorted(set(plan.camera_ids) | bound.camera_ids) if c in camera_by_id] or sorted(camera_by_id)
+        frames_for = getattr(self._retriever, "scene_frames", None)
+        rows = frames_for(scope, plan.time, tz, 12) if frames_for is not None else {}
+        if not rows:
+            return None
+        # two angles of one room need one look, not two
+        chosen: list[str] = []
+        for camera_id in [c for c in scope if c in rows]:
+            alike = getattr(self._retriever, "same_place_cameras", None)
+            if chosen and alike is not None and camera_id in alike(chosen, self.cfg.same_place):
+                continue
+            chosen.append(camera_id)
+        chosen = chosen[:MAX_LOOK_CAMERAS]
+        answers: list[tuple[str, str, list[Any]]] = []
+        for camera_id in chosen:
+            frames = pick_frames(rows[camera_id], camera_id)
+            answer = await self._look.ask(text, camera_by_id[camera_id].name, frames, tz)
+            if answer:
+                answers.append((camera_id, answer, frames))
+        if not answers:
+            notes.append("The local vision model could not be reached, so the picture was not examined.")
+            return None
+        evidence: list[Evidence] = []
+        sentences: list[Sentence] = []
+        for camera_id, answer, frames in answers:
+            cam = camera_by_id[camera_id]
+            ids: list[str] = []
+            for frame in frames:
+                eid = f"{query_id}_{len(evidence) + 1}"
+                ids.append(eid)
+                evidence.append(Evidence(
+                    id=eid, camera_id=cam.id, camera_name=cam.name, t_start=frame.t - 2.5, t_end=frame.t + 2.5,
+                    t_peak=frame.t, offset_s=self._offset_in_file(cam, frame.t),
+                    thumb_url=self.cfg.thumb_fmt.format(id=eid), clip_url=self.cfg.clip_fmt.format(id=eid),
+                    score=1.0, why=["frame shown to the vision model"]))
+            prefix = f"{cam.name}: " if len(answers) > 1 else ""
+            sentences.append(Sentence(prefix + answer.rstrip(), tuple(ids), "fact"))
+        validate(sentences, {e.id for e in evidence})
+        for ev in evidence:
+            self._register(ev)
+        first = answers[0][1]
+        unsure = all(cannot_tell(a) for _, a, _ in answers)
+        verdict = "partial" if unsure else "found"
+        if plan.intent == "exists" and not unsure:
+            decided = yes_no(first)
+            verdict = "yes" if decided is True else "no" if decided is False else "found"
+        names = " and ".join(camera_by_id[c].name for c, _, _ in answers)
+        all_notes = list(dict.fromkeys([
+            *notes,
+            f"Answered by the local vision model looking at {sum(len(f) for _, _, f in answers)} frames of {names}, shown "
+            "below. It can miss or misread things, so check the frames.",
+            *make_notes(plan, _as_compose_cameras(cameras), evidence)]))
+        timings["look"] = _ms(t)
+        timings["ttfa"] = _ms(started)
+        answer_obj = Answer(query_id=query_id, text=" ".join(s.text for s in sentences), verdict=verdict, evidence=evidence,
+                            confidence=0.5 if unsure else 0.7, plan=plan, timings_ms=timings, notes=all_notes)
+        events = [_event("evidence", ev.model_dump(mode="json")) for ev in evidence]
+        events.append(_event("answer", answer_obj.model_dump(mode="json")))
+        timings["ttva"] = _ms(started)
+        self._log_query(query_id, text, plan, answer_obj)
+        events.append(_event("done", {"query_id": query_id}))
+        return events
 
     async def _objects_answer(self, query_id: str, text: str, plan: QueryPlan, labels: list[str], notes: list[str],
                               timings: dict[str, float], started: float, cameras: list[_Camera], tz: tzinfo,

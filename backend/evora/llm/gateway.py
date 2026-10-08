@@ -284,6 +284,11 @@ class Gateway:
     async def chat_json(self, task: str, messages: list[dict], schema: type[M]) -> M:
         return (await self.chat_json_ex(task, messages, schema))[0]
 
+    @property
+    def look_model(self) -> str:
+        """The local model that answers questions about frames."""
+        return self._cfg.local_look_model
+
     @staticmethod
     def _is_missing_model(exc: LLMError) -> bool:
         text = str(exc).lower()
@@ -384,33 +389,44 @@ class Gateway:
             raise LLMError(f"ntfy refused the notification (HTTP {resp.status_code})")
 
     async def vision_text(self, image_jpeg: bytes, prompt: str, *, local_only: bool = True,
-                          max_tokens: int = 64) -> str | None:
-        """One free-text answer about an image (captions, reading a burned-in clock), or None.
+                          max_tokens: int = 64, model: str | None = None) -> str | None:
+        """One free-text answer about an image (captions, reading a burned-in clock, answering a question), or None.
 
         By default only the local vision model is used, never the cloud, because these images show people;
         `local_only=False` allows a Groq vision fallback and is never used in on-prem mode. The model reasons
         before it answers even with thinking off, so the output budget is `max_tokens` plus headroom for that,
-        and any reasoning block is removed from the reply. Neither the prompt nor the answer is logged.
+        and any reasoning block is removed from the reply. `model` picks a local model for this call; if it is not
+        installed the configured vision model is used instead. Neither the prompt nor the answer is logged.
         """
         if not image_jpeg or not prompt.strip():
             return None
         started = time.perf_counter()
         budget = max_tokens + VISION_REASONING_HEADROOM
+        local = model or self._vision_model
         try:
-            try:
-                raw = await self._ollama.vision_text(self._vision_model, image_jpeg, prompt, budget)
-            except LLMError as exc:
-                if not (self._is_missing_model(exc) and await self._use_installed_vision_model(self._vision_model)):
-                    raise
-                raw = await self._ollama.vision_text(self._vision_model, image_jpeg, prompt, budget)
+            raw = None
+            if model is not None and model != self._vision_model:
+                try:
+                    raw = await self._ollama.vision_text(model, image_jpeg, prompt, budget)
+                except LLMError as exc:
+                    if not self._is_missing_model(exc):
+                        raise
+                    local = self._vision_model  # the asked-for model is not installed: the configured one answers
+            if raw is None:
+                try:
+                    raw = await self._ollama.vision_text(local, image_jpeg, prompt, budget)
+                except LLMError as exc:
+                    if not (self._is_missing_model(exc) and await self._use_installed_vision_model(local)):
+                        raise
+                    local = self._vision_model
+                    raw = await self._ollama.vision_text(local, image_jpeg, prompt, budget)
             text = _answer_only(raw)
-            self._log(task="vision_text", backend="ollama", model=self._vision_model, ok=text is not None,
+            self._log(task="vision_text", backend="ollama", model=local, ok=text is not None,
                       latency_ms=round((time.perf_counter() - started) * 1000))
             if text is not None or local_only or self._onprem():
                 return text
         except LLMError as exc:
-            self._log(task="vision_text", backend="ollama", model=self._vision_model, ok=False,
-                      error=type(exc).__name__)
+            self._log(task="vision_text", backend="ollama", model=local, ok=False, error=type(exc).__name__)
             if local_only or self._onprem():
                 return None
         return await self._cloud_vision_text(image_jpeg, prompt, max_tokens)

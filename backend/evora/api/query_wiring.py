@@ -11,6 +11,7 @@ from evora.core import live_sessions, perception_adapter
 from evora.core.media_service import MediaError
 from evora.core.vectors import open_store
 from evora.memory.clarify import ClarifyOutcome
+from evora.query.look import LookAnswerer
 from evora.query.objects import OpenObjectSurveyor
 from evora.query.planner import Planner
 from evora.query.retrieve import RetrievalConfig, RetrievalResult, Retriever, SearchScope
@@ -113,6 +114,9 @@ def build_router(ctx: AppContext, gateway: Any, clarifier: ClarifierAdapter, pla
         reference_override=lambda: ctx.settings["reference_now"],
         gateway=gateway,  # `describe` answers are phrased by the grounded model instead of the plain summary
         objects=OpenObjectSurveyor(ctx.ws.media_dir),  # chairs, carpets, "red objects": found in the stored frames
+        # questions only the picture can answer go to the local vision model together with the frames
+        look=(LookAnswerer(gateway, ctx.ws.media_dir, model=getattr(gateway, "look_model", None))
+              if hasattr(gateway, "vision_text") else None),
         # a looped replay-as-live camera shows its real position in the file, not wall clock minus t0
         file_offset=lambda camera_id, duration_s, t: live_sessions.file_offset(ctx.db, camera_id, duration_s, t),
     )

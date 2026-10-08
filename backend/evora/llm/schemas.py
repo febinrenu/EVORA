@@ -31,6 +31,7 @@ class GatewayConfig:
     groq_whisper_model: str = "whisper-large-v3-turbo"
     local_text_model: str = "qwen3.5:4b"
     local_vision_model: str = "qwen3-vl:2b"
+    local_look_model: str = "qwen3.5:4b"  # answers questions about frames: quick, no reasoning phase, reliable replies
     ollama_host: str = "http://127.0.0.1:11434"
     ntfy_base: str = "https://ntfy.sh"
     reasoning_effort: str = "low"
@@ -49,6 +50,8 @@ class GatewayConfig:
             kwargs["ollama_host"] = env["OLLAMA_HOST"]
         if env.get("OLLAMA_VISION_MODEL"):  # e.g. qwen3-vl:4b on a machine with the GPU memory for it
             kwargs["local_vision_model"] = env["OLLAMA_VISION_MODEL"]
+        if env.get("OLLAMA_LOOK_MODEL"):
+            kwargs["local_look_model"] = env["OLLAMA_LOOK_MODEL"]
         if env.get("OLLAMA_TEXT_MODEL"):
             kwargs["local_text_model"] = env["OLLAMA_TEXT_MODEL"]
         kwargs.update(overrides)
