@@ -248,3 +248,67 @@ async def test_transcribe_groq_and_onprem_refusal():
     assert rec.calls[0].url.path.endswith("/audio/transcriptions")
     with pytest.raises(LLMError):
         await make(rec, onprem=True).transcribe(b"audio")
+
+
+def make_replay(rec, tmp_path, mode):
+    cfg = GatewayConfig(log_path=None, replay_path=tmp_path / "replay.jsonl", replay_mode=mode)
+    client = httpx.AsyncClient(transport=httpx.MockTransport(rec))
+    return Gateway(cfg, KeyPool(["gsk_key_aaaa"]), client)
+
+
+MSG = [{"role": "user", "content": "same question"}]
+
+
+@pytest.mark.asyncio
+async def test_record_then_replay_makes_zero_live_calls(tmp_path):
+    live = Recorder(lambda r: groq_ok('{"a": 11}'), no_ollama)
+    assert (await make_replay(live, tmp_path, "record").chat_json("planner", MSG, Out)).a == 11
+    assert len(live.calls) == 1
+
+    offline = Recorder(no_groq, no_ollama)
+    gw = make_replay(offline, tmp_path, "replay")
+    out, backend = await gw.chat_json_ex("planner", MSG, Out)
+    assert out.a == 11 and backend == "groq" and offline.calls == []  # same backend label as when recorded
+
+
+@pytest.mark.asyncio
+async def test_replay_mode_never_goes_live_on_a_miss(tmp_path):
+    offline = Recorder(no_groq, no_ollama)
+    with pytest.raises(LLMError, match="no recorded answer"):
+        await make_replay(offline, tmp_path, "replay").chat_json("planner", MSG, Out)
+    assert offline.calls == []
+
+
+@pytest.mark.asyncio
+async def test_auto_mode_replays_hits_and_records_misses(tmp_path):
+    live = Recorder(lambda r: groq_ok('{"a": 5}'), no_ollama)
+    gw = make_replay(live, tmp_path, "auto")
+    await gw.chat_json("planner", MSG, Out)
+    await gw.chat_json("planner", MSG, Out)
+    assert len(live.calls) == 1  # the second was replayed
+    await gw.chat_json("planner", [{"role": "user", "content": "different"}], Out)
+    assert len(live.calls) == 2
+    fresh = make_replay(Recorder(no_groq, no_ollama), tmp_path, "replay")  # a new process reads the file
+    assert (await fresh.chat_json("planner", MSG, Out)).a == 5
+
+
+@pytest.mark.asyncio
+async def test_replay_key_depends_on_task_and_messages(tmp_path):
+    live = Recorder(lambda r: groq_ok('{"a": 1}'), no_ollama)
+    gw = make_replay(live, tmp_path, "auto")
+    await gw.chat_json("planner", MSG, Out)
+    await gw.chat_json("describe", MSG, Out)  # different task: not a hit
+    assert len(live.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_off_by_default_and_bad_entries_are_ignored(tmp_path):
+    live = Recorder(lambda r: groq_ok('{"a": 2}'), no_ollama)
+    await make(live).chat_json("planner", MSG, Out)
+    await make(live).chat_json("planner", MSG, Out)
+    assert len(live.calls) == 2  # no replay unless configured
+    path = tmp_path / "replay.jsonl"
+    path.write_text("not json\n{\"key\": 1}\n")
+    gw = make_replay(live, tmp_path, "auto")  # the damaged file does not stop startup
+    await gw.chat_json("planner", MSG, Out)
+    assert len(live.calls) == 3

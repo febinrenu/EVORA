@@ -19,6 +19,7 @@ from pydantic import BaseModel, ValidationError
 
 from evora.llm.keypool import KeyPool
 from evora.llm.ollama import OllamaClient
+from evora.llm.replay import ReplayStore
 from evora.llm.schemas import GROQ_BASE_URL, GatewayConfig, LLMError
 
 log = logging.getLogger("evora.llm")
@@ -79,6 +80,11 @@ class Gateway:
         self._client = client
         self._onprem = onprem
         self._ollama = OllamaClient(config.ollama_host, client)
+        self._replay = (
+            ReplayStore(config.replay_path, config.replay_mode)  # type: ignore[arg-type]
+            if config.replay_path is not None and config.replay_mode != "off"
+            else None
+        )
 
     # ----------------------------------------------------------------- logging
     def _log(self, **record: Any) -> None:
@@ -221,7 +227,30 @@ class Gateway:
 
     # ----------------------------------------------------------------- public
     async def chat_json_ex(self, task: str, messages: list[dict], schema: type[M]) -> tuple[M, str]:
-        """Like `chat_json` but also reports which backend answered: 'groq' or 'local'."""
+        """Like `chat_json` but also reports which backend answered: 'groq' or 'local'.
+
+        With a replay store a recorded answer is returned with the backend that originally gave it.
+        """
+        store = self._replay
+        key = store.key(task, messages, schema.__name__) if store is not None else None
+        if store is not None and key is not None:  # note: an empty store is falsy, so never test `if store`
+            hit = store.get(key)
+            if hit is not None:
+                try:
+                    result = _validated(schema, hit["text"])
+                    self._log(task=task, backend="replay", model=None, ok=True)
+                    return result, hit["backend"]
+                except (ValidationError, ValueError):
+                    log.warning("recorded answer for %s no longer validates; treating as a miss", task)
+            if store.mode == "replay":
+                raise LLMError(f"no recorded answer for this {task} request (replay mode makes no live calls)")
+
+        result, backend = await self._live_json(task, messages, schema)
+        if store is not None and key is not None:
+            store.put(key, task, result.model_dump_json(), backend)
+        return result, backend
+
+    async def _live_json(self, task: str, messages: list[dict], schema: type[M]) -> tuple[M, str]:
         if not self._onprem():
             try:
                 return await self._groq_json(task, messages, schema), "groq"

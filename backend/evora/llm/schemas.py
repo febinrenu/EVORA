@@ -35,6 +35,8 @@ class GatewayConfig:
     reasoning_effort: str = "low"
     timeout_s: float = 30.0
     log_path: Path | None = Path("logs/llm.jsonl")
+    replay_path: Path | None = None  # set together with replay_mode to record or replay structured calls
+    replay_mode: str = "off"  # off | record | replay | auto (see evora.llm.replay)
 
     def groq_model_for(self, task: str) -> str:
         return self.groq_models.get(task, self.groq_models["default"])
