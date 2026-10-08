@@ -2,9 +2,14 @@
 
 The activity queries from meva_to_queries.py ask for things we do not recognise ("put something down").
 This script instead asks only what the system claims to do: find an object of a class on a camera in a
-time window, count them, and say honestly when there are none. Ground truth
-comes from the annotated per-frame boxes (`*.geom.yml`) and actor classes (`*.types.yml`), never from our
-own detector.
+time window, and say honestly when there is none. Ground truth comes from the annotated per-frame boxes
+(`*.geom.yml`) and actor classes (`*.types.yml`), never from our own detector.
+
+Caveat that shapes what is generated: MEVA labels only actors that take part in its annotated activities.
+A positive query is valid (the labelled actor really is there) but conservative (a correct unlabelled
+object scores as a miss). A negative query is only built for a class that has no annotated actor anywhere in
+the camera's clip, because a window that is merely empty of annotated actors may still hold an unlabelled
+parked car or bystander. Counts cannot be scored for the same reason (annotated counts are lower bounds).
 
     python scripts/meva_capability_queries.py --date 2018-03-09 --start 10-10-00 \
         --camera-map eval/meva_school_cameras.json --splits dev:0.5,test:0.3,judge_sim:0.2 \
@@ -12,7 +17,7 @@ own detector.
 
 Only the exhaustively annotated `kitware` folder is used: "nothing is there" is only trustworthy where every
 instance was labelled. Splits are by camera, so tuning on dev never sees a test scene. Capabilities that the
-data cannot ground (colour, carrying, cross-camera paths) are not generated; see UNSUPPORTED.
+data cannot ground (colour, carrying, counts, cross-camera paths) are not generated; see UNSUPPORTED.
 """
 from __future__ import annotations
 
@@ -47,6 +52,9 @@ GEOM = re.compile(r"'g0': '(\d+) (\d+) (\d+) (\d+)'.*?'id1': (\d+).*?'ts0': (\d+
 ANNOTATION_SIZE = (1920.0, 1080.0)  # annotation pixels; the ingested videos are the same 16:9 at 1280x720
 
 UNSUPPORTED = {
+    "count": "MEVA annotates only actors that take part in its annotated activities. Parked cars and bystanders are "
+             "unlabelled (on G328, 10 of the 15 vehicle tracks are stationary cars present for the whole clip), so "
+             "annotated counts are lower bounds and an exact count cannot be scored.",
     "carrying": "Only one camera (G299) has carrying annotations and the carried things are class 'other' "
                 "(boxes and similar), not bags; across the six cameras there is one bag actor. Nothing reliable "
                 "to score a bag-carrying attribute against.",
@@ -142,30 +150,35 @@ def build_items(root: Path, date: str, start: str, tz: timezone, camera_map: dic
                     "workspace": workspace, "intent": intent, "expected": expected,
                     "tags": ["meva", f"cap:{cap}", clip.camera], "split": "dev"}
 
-        for cls, (singular, plural) in CLASSES.items():
+        for cls, (singular, _plural) in CLASSES.items():
             pool = [a for a in actors.values() if a.cls == cls]
             rows = [(w0, w1, hits_in_window(pool, w0, w1), distinct_in_window(pool, w0, w1)) for w0, w1 in wins]
             positives = sorted((r for r in rows if 1 <= len(r[2]) and 1 <= r[3] <= MAX_ACTORS), key=lambda r: r[3])
-            empties = [r for r in rows if r[3] == 0 and not any(
-                a for a in pool for s, e in a.segments() if max(s / FPS, r[0]) < min(e / FPS, r[1]))]
+            # "nothing there" only for a class with no annotated actor anywhere in the clip: a window that is merely
+            # empty of annotated actors may still hold an unlabelled one (a parked car, a bystander)
+            empties = [] if pool else rows
             def when(w0: int, w1: int, clip=clip, base=base) -> str:
                 return f"on {clip.camera} between {_hhmm(base, w0)} and {_hhmm(base, w1)}"
 
-            for w0, w1, hits, n in positives[:per_kind]:
+            for w0, w1, hits, _n in positives[:per_kind]:
                 exp = {"verdict": "yes", "hits": [{"camera_id": cam, "start": _iso(base, s), "end": _iso(base, e)}
                                                  for s, e in hits]}
                 items.append(item("object", f"Was there a {singular} {when(w0, w1)}?", exp, "exists", w0, "object",
                                   f"_{cls}"))
-                items.append(item("count", f"How many {plural} were seen {when(w0, w1)}?",
-                                  {"verdict": "count", "count": n}, "count", w0, "count", f"_{cls}"))
             for w0, w1, _, _ in empties[:per_kind]:
                 items.append(item("negative", f"Was there a {singular} {when(w0, w1)}?",
                                   {"verdict": "no", "hits": []}, "exists", w0, "negative", f"_{cls}"))
     return items
 
 
-def assign_by_camera(items: list[dict[str, Any]], ratios: dict[str, float]) -> dict[str, int]:
-    """Whole cameras go to one split, richest first, each to the split furthest under its target share."""
+def assign_by_camera(items: list[dict[str, Any]], ratios: dict[str, float],
+                     pinned: dict[str, str] | None = None) -> dict[str, int]:
+    """Whole cameras go to one split, richest first, each to the split furthest under its target share.
+
+    `pinned` fixes cameras to a split first (for example the ones already looked at while debugging go to dev),
+    and the rest are balanced over the splits around them, so held-out splits stay genuinely unseen.
+    """
+    pinned = pinned or {}
     total = sum(ratios.values())
     share = {k: v / total for k, v in ratios.items()}
     by_cam: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -173,8 +186,15 @@ def assign_by_camera(items: list[dict[str, Any]], ratios: dict[str, float]) -> d
         by_cam[next(t for t in it["tags"] if re.fullmatch(r"G\d+", t))].append(it)
     counts = dict.fromkeys(ratios, 0)
     seen = 0
+    for cam, split in pinned.items():
+        for it in by_cam.pop(cam, []):
+            it["split"] = split
+            counts[split] += 1
+            seen += 1
     for _, group in sorted(by_cam.items(), key=lambda kv: (-len(kv[1]), kv[0])):
-        split = max(ratios, key=lambda n: (share[n] * (seen + len(group)) - counts[n], share[n]))
+        taken = set(pinned.values())  # splits that already hold pinned cameras only get unpinned ones if none is left
+        free = [n for n in ratios if n not in taken] or list(ratios)
+        split = max(free, key=lambda n: (share[n] * (seen + len(group)) - counts[n], share[n]))
         for it in group:
             it["split"] = split
         counts[split] += len(group)
@@ -191,6 +211,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--camera-map", type=Path, required=True)
     parser.add_argument("--workspace", default="meva-school")
     parser.add_argument("--splits", default="dev:0.5,test:0.3,judge_sim:0.2")
+    parser.add_argument("--dev-cameras", default="", help="MEVA camera codes pinned to dev, e.g. G328,G419 (the ones "
+                        "already examined while debugging; everything else is balanced over test and judge_sim)")
     parser.add_argument("--per-kind", type=int, default=4, help="windows per camera, class and capability")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -204,7 +226,8 @@ def main(argv: list[str] | None = None) -> int:
     for part in args.splits.split(","):
         name, _, weight = part.partition(":")
         ratios[name] = float(weight)
-    counts = assign_by_camera(items, ratios)
+    pinned = {c.strip(): "dev" for c in args.dev_cameras.split(",") if c.strip()}
+    counts = assign_by_camera(items, ratios, pinned)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text("# generated by scripts/meva_capability_queries.py; ground truth from MEVA object annotations\n"
                         + yaml.safe_dump(items, sort_keys=False, allow_unicode=True, width=120), encoding="utf-8")

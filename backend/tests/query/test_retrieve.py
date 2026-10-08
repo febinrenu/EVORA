@@ -43,11 +43,14 @@ class SimpleWorkspace:
             c.execute("INSERT INTO cameras(id,name,kind,source_uri,t0,t0_source,created_at) "
                       "VALUES(?,?, 'file','x.mp4',0,'manual',0)", (cid, name or cid))
 
-    def track(self, tid, cam, cls="car", t0=100.0, t1=110.0, attrs=None, gid=None, crops=(E[0],), best_t=None):
+    def track(self, tid, cam, cls="car", t0=100.0, t1=110.0, attrs=None, gid=None, crops=(E[0],), best_t=None,
+              points=None):
         with self.db.write() as c:
             c.execute("INSERT INTO tracks(id,camera_id,cls,t_start,t_end,n_obs,best_t,attrs,global_id) "
                       "VALUES(?,?,?,?,?,?,?,?,?)",
                       (tid, cam, cls, t0, t1, 10, best_t, json.dumps(attrs or {}), gid))
+            for t in points or ():  # exact times the track was on screen, like the 4 Hz stored track points
+                c.execute("INSERT INTO track_points(track_id,t,x1,y1,x2,y2,conf) VALUES(?,?,0.1,0.1,0.2,0.3,1)", (tid, t))
         rows = [{"vector": [float(x) for x in v], "track_id": tid, "camera_id": cam, "cls": cls,
                  "t": t0 + i, "quality": 0.5, "crop_path": f"{tid}_{i}.jpg"} for i, v in enumerate(crops)]
         if rows:
@@ -237,3 +240,59 @@ def test_config_from_the_yaml_section():
     assert cfg.weights["image"] == 0.9 and cfg.weights["attributes"] == 0.25 and cfg.calibration.midpoint == 0.3
     default = RetrievalConfig.from_cfg(None)
     assert default.unit == "track" and default.attributes is True and default.expansion == "off"
+
+
+# ------------------------------------------------------- presence inside the window
+def spaced(a, b, step=0.25):
+    return [a + k * step for k in range(int((b - a) / step) + 1)]
+
+
+@pytest.mark.asyncio
+async def test_a_track_whose_span_overlaps_the_window_but_was_never_on_screen_in_it_is_not_present(ws):
+    ws.camera("cam_01")
+    # a long visit seen at the start and the end only (say it left the view and came back)
+    ws.track("away", "cam_01", t0=0.0, t1=200.0, points=spaced(0, 10) + spaced(190, 200), crops=[E[0]])
+    ws.track("here", "cam_01", t0=50.0, t1=130.0, points=spaced(50, 130), crops=[E[0]])
+    window = TimeWindow(start=60.0, end=120.0)
+    res = await ws.retriever().search(plan(attrs=()), SearchScope(window=window))
+    assert ids(res) == ["here"]
+
+
+@pytest.mark.asyncio
+async def test_the_evidence_moment_is_inside_the_window_even_if_the_best_crop_is_elsewhere(ws):
+    ws.camera("cam_01")
+    ws.track("long", "cam_01", t0=0.0, t1=200.0, points=spaced(0, 200), crops=[E[0]] + [E[2]] * 3, best_t=0.0)
+    # the best matching crop is the first one, sampled at t=0; the question is about 100-120 s
+    res = await ws.retriever().search(plan(attrs=()), SearchScope(window=TimeWindow(start=100.0, end=120.0)))
+    peak = res.candidates[0].track.best_t
+    assert 100.0 <= peak <= 120.0
+    unconstrained = await ws.retriever().search(plan(attrs=()))
+    assert unconstrained.candidates[0].track.best_t == 0.0  # without a window the best crop is used as before
+
+
+@pytest.mark.asyncio
+async def test_time_of_day_windows_use_presence_too(ws):
+    ws.camera("cam_01")
+    base = 3600.0 * 5  # 05:00 UTC
+    ws.track("t1", "cam_01", t0=base, t1=base + 600, points=spaced(base, base + 10) + spaced(base + 590, base + 600),
+             crops=[E[0]])
+    present = TimeWindow(tod_after="05:00", tod_before="05:01")
+    absent = TimeWindow(tod_after="05:03", tod_before="05:05")  # the span covers it, the track was not on screen
+    assert ids(await ws.retriever().search(plan(attrs=()), SearchScope(window=present))) == ["t1"]
+    assert ids(await ws.retriever().search(plan(attrs=()), SearchScope(window=absent))) == []
+
+
+@pytest.mark.asyncio
+async def test_tracks_without_stored_points_keep_the_span_based_decision(ws):
+    ws.camera("cam_01")
+    ws.track("nopoints", "cam_01", t0=0.0, t1=200.0, crops=[E[0]])
+    res = await ws.retriever().search(plan(attrs=()), SearchScope(window=TimeWindow(start=60.0, end=120.0)))
+    assert ids(res) == ["nopoints"]
+
+
+@pytest.mark.asyncio
+async def test_a_single_flicker_inside_the_window_is_not_presence(ws):
+    ws.camera("cam_01")
+    ws.track("flicker", "cam_01", t0=0.0, t1=200.0, points=spaced(0, 50) + [100.0] + spaced(150, 200), crops=[E[0]])
+    res = await ws.retriever().search(plan(attrs=()), SearchScope(window=TimeWindow(start=90.0, end=110.0)))
+    assert ids(res) == []

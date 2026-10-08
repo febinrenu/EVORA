@@ -43,13 +43,18 @@ class Workspace:
                 (cid, name or cid, source or f"{cid}.mp4", t0, duration, json.dumps(list(layers)), ir))
 
     def track(self, tid: str, cam: str, cls: str = "car", t0: float = 1100.0, t1: float = 1110.0, attrs=None,
-              gid: str | None = None, crops=(E[0],), best_t: float | None = None, bbox=None) -> None:
+              gid: str | None = None, crops=(E[0],), best_t: float | None = None, bbox=None,
+              points=None) -> None:
+        """`bbox` gives the track stored points at 4 Hz over its span (like real tracks); `points` lists exact times."""
         with self.db.write() as c:
             c.execute("INSERT INTO tracks(id,camera_id,cls,t_start,t_end,n_obs,best_t,attrs,global_id) "
                       "VALUES(?,?,?,?,?,?,?,?,?)", (tid, cam, cls, t0, t1, 10, best_t, json.dumps(attrs or {}), gid))
-            if bbox is not None:
-                c.execute("INSERT INTO track_points(track_id,t,x1,y1,x2,y2,conf) VALUES(?,?,?,?,?,?,1)",
-                          (tid, t0, *bbox))
+            box = bbox if bbox is not None else ((0.1, 0.1, 0.2, 0.3) if points is not None else None)
+            if box is not None:
+                times = list(points) if points is not None else [t0 + k * 0.25 for k in range(int((t1 - t0) * 4) + 1)]
+                for t in times:
+                    c.execute("INSERT INTO track_points(track_id,t,x1,y1,x2,y2,conf) VALUES(?,?,?,?,?,?,1)",
+                              (tid, t, *box))
         rows = [{"vector": [float(x) for x in v], "track_id": tid, "camera_id": cam, "cls": cls, "t": t0 + i,
                  "quality": 0.5, "crop_path": f"{tid}_{i}.jpg"} for i, v in enumerate(crops)]
         if rows:

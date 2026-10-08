@@ -36,6 +36,9 @@ from evora.query.fuse import (
 )
 from evora.query.logic import Candidate, TrackRec, instant_in_window, span_in_window
 
+MIN_POINTS_IN_WINDOW = 2   # track points (about 4 per second) a track needs inside the window to count as present
+MIN_PRESENCE_S = 0.5        # and they must span at least this long
+
 
 class TextEmbedder(Protocol):
     def embed_text(self, text: str) -> np.ndarray: ...
@@ -264,6 +267,27 @@ class Retriever:
         self._bm25_cache = (count, bm25)
         return bm25
 
+    def _presence(self, pool: dict[str, dict[str, Any]], scope: SearchScope) -> dict[str, list[float]]:
+        """Times each pooled track was actually on screen inside the query window (from track_points).
+
+        A track whose span merely overlaps the window (a parked car, a long visit) is not present in it.
+        Tracks with no stored points are left out of the result, so callers keep the span-based decision.
+        """
+        window = scope.window
+        if window is None or not (window.start is not None or window.end is not None or window.tod_after
+                                  or window.tod_before):
+            return {}
+        out: dict[str, list[float]] = {}
+        ids = list(pool)
+        with self._db.read() as conn:
+            for i in range(0, len(ids), 400):
+                chunk = ids[i:i + 400]
+                marks = ",".join("?" * len(chunk))
+                for row in conn.execute(f"SELECT track_id, t FROM track_points WHERE track_id IN ({marks}) "
+                                        "ORDER BY track_id, t", chunk):
+                    out.setdefault(row["track_id"], []).append(row["t"])
+        return {tid: [t for t in times if instant_in_window(t, window, scope.tz)] for tid, times in out.items()}
+
     def _track_candidates(self, plan: QueryPlan, scope: SearchScope, cams: list[str], variants: list[str],
                           tables: set[str], out: RetrievalResult) -> None:
         target = plan.targets[0]
@@ -278,8 +302,12 @@ class Retriever:
         bm25 = self._captions(cams, tables)
         caption_scores = bm25.scores(" ".join([target.noun, *target.attributes, target.embed_text])) if bm25 else {}
 
+        present = self._presence(pool, scope)
         used: set[str] = set()
         for tid, row in pool.items():
+            inside = present.get(tid)
+            if inside is not None and (len(inside) < MIN_POINTS_IN_WINDOW or inside[-1] - inside[0] < MIN_PRESENCE_S):
+                continue  # overlaps the window by span only: not on screen in it
             sig = TrackSignals(tid)
             pairs = sims.get(tid)
             if pairs:
@@ -305,8 +333,11 @@ class Retriever:
                 used.add("scenes")
             if sig.image is None and sig.attributes is None and sig.caption is None:
                 continue  # nothing says this track matches: not a candidate
-            track = TrackRec(tid, row["camera_id"], row["cls"], row["t_start"], row["t_end"],
-                             sig.peak_t if sig.peak_t is not None else row["best_t"], row["global_id"])
+            peak = sig.peak_t if sig.peak_t is not None else row["best_t"]
+            if inside:  # the best crop may be from another part of a long track: use the nearest moment in the window
+                if peak is None or not instant_in_window(peak, scope.window, scope.tz):
+                    peak = min(inside, key=lambda t: abs(t - peak)) if peak is not None else inside[len(inside) // 2]
+            track = TrackRec(tid, row["camera_id"], row["cls"], row["t_start"], row["t_end"], peak, row["global_id"])
             out.candidates.append(Candidate(track, blend(sig, self.cfg.weights), tuple(sig.why)))
         out.layers += sorted(used - set(out.layers))
 

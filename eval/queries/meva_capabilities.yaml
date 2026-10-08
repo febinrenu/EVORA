@@ -22,19 +22,7 @@
   - meva
   - cap:object
   - G299
-  split: test
-- id: meva_cap_G299_1010_0_count_person
-  text: How many people were seen on G299 between 10:10 and 10:11?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 4
-  tags:
-  - meva
-  - cap:count
-  - G299
-  split: test
+  split: judge_sim
 - id: meva_cap_G299_1010_0_negative_vehicle
   text: Was there a vehicle on G299 between 10:10 and 10:11?
   workspace: meva-school
@@ -46,7 +34,7 @@
   - meva
   - cap:negative
   - G299
-  split: test
+  split: judge_sim
 - id: meva_cap_G299_1010_60_negative_vehicle
   text: Was there a vehicle on G299 between 10:11 and 10:12?
   workspace: meva-school
@@ -58,7 +46,7 @@
   - meva
   - cap:negative
   - G299
-  split: test
+  split: judge_sim
 - id: meva_cap_G299_1010_120_negative_vehicle
   text: Was there a vehicle on G299 between 10:12 and 10:13?
   workspace: meva-school
@@ -70,7 +58,7 @@
   - meva
   - cap:negative
   - G299
-  split: test
+  split: judge_sim
 - id: meva_cap_G299_1010_180_negative_vehicle
   text: Was there a vehicle on G299 between 10:13 and 10:14?
   workspace: meva-school
@@ -82,7 +70,7 @@
   - meva
   - cap:negative
   - G299
-  split: test
+  split: judge_sim
 - id: meva_cap_G300_1010_180_object_person
   text: Was there a person on G300 between 10:13 and 10:14?
   workspace: meva-school
@@ -99,18 +87,6 @@
   tags:
   - meva
   - cap:object
-  - G300
-  split: test
-- id: meva_cap_G300_1010_180_count_person
-  text: How many people were seen on G300 between 10:13 and 10:14?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 2
-  tags:
-  - meva
-  - cap:count
   - G300
   split: test
 - id: meva_cap_G300_1010_0_object_person
@@ -132,18 +108,6 @@
   tags:
   - meva
   - cap:object
-  - G300
-  split: test
-- id: meva_cap_G300_1010_0_count_person
-  text: How many people were seen on G300 between 10:10 and 10:11?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 3
-  tags:
-  - meva
-  - cap:count
   - G300
   split: test
 - id: meva_cap_G300_1010_60_object_person
@@ -171,30 +135,6 @@
   tags:
   - meva
   - cap:object
-  - G300
-  split: test
-- id: meva_cap_G300_1010_60_count_person
-  text: How many people were seen on G300 between 10:11 and 10:12?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 5
-  tags:
-  - meva
-  - cap:count
-  - G300
-  split: test
-- id: meva_cap_G300_1010_120_negative_person
-  text: Was there a person on G300 between 10:12 and 10:13?
-  workspace: meva-school
-  intent: exists
-  expected:
-    verdict: 'no'
-    hits: []
-  tags:
-  - meva
-  - cap:negative
   - G300
   split: test
 - id: meva_cap_G300_1010_60_object_vehicle
@@ -227,54 +167,6 @@
   - cap:object
   - G300
   split: test
-- id: meva_cap_G300_1010_60_count_vehicle
-  text: How many vehicles were seen on G300 between 10:11 and 10:12?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 6
-  tags:
-  - meva
-  - cap:count
-  - G300
-  split: test
-- id: meva_cap_G300_1010_0_negative_vehicle
-  text: Was there a vehicle on G300 between 10:10 and 10:11?
-  workspace: meva-school
-  intent: exists
-  expected:
-    verdict: 'no'
-    hits: []
-  tags:
-  - meva
-  - cap:negative
-  - G300
-  split: test
-- id: meva_cap_G300_1010_120_negative_vehicle
-  text: Was there a vehicle on G300 between 10:12 and 10:13?
-  workspace: meva-school
-  intent: exists
-  expected:
-    verdict: 'no'
-    hits: []
-  tags:
-  - meva
-  - cap:negative
-  - G300
-  split: test
-- id: meva_cap_G300_1010_180_negative_vehicle
-  text: Was there a vehicle on G300 between 10:13 and 10:14?
-  workspace: meva-school
-  intent: exists
-  expected:
-    verdict: 'no'
-    hits: []
-  tags:
-  - meva
-  - cap:negative
-  - G300
-  split: test
 - id: meva_cap_G419_1010_120_object_person
   text: Was there a person on G419 between 10:12 and 10:13?
   workspace: meva-school
@@ -297,18 +189,6 @@
   tags:
   - meva
   - cap:object
-  - G419
-  split: dev
-- id: meva_cap_G419_1010_120_count_person
-  text: How many people were seen on G419 between 10:12 and 10:13?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 4
-  tags:
-  - meva
-  - cap:count
   - G419
   split: dev
 - id: meva_cap_G419_1010_240_object_person
@@ -345,30 +225,6 @@
   tags:
   - meva
   - cap:object
-  - G419
-  split: dev
-- id: meva_cap_G419_1010_240_count_person
-  text: How many people were seen on G419 between 10:14 and 10:15?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 8
-  tags:
-  - meva
-  - cap:count
-  - G419
-  split: dev
-- id: meva_cap_G419_1010_60_negative_person
-  text: Was there a person on G419 between 10:11 and 10:12?
-  workspace: meva-school
-  intent: exists
-  expected:
-    verdict: 'no'
-    hits: []
-  tags:
-  - meva
-  - cap:negative
   - G419
   split: dev
 - id: meva_cap_G419_1010_0_negative_vehicle
@@ -439,19 +295,7 @@
   - meva
   - cap:object
   - G421
-  split: judge_sim
-- id: meva_cap_G421_1010_60_count_person
-  text: How many people were seen on G421 between 10:11 and 10:12?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 3
-  tags:
-  - meva
-  - cap:count
-  - G421
-  split: judge_sim
+  split: test
 - id: meva_cap_G421_1010_120_object_person
   text: Was there a person on G421 between 10:12 and 10:13?
   workspace: meva-school
@@ -481,19 +325,7 @@
   - meva
   - cap:object
   - G421
-  split: judge_sim
-- id: meva_cap_G421_1010_120_count_person
-  text: How many people were seen on G421 between 10:12 and 10:13?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 6
-  tags:
-  - meva
-  - cap:count
-  - G421
-  split: judge_sim
+  split: test
 - id: meva_cap_G421_1010_0_object_person
   text: Was there a person on G421 between 10:10 and 10:11?
   workspace: meva-school
@@ -526,19 +358,7 @@
   - meva
   - cap:object
   - G421
-  split: judge_sim
-- id: meva_cap_G421_1010_0_count_person
-  text: How many people were seen on G421 between 10:10 and 10:11?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 7
-  tags:
-  - meva
-  - cap:count
-  - G421
-  split: judge_sim
+  split: test
 - id: meva_cap_G421_1010_180_object_person
   text: Was there a person on G421 between 10:13 and 10:14?
   workspace: meva-school
@@ -574,19 +394,7 @@
   - meva
   - cap:object
   - G421
-  split: judge_sim
-- id: meva_cap_G421_1010_180_count_person
-  text: How many people were seen on G421 between 10:13 and 10:14?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 8
-  tags:
-  - meva
-  - cap:count
-  - G421
-  split: judge_sim
+  split: test
 - id: meva_cap_G421_1010_0_negative_vehicle
   text: Was there a vehicle on G421 between 10:10 and 10:11?
   workspace: meva-school
@@ -598,7 +406,7 @@
   - meva
   - cap:negative
   - G421
-  split: judge_sim
+  split: test
 - id: meva_cap_G421_1010_60_negative_vehicle
   text: Was there a vehicle on G421 between 10:11 and 10:12?
   workspace: meva-school
@@ -610,7 +418,7 @@
   - meva
   - cap:negative
   - G421
-  split: judge_sim
+  split: test
 - id: meva_cap_G421_1010_120_negative_vehicle
   text: Was there a vehicle on G421 between 10:12 and 10:13?
   workspace: meva-school
@@ -622,7 +430,7 @@
   - meva
   - cap:negative
   - G421
-  split: judge_sim
+  split: test
 - id: meva_cap_G421_1010_180_negative_vehicle
   text: Was there a vehicle on G421 between 10:13 and 10:14?
   workspace: meva-school
@@ -634,7 +442,7 @@
   - meva
   - cap:negative
   - G421
-  split: judge_sim
+  split: test
 - id: meva_cap_G423_1010_0_negative_vehicle
   text: Was there a vehicle on G423 between 10:10 and 10:11?
   workspace: meva-school
@@ -707,18 +515,6 @@
   - cap:object
   - G328
   split: dev
-- id: meva_cap_G328_1010_120_count_person
-  text: How many people were seen on G328 between 10:12 and 10:13?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 4
-  tags:
-  - meva
-  - cap:count
-  - G328
-  split: dev
 - id: meva_cap_G328_1010_60_object_person
   text: Was there a person on G328 between 10:11 and 10:12?
   workspace: meva-school
@@ -750,18 +546,6 @@
   tags:
   - meva
   - cap:object
-  - G328
-  split: dev
-- id: meva_cap_G328_1010_60_count_person
-  text: How many people were seen on G328 between 10:11 and 10:12?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 7
-  tags:
-  - meva
-  - cap:count
   - G328
   split: dev
 - id: meva_cap_G328_1010_180_object_person
@@ -800,18 +584,6 @@
   - cap:object
   - G328
   split: dev
-- id: meva_cap_G328_1010_180_count_person
-  text: How many people were seen on G328 between 10:13 and 10:14?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 8
-  tags:
-  - meva
-  - cap:count
-  - G328
-  split: dev
 - id: meva_cap_G328_1010_60_object_vehicle
   text: Was there a vehicle on G328 between 10:11 and 10:12?
   workspace: meva-school
@@ -825,18 +597,6 @@
   tags:
   - meva
   - cap:object
-  - G328
-  split: dev
-- id: meva_cap_G328_1010_60_count_vehicle
-  text: How many vehicles were seen on G328 between 10:11 and 10:12?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 1
-  tags:
-  - meva
-  - cap:count
   - G328
   split: dev
 - id: meva_cap_G328_1010_120_object_vehicle
@@ -857,18 +617,6 @@
   - cap:object
   - G328
   split: dev
-- id: meva_cap_G328_1010_120_count_vehicle
-  text: How many vehicles were seen on G328 between 10:12 and 10:13?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 2
-  tags:
-  - meva
-  - cap:count
-  - G328
-  split: dev
 - id: meva_cap_G328_1010_240_object_vehicle
   text: Was there a vehicle on G328 between 10:14 and 10:15?
   workspace: meva-school
@@ -885,18 +633,6 @@
   tags:
   - meva
   - cap:object
-  - G328
-  split: dev
-- id: meva_cap_G328_1010_240_count_vehicle
-  text: How many vehicles were seen on G328 between 10:14 and 10:15?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 2
-  tags:
-  - meva
-  - cap:count
   - G328
   split: dev
 - id: meva_cap_G328_1010_180_object_vehicle
@@ -927,17 +663,5 @@
   tags:
   - meva
   - cap:object
-  - G328
-  split: dev
-- id: meva_cap_G328_1010_180_count_vehicle
-  text: How many vehicles were seen on G328 between 10:13 and 10:14?
-  workspace: meva-school
-  intent: count
-  expected:
-    verdict: count
-    count: 6
-  tags:
-  - meva
-  - cap:count
   - G328
   split: dev

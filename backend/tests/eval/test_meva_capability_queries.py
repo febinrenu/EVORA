@@ -44,22 +44,29 @@ def secs(n):
 
 @pytest.fixture
 def root(tmp_path):
-    # G340: a person on screen 5-25 s and another 70-80 s; one car 130-140 s; the first minute has one person
+    # G340: a person on screen 5-25 s and another 70-80 s, one car 130-140 s
     write_clip(tmp_path, "G340", {
         1: ("person", [(secs(5), secs(25))]),
         2: ("person", [(secs(70), secs(80))]),
         3: ("vehicle", [(secs(130), secs(140))]),
         4: ("bag", [(secs(5), secs(10))]),
     })
+    # G341: people only, so no vehicle is annotated anywhere in its clip
+    write_clip(tmp_path, "G341", {1: ("person", [(secs(40), secs(50))])})
     return tmp_path
 
 
-def build(root, **kw):
-    return m.build_items(root, "2018-03-09", "10-10-00", TZ, {"G340": "cam_01"}, "w", **kw)
+def build(root, cams=("G340",), **kw):
+    cmap = {c: f"cam_{i + 1:02d}" for i, c in enumerate(cams)}
+    return m.build_items(root, "2018-03-09", "10-10-00", TZ, cmap, "w", **kw)
 
 
 def find(items, kind, cls):
     return [i for i in items if i["id"].endswith(f"_{kind}_{cls}")]
+
+
+def starts(items):
+    return sorted(int(i["id"].split("_")[4]) for i in items)
 
 
 def test_actors_are_read_with_their_classes_and_spans(root):
@@ -82,53 +89,56 @@ def test_whole_windows_only():
 
 def test_object_queries_carry_exact_hits_clipped_to_the_window(root):
     items = build(root)
-    people = {i["id"].split("_")[4]: i for i in find(items, "object", "person")}  # keyed by window start
-    first = people["0"]
+    people = {int(i["id"].split("_")[4]): i for i in find(items, "object", "person")}
+    first = people[0]
     assert first["text"] == "Was there a person on G340 between 10:10 and 10:11?"
     assert first["expected"]["verdict"] == "yes" and first["intent"] == "exists"
     hit = first["expected"]["hits"][0]
     assert hit["camera_id"] == "cam_01"
-    start = datetime.fromisoformat(hit["start"])
-    end = datetime.fromisoformat(hit["end"])
-    assert start == datetime(2018, 3, 9, 10, 10, 5, tzinfo=TZ) and end == datetime(2018, 3, 9, 10, 10, 25, tzinfo=TZ)
-    assert people["60"]["expected"]["hits"][0]["start"].startswith("2018-03-09T10:11:10")
+    assert datetime.fromisoformat(hit["start"]) == datetime(2018, 3, 9, 10, 10, 5, tzinfo=TZ)
+    assert datetime.fromisoformat(hit["end"]) == datetime(2018, 3, 9, 10, 10, 25, tzinfo=TZ)
+    assert people[60]["expected"]["hits"][0]["start"].startswith("2018-03-09T10:11:10")
 
 
-def test_counts_are_distinct_actors_in_the_window(root):
+def test_counts_are_not_generated_because_annotated_counts_are_lower_bounds(root):
+    items = build(root, cams=("G340", "G341"))
+    assert not [i for i in items if i["intent"] == "count" or "cap:count" in i["tags"]]
+    assert "count" in m.UNSUPPORTED and "lower bound" in m.UNSUPPORTED["count"]
+
+
+def test_a_window_merely_empty_of_annotated_actors_is_not_called_empty(root):
+    # G340 has people and a car somewhere in its clip: a quiet minute may still hold an unlabelled parked car
     items = build(root)
-    counts = {i["id"].split("_")[4]: i["expected"]["count"] for i in find(items, "count", "person")}
-    assert counts == {"0": 1, "60": 1}  # windows with no person are not count queries (they are negatives)
-    vehicles = find(items, "count", "vehicle")
-    assert [i["expected"]["count"] for i in vehicles] == [1] and vehicles[0]["intent"] == "count"
+    assert find(items, "negative", "vehicle") == [] and find(items, "negative", "person") == []
 
 
-def test_negatives_are_windows_with_no_actor_of_that_class_at_all(root):
-    items = build(root)
-    vehicle_windows = sorted(int(i["id"].split("_")[4]) for i in find(items, "negative", "vehicle"))
-    assert vehicle_windows == [0, 60, 180, 240]  # the car is only in 120-180 (frames 130-140 s)
-    assert all(i["expected"] == {"verdict": "no", "hits": []} for i in find(items, "negative", "vehicle"))
-    person_neg = sorted(int(i["id"].split("_")[4]) for i in find(items, "negative", "person"))
-    assert person_neg == [120, 180, 240]
+def test_negatives_exist_only_for_a_class_absent_from_the_whole_clip(root):
+    items = build(root, cams=("G340", "G341"))
+    vehicle_negs = find(items, "negative", "vehicle")
+    assert {i["tags"][2] for i in vehicle_negs} == {"G341"}  # only the camera with no annotated vehicle at all
+    assert starts(vehicle_negs) == [0, 60, 120, 180]  # the first four whole windows (per_kind caps them)
+    assert all(i["expected"] == {"verdict": "no", "hits": []} and i["intent"] == "exists" for i in vehicle_negs)
+    assert find(items, "negative", "person") == []
 
 
-def test_a_brief_flicker_is_neither_presence_nor_proof_of_absence(tmp_path):
+def test_a_brief_flicker_is_neither_presence_nor_a_reason_to_build_a_person_negative(tmp_path):
     write_clip(tmp_path, "G340", {1: ("person", [(secs(61), secs(61) + 10)])})  # a third of a second in 60-120 s
     items = m.build_items(tmp_path, "2018-03-09", "10-10-00", TZ, {"G340": "cam_01"}, "w")
-    assert find(items, "object", "person") == []  # too brief to be a positive...
-    empty = sorted(int(i["id"].split("_")[4]) for i in find(items, "negative", "person"))
-    assert empty == [0, 120, 180, 240]  # ...and that window is too unclear to call empty, so it is left out
+    assert find(items, "object", "person") == []  # too brief to be a positive
+    assert find(items, "negative", "person") == []  # the class is annotated in this clip, so no person negatives
+    assert len(find(items, "negative", "vehicle")) == 4  # but no vehicle was ever annotated
 
 
 def test_only_mapped_cameras_and_every_item_is_tagged_with_a_capability(root):
     write_clip(root, "G999", {1: ("person", [(0, secs(20))])})
-    items = build(root)
+    items = build(root, cams=("G340", "G341"))
     assert items and all(i["tags"][1].startswith("cap:") and "G999" not in i["tags"] for i in items)
-    assert {i["tags"][1] for i in items} == {"cap:object", "cap:count", "cap:negative"}
+    assert {i["tags"][1] for i in items} == {"cap:object", "cap:negative"}
     assert m.build_items(root, "2018-03-09", "10-10-00", TZ, {"G111": "x"}, "w") == []
 
 
-def test_the_capabilities_the_data_cannot_ground_are_declared():
-    assert set(m.UNSUPPORTED) == {"carrying", "colour", "path"}
+def test_the_capabilities_the_data_cannot_ground_are_declared_with_a_reason():
+    assert set(m.UNSUPPORTED) == {"count", "carrying", "colour", "path"}
     assert all(len(reason) > 30 for reason in m.UNSUPPORTED.values())
 
 
@@ -144,17 +154,28 @@ def test_splits_are_by_camera_so_a_test_scene_is_never_a_dev_scene():
     assert all(len(s) == 1 for s in seen.values())  # each camera lives in exactly one split
 
 
+def test_cameras_already_examined_can_be_pinned_to_dev_so_held_out_splits_stay_unseen():
+    items = []
+    for cam, n in [("G1", 10), ("G2", 8), ("G3", 5), ("G4", 3), ("G5", 2)]:
+        items += [{"id": f"{cam}_{i}", "tags": ["meva", "cap:object", cam], "split": "dev"} for i in range(n)]
+    m.assign_by_camera(items, {"dev": 0.5, "test": 0.3, "judge_sim": 0.2}, pinned={"G3": "dev", "G4": "dev"})
+    by_cam = {it["tags"][2]: it["split"] for it in items}
+    assert by_cam["G3"] == "dev" and by_cam["G4"] == "dev"
+    assert {by_cam["G1"], by_cam["G2"], by_cam["G5"]} <= {"test", "judge_sim"}  # nothing else leaks into dev
+    assert {"test", "judge_sim"} <= set(by_cam.values())
+
+
 def test_cli_writes_a_file_the_harness_loads(root, tmp_path, capsys):
     cmap = tmp_path / "map.json"
-    cmap.write_text(json.dumps({"G340": "cam_01"}))
+    cmap.write_text(json.dumps({"G340": "cam_01", "G341": "cam_02"}))
     out = tmp_path / "caps.yaml"
     code = m.main(["--annotations", str(root), "--date", "2018-03-09", "--start", "10-10-00",
-                   "--camera-map", str(cmap), "--splits", "dev:1", "--out", str(out)])
+                   "--camera-map", str(cmap), "--splits", "dev:1,test:1", "--dev-cameras", "G340", "--out", str(out)])
     assert code == 0
     printed = capsys.readouterr().out
-    assert "by capability:" in printed and "unsupported - colour" in printed and "unsupported - carrying" in printed
+    assert "by capability:" in printed and "unsupported - colour" in printed and "unsupported - count" in printed
     items = load_queries([out])
-    assert {i.split for i in items} == {"dev"} and any(i.is_negative for i in items)
-    assert any(i.intent == "count" and i.expected.count is not None for i in items)
+    assert {i.split for i in items} == {"dev", "test"} and any(i.is_negative for i in items)
+    assert all(i.split == "dev" for i in items if "G340" in i.tags)  # the pinned camera
     assert m.main(["--annotations", str(root), "--date", "2018-03-09", "--start", "09-00-00",
                    "--camera-map", str(cmap), "--out", str(tmp_path / "none.yaml")]) == 2
