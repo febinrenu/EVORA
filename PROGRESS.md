@@ -23,9 +23,9 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M2 — Perception & Identity
 - State: on track
-- Doing: P2.4-P2.10 perception pipeline (decode, clock, motion, detect, track, crops, embed, pipeline); detect_clock and ingest for M1
-- Next: P2.3 detector spike on the RTX 4060, then golden mini-index for M3
-- Blockers: none; MEVA and WILDTRACK downloads still running
+- Doing: L2 attributes and events (P2.11-P2.12), then face blur and ReID
+- Next: fetch an annotated MEVA window for M3, blur_faces for M1, fastembed model for M1, colour and carrying attributes
+- Blockers: none
 
 ### M3 — Reasoning, Retrieval & Science
 - State: on track
@@ -63,10 +63,13 @@ State values: not started · on track · at risk · blocked · done
 |---|---|---|---|---|---|---|
 
 ---
+| 17:14 | 302926c | RTX 4060 Laptop, 8 GB | gpu | L0 | 6.5 | EPFL terrace 360x288, scene embeddings every 2 s |
+| 17:14 | 302926c | RTX 4060 Laptop, 8 GB | gpu | L1 | 2.3-3.2 | EPFL terrace 25 fps, motion gate 1-8 fps (about 6 fps sampled), single process; speed-up planned (P2.18) |
 
 ## Decisions (append only)
 - [HH:MM] [M1] DECISION: project name evora, Python package `evora`. Why: short, local, meaningful. Impact: none.
 - [16:06] [M2] DECISION: naive times in file names are read in Asia/Kolkata (clock.default_tz). Why: the team and the judging venue are in IST. Impact: M3 time anchoring uses epoch seconds, so only the file-name interpretation depends on it.
+- [17:14] [M2] DECISION: detector yolo26n.pt, profile gpu on the RTX 4060 laptop. Why: n and s both run about 85 fps detect+track on 360x288 (bound by per-frame tracker overhead, not the network), so n is enough. Impact: ingest speed; set `ingest.detector` to change.
 
 ## Contract change requests (append only)
 - [19:30] [M1] REQUEST (self-approved, additive): `MemoryFact.inferred_aliases: list[str] = []` and table `memory_inferred`; `PATCH /api/memory/{id}` takes `confirm_aliases`. Why: the Known places ledger should show which aliases are guesses, and a correction must drop wrong guesses. Affects: M4 (types regenerated). → [19:30] [M1] APPROVED v1.2 (f15509a)
@@ -89,6 +92,8 @@ State values: not started · on track · at risk · blocked · done
 <!-- - [HH:MM] [M4] → M1: /api/cameras should include thumbnail URL. → [HH:MM] [M1] done (abc1234) -->
 - [16:06] [M2] → M1: add perception dependencies to backend/pyproject.toml (av, opencv-python-headless, numpy, pillow, torch, torchvision, ultralytics, transformers, tzdata, boxmot) and an `ingest:` block in config/default.yaml (keys in backend/evora/perception/settings.py, all have defaults). Also: jobs.py should call add_layers only for layers ingest finished (progress 1.0); L2 and L3 are not implemented yet and ingest skips them.
 - [16:06] [M2] → M1: media paths I store (crops.crop_path, scenes.frame_path, tracks.best_crop) are relative to the workspace media/ directory, e.g. crops/cam_01/t000001_0.jpg. Tell me if the media service expects another base.
+- [17:14] [M2] → M3: `evora.perception.embed.query_embedder()` is in (841ad11): `.embed_text(str)` returns a 768-d L2-normalised vector in the same space as crops and scenes; `.embed_images(list)` too. It uses the local cache offline. meta.embed_dim_image is set at ingest. tracks.best_t is filled; tracks.attrs stays '{}' until P2.11 (colour, type, carrying).
+- [17:14] [M2] → M1: query_embedder() above is the hook you asked for. Your stub test in tests/api/test_cameras_ingest.py runs the real pipeline once torch is installed; pass `ingest_fn` explicitly there so make check stays fast. Reply on face blur: queued as P2.16.
 
 ## Known issues (append; mark fixed with commit)
 
@@ -96,6 +101,7 @@ State values: not started · on track · at risk · blocked · done
 
 ---
 - [16:06] [M2] EPFL terrace1, passageway1 and 6p (12 clips) downloaded and normalised to H.264 mp4 under data/norm/epfl; manifest at data/manifest.json. MEVA 2018-03-05 11:05-11:10 slice and WILDTRACK zip downloading.
+- [17:14] [M2] Local mini index at workspaces/mini (2 cameras, EPFL terrace1-c0/c1, 200 s each, t0 2026-10-01T09:00+05:30): 190 tracks, 740 crop and 1010 scene vectors. Not in git. Rebuild: `python scripts/data/fetch_epfl.py --only terrace1`, `bash scripts/data/transcode.sh data/raw/epfl data/norm/epfl`, `python -m evora.perception.cli ingest data/norm/epfl/terrace1-c0.mp4 data/norm/epfl/terrace1-c1.mp4 --workspace mini --profile gpu --t0 2026-10-01T09:00:00+05:30`. SigLIP2, bge-small, YOLO26, YOLOE-26 and YuNet weights are in models/ (python scripts/models_download.py). qwen3-vl:4b pulled; qwen3.5:4b needs Ollama >= a newer release than 0.17.1 (pull refused).
 
 ## Log (append only, newest at the bottom)
 - [HH:MM] [M1] Repository created; PROGRESS.md initialised.
@@ -137,3 +143,5 @@ State values: not started · on track · at risk · blocked · done
 - [19:30] [M1] P1.8 improvements done (f2c43c9), approved by Adhu: guessed aliases are tracked (`inferred_aliases`), dropped on correction, confirmable; time aliases are first-class (`resolve_time`, `define_time`, typed hours). CONTRACT v1.2 (f15509a). Resolutions now expose `.status` and `.facts` as M3's router protocol expects.
 - [20:40] [M1] P1.9 done (4d6ee85): real /api/query, /api/clarify and /api/voice through M3's Router (planner, memory, clarify, composer, verifier with blur-first crops, pre-render on `answer`), shared Gateway built from `.env`, 422/410 for unusable or closed clarifications, errors become `error` then `done`. Config blocks `ingest:` and `retrieval:` added (aaf7521); jobs fix (609fed0).
 - [20:40] [M1] P1.11 done early (4d6ee85): `tests/e2e/test_clarify_once.py` over HTTP: ask, answer once, restart every object, original and two paraphrases ask nothing and the line survives; with alias embeddings off the paraphrase asks again (C4 ablation). 618 tests in make check.
+- [17:14] [M2] P2.3 done: detector spike on the RTX 4060 (yolo26n 85 fps, yolo26s 86 fps with ByteTrack; CPU yolo26n 34 fps) (302926c).
+- [17:14] [M2] P2.4-P2.10 done: decode, clock, motion gate, detect, track, crops, SigLIP2 embeddings, layered pipeline and CLI. detect_clock and ingest are live for M1; 36 tests (785d5e7, 302926c, 841ad11). Golden mini index built locally (see Datasets).
