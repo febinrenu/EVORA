@@ -142,3 +142,64 @@ def test_every_track_still_gets_an_identity(tmp_path):
     assert all(gids) and len(set(gids)) == len(ids)
     assert json.dumps(sorted(gids))
     assert unit(np.ones(3)).shape == (3,)
+
+
+# ---- within-camera re-clustering: fragments of one person come together, look-alikes in a crowd do not
+def _unit(*xs):
+    import numpy as np
+
+    v = np.array(xs, dtype=np.float32)
+    return v / np.linalg.norm(v)
+
+
+def _track(tid, t0, t1, vec, cam="cam_01"):
+    from evora.reid.associate import T
+
+    return T(tid, cam, "person", t0, t1, vec, {}, (0.5, 0.9), (0.5, 0.9))
+
+
+def test_one_person_coming_back_after_a_long_absence_is_one_identity():
+    import numpy as np
+
+    from evora.perception.settings import IngestSettings
+    from evora.reid.associate import recluster_camera
+
+    rng = np.random.default_rng(1)
+    people = [_unit(*rng.normal(size=16)) for _ in range(3)]
+    tracks = []
+    for k in range(4):          # each of three people shows up four times, 30 s apart; three people are always in view together
+        for p, base in enumerate(people):
+            noisy = base + 0.05 * rng.normal(size=16).astype(np.float32)
+            tracks.append(_track(f"p{p}_{k}", 100.0 * k + 5 * p, 100.0 * k + 5 * p + 60.0, noisy / np.linalg.norm(noisy)))
+    groups = recluster_camera(tracks, IngestSettings(reid_recluster_min_pairs=5))
+    assert sorted(len(g) for g in groups) == [4, 4, 4]
+    for g in groups:
+        assert len({t.id.split("_")[0] for t in g}) == 1          # nobody was joined to somebody else
+
+
+def test_look_alikes_seen_together_keep_the_bar_high():
+    import numpy as np
+
+    from evora.perception.settings import IngestSettings
+    from evora.reid.associate import recluster_camera
+
+    rng = np.random.default_rng(2)
+    common = _unit(*rng.normal(size=16))      # everyone in dark jackets: a shared direction plus a little of their own
+    tracks = []
+    for i in range(30):
+        own = _unit(*rng.normal(size=16))
+        v = 0.93 * common + 0.37 * own
+        tracks.append(_track(f"t{i}", 10.0 * (i // 10), 10.0 * (i // 10) + 8.0, v / np.linalg.norm(v)))
+    # ten at a time, 3 waves: concurrent tracks are all look-alikes, so the cosine bar becomes their own level
+    groups = recluster_camera(tracks, IngestSettings(reid_recluster_min_pairs=5, reid_recluster_floor=0.5))
+    assert max((len(g) for g in groups), default=0) <= 3        # no big blob of look-alikes
+    for g in groups:                                              # and nobody seen at the same time was joined
+        assert all(min(a.t1, b.t1) - max(a.t0, b.t0) <= 0.5 for a in g for b in g if a is not b)
+
+
+def test_too_few_concurrent_pairs_means_no_reclustering():
+    from evora.perception.settings import IngestSettings
+    from evora.reid.associate import recluster_camera
+
+    tracks = [_track(f"t{i}", 100.0 * i, 100.0 * i + 5, _unit(1, 0.1 * i, 0)) for i in range(6)]   # never two at once
+    assert recluster_camera(tracks, IngestSettings()) == []

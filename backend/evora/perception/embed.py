@@ -53,6 +53,13 @@ class SigLIP2Embedder:
         self.model = AutoModel.from_pretrained(cfg.image_model, torch_dtype=dtype).to(self.device).eval()
         self._lock = threading.Lock()
         self._torch = torch
+        pp = self.processor.image_processor
+        size = getattr(pp, "size", None)
+        side = size["height"] if size and size.get("height") == size.get("width") else None
+        # the model's own preprocessing (square resize with PIL bilinear, mean and std 0.5) done with less overhead:
+        # the HF processor costs about as much CPU time per image as the model costs GPU time
+        self._fast_side = side if (side and tuple(pp.image_mean) == (0.5,) * 3 and tuple(pp.image_std) == (0.5,) * 3
+                                   and getattr(pp, "resample", None) == 2 and self.device == "cuda") else None
         self.dim = int(self.model.config.vision_config.hidden_size)
         log.info("siglip2 %s on %s, dim %d", cfg.image_model, self.device, self.dim)
 
@@ -66,13 +73,25 @@ class SigLIP2Embedder:
         torch = self._torch
         chunks: list[np.ndarray] = []
         for i in range(0, len(images), self.cfg.embed_batch):
-            batch = [_to_pil(im) for im in images[i : i + self.cfg.embed_batch]]
-            inputs = self.processor(images=batch, return_tensors="pt").to(self.device)
-            if self.device == "cuda":
-                inputs["pixel_values"] = inputs["pixel_values"].half()
+            batch = images[i : i + self.cfg.embed_batch]
+            if self._fast_side:
+                pixels = self._fast_pixels(batch)
+            else:
+                inputs = self.processor(images=[_to_pil(im) for im in batch], return_tensors="pt").to(self.device)
+                pixels = inputs["pixel_values"].half() if self.device == "cuda" else inputs["pixel_values"]
             with self._lock, torch.inference_mode():
-                chunks.append(self._features(self.model.get_image_features(**inputs)))
+                chunks.append(self._features(self.model.get_image_features(pixel_values=pixels)))
         return _normalize(np.concatenate(chunks, axis=0))
+
+    def _fast_pixels(self, batch: Sequence[Any]):
+        from PIL import Image
+
+        side = self._fast_side
+        arr = np.stack([
+            np.asarray(_to_pil(im).convert("RGB").resize((side, side), Image.BILINEAR)) for im in batch
+        ])
+        t = self._torch.from_numpy(np.ascontiguousarray(arr)).to(self.device).permute(0, 3, 1, 2).half()
+        return (t / 255.0 - 0.5) / 0.5
 
     def embed_texts(self, texts: Sequence[str]) -> np.ndarray:
         torch = self._torch

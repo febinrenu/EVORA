@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from evora.core.config import REPO_ROOT
@@ -28,10 +28,11 @@ class LoadedDetector:
     names: dict[int, str]    # id -> label
     device: str
     half: bool
+    lock: threading.Lock = field(default_factory=threading.Lock)   # one predict at a time per model object
 
 
 _lock = threading.Lock()
-_cache: dict[tuple[str, str], LoadedDetector] = {}
+_cache: dict[tuple[str, str, int], LoadedDetector] = {}
 
 
 def resolve_device(requested: str) -> str:
@@ -56,7 +57,8 @@ def weights_path(name: str) -> str:
 
 def load_detector(cfg: IngestSettings) -> LoadedDetector:
     device = resolve_device(cfg.device)
-    key = (cfg.detector, device)
+    # one model object per thread: the 6 MB detector is cheap, and workers no longer queue behind one shared model
+    key = (cfg.detector, device, threading.get_ident())
     with _lock:
         cached = _cache.get(key)
         if cached is not None:

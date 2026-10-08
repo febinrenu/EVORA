@@ -85,6 +85,13 @@ class IngestSettings(BaseModel):
     reid_stitch_min_track_s: float = 0.5     # fragments this short can still be stitched
     reid_stitch_min_cos: float = 0.70        # appearance must be at least this similar ...
     reid_stitch_min_z: float = 2.0           # ... and stand out from the camera's background similarity
+    # within-camera re-clustering: the same person returning after an occlusion or a walk out of view
+    reid_recluster: bool = True
+    reid_recluster_q: float = 0.97           # merge above this quantile of the cosine between tracks seen at the same time
+    reid_recluster_floor: float = 0.70       # (those are different people, so it is this camera's own look-alike level)
+    reid_recluster_ceil: float = 0.92
+    reid_recluster_min_pairs: int = 20       # concurrent pairs needed to know that level; fewer = no re-clustering
+    reid_recluster_overlap_s: float = 0.5    # tracks overlapping longer than this are different people
     reid_stitch_reach: float = 0.06          # allowed jump (normalised) plus this much per second of gap
     # embeddings
     image_model: str = "google/siglip2-base-patch16-224"

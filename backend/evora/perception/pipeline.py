@@ -126,51 +126,66 @@ def _scene_image(img: np.ndarray, width: int) -> np.ndarray:
     return cv2.resize(img, (width, int(round(h * width / w)) // 2 * 2), interpolation=cv2.INTER_AREA)
 
 
-def _run_l0(cam: CameraInfo, path: Path, ws: Workspace, store, st: IngestSettings, embedder: SigLIP2Embedder,
-            duration: float | None, on_progress: ProgressFn) -> int:
-    cid = _check_id(cam.id)
-    table = store.open_table("scenes")
-    table.delete(f"camera_id = '{cid}'")
-    buffer = _RowBuffer(table)
-    shutil.rmtree(ws.media_dir / "scenes" / cid, ignore_errors=True)
-    rep = _Reporter(cam, "L0", duration, on_progress)
-    pending: list[tuple[float, str, dict[str, np.ndarray]]] = []
-    written = 0
-    next_t, last_pts = 0.0, 0.0
+class _SceneLayer:
+    """L0: a scene image and its embeddings every `scene_every_s`. Fed one decoded frame at a time."""
 
-    def flush() -> int:
-        if not pending:
+    def __init__(self, cam: CameraInfo, ws: Workspace, store, st: IngestSettings, embedder: SigLIP2Embedder,
+                 duration: float | None, on_progress: ProgressFn) -> None:
+        self.cam, self.ws, self.st, self.embedder = cam, ws, st, embedder
+        self.cid = _check_id(cam.id)
+        table = store.open_table("scenes")
+        table.delete(f"camera_id = '{self.cid}'")
+        self.buffer = _RowBuffer(table)
+        shutil.rmtree(ws.media_dir / "scenes" / self.cid, ignore_errors=True)
+        self.rep = _Reporter(cam, "L0", duration, on_progress)
+        self.pending: list[tuple[float, str, dict[str, np.ndarray]]] = []
+        self.written = 0
+        self.next_t, self.last_pts = 0.0, 0.0
+
+    def _flush(self) -> int:
+        if not self.pending:
             return 0
         imgs: list[np.ndarray] = []
         meta: list[tuple[float, str, str]] = []
-        for t, frame_path, tiles in pending:
+        for t, frame_path, tiles in self.pending:
             for name, tile in tiles.items():
                 imgs.append(tile)
                 meta.append((t, name, frame_path))
-        vecs = embedder.embed_images(imgs)
-        buffer.add([
-            {"vector": v.tolist(), "camera_id": cid, "t": cam.t0 + t, "tile": name, "frame_path": fp}
+        vecs = self.embedder.embed_images(imgs)
+        self.buffer.add([
+            {"vector": v.tolist(), "camera_id": self.cid, "t": self.cam.t0 + t, "tile": name, "frame_path": fp}
             for v, (t, name, fp) in zip(vecs, meta, strict=True)
         ])
         n = len(meta)
-        pending.clear()
+        self.pending.clear()
         return n
 
-    for frame in read_frames(path, st.max_width):
-        last_pts = frame.pts_s
-        if frame.pts_s + 1e-9 < next_t:
-            continue
-        next_t = (int(frame.pts_s / st.scene_every_s) + 1) * st.scene_every_s
-        out = ws.media_dir / "scenes" / cid / f"{int(round(frame.pts_s * 1000)):09d}.jpg"
+    def feed(self, frame) -> None:  # noqa: ANN001 - a decode.Frame
+        self.last_pts = frame.pts_s
+        if frame.pts_s + 1e-9 < self.next_t:
+            return
+        st = self.st
+        self.next_t = (int(frame.pts_s / st.scene_every_s) + 1) * st.scene_every_s
+        out = self.ws.media_dir / "scenes" / self.cid / f"{int(round(frame.pts_s * 1000)):09d}.jpg"
         save_jpeg(_scene_image(frame.image, st.scene_jpeg_width), out, st.crop_jpeg_quality)
-        pending.append((frame.pts_s, _rel(out, ws.media_dir), _tiles(frame.image)))
-        if len(pending) >= 8:
-            written += flush()
-        rep.tick(frame.pts_s)
-    written += flush()
-    buffer.flush()
-    rep.done(last_pts)
-    return written
+        self.pending.append((frame.pts_s, _rel(out, self.ws.media_dir), _tiles(frame.image)))
+        if len(self.pending) >= 8:
+            self.written += self._flush()
+        self.rep.tick(frame.pts_s)
+
+    def close(self) -> int:
+        self.written += self._flush()
+        self.buffer.flush()
+        self.rep.done(self.last_pts)
+        return self.written
+
+
+def _run_l0(cam: CameraInfo, path: Path, ws: Workspace, store, st: IngestSettings, embedder: SigLIP2Embedder,
+            duration: float | None, on_progress: ProgressFn) -> int:
+    layer = _SceneLayer(cam, ws, store, st, embedder, duration, on_progress)
+    for frame in read_frames(path, st.max_width):
+        layer.feed(frame)
+    return layer.close()
 
 
 def _delete_l1(db: Database, store, ws: Workspace, cid: str) -> None:
@@ -217,28 +232,58 @@ def _persist(db: Database, buffer: _RowBuffer, ws: Workspace, cam: CameraInfo, t
     return len(tracks)
 
 
+class _TrackLayer:
+    """L1: detect, track, crops and crop embeddings on the frames the sampler picks. Fed one frame at a time."""
+
+    def __init__(self, cam: CameraInfo, ws: Workspace, db: Database, store, st: IngestSettings,
+                 embedder: SigLIP2Embedder, duration: float | None, on_progress: ProgressFn) -> None:
+        self.cam, self.ws, self.db, self.st, self.embedder = cam, ws, db, st, embedder
+        self.cid = _check_id(cam.id)
+        _delete_l1(db, store, ws, self.cid)
+        self.buffer = _RowBuffer(store.open_table("crops"))
+        det = load_detector(st)
+        self.tracker, self.book, self.sampler = FrameTracker(det, st), TrackBook(st), AdaptiveSampler(st)
+        self.rep = _Reporter(cam, "L1", duration, on_progress)
+        self.n_tracks = self.n_frames = 0
+        self.last_pts = 0.0
+
+    def feed(self, frame) -> None:  # noqa: ANN001 - a decode.Frame
+        self.last_pts = frame.pts_s
+        if not self.sampler.should_process(frame.pts_s, frame):
+            return
+        self.n_frames += 1
+        self.book.observe(frame.pts_s, self.tracker.update(frame.image), frame.image)
+        self.n_tracks += _persist(self.db, self.buffer, self.ws, self.cam, self.book.finalize_stale(frame.pts_s),
+                                  self.st, self.embedder)
+        self.rep.tick(frame.pts_s)
+
+    def close(self) -> tuple[int, int]:
+        self.n_tracks += _persist(self.db, self.buffer, self.ws, self.cam, self.book.finalize_all(), self.st,
+                                  self.embedder)
+        self.buffer.flush()
+        self.rep.done(self.last_pts)
+        return self.n_tracks, self.n_frames
+
+
 def _run_l1(cam: CameraInfo, path: Path, ws: Workspace, db: Database, store, st: IngestSettings,
             embedder: SigLIP2Embedder, duration: float | None, on_progress: ProgressFn) -> tuple[int, int]:
-    cid = _check_id(cam.id)
-    _delete_l1(db, store, ws, cid)
-    buffer = _RowBuffer(store.open_table("crops"))
-    det = load_detector(st)
-    tracker, book, sampler = FrameTracker(det, st), TrackBook(st), AdaptiveSampler(st)
-    rep = _Reporter(cam, "L1", duration, on_progress)
-    n_tracks = n_frames = 0
-    last_pts = 0.0
+    layer = _TrackLayer(cam, ws, db, store, st, embedder, duration, on_progress)
     for frame in read_frames(path, st.max_width):
-        last_pts = frame.pts_s
-        if not sampler.should_process(frame.pts_s, frame):
-            continue
-        n_frames += 1
-        book.observe(frame.pts_s, tracker.update(frame.image), frame.image)
-        n_tracks += _persist(db, buffer, ws, cam, book.finalize_stale(frame.pts_s), st, embedder)
-        rep.tick(frame.pts_s)
-    n_tracks += _persist(db, buffer, ws, cam, book.finalize_all(), st, embedder)
-    buffer.flush()
-    rep.done(last_pts)
-    return n_tracks, n_frames
+        layer.feed(frame)
+    return layer.close()
+
+
+def _run_l0_l1(cam: CameraInfo, path: Path, ws: Workspace, db: Database, store, st: IngestSettings,
+               embedder: SigLIP2Embedder, duration: float | None, on_progress: ProgressFn) -> tuple[int, int, int]:
+    """L0 and L1 from one decode of the file (decoding is about a third of the time of each layer)."""
+    scenes = _SceneLayer(cam, ws, store, st, embedder, duration, on_progress)
+    tracks = _TrackLayer(cam, ws, db, store, st, embedder, duration, on_progress)
+    for frame in read_frames(path, st.max_width):
+        scenes.feed(frame)
+        tracks.feed(frame)
+    n_scenes = scenes.close()
+    n_tracks, n_frames = tracks.close()
+    return n_scenes, n_tracks, n_frames
 
 
 def ingest(
@@ -275,10 +320,14 @@ def ingest(
         if db.get_meta("tz") is None:   # the zone the clock reader assumed for file-name times; the planner needs it
             db.set_meta("tz", default_tz_offset(cam.t0))
     started = time.monotonic()
-    if "L0" in todo:
+    if "L0" in todo and "L1" in todo:
+        n, n_tracks, n_frames = _run_l0_l1(cam, path, ws, db, store, st, embedder, duration, on_progress)
+        log.info("%s L0: %d scene embeddings", cam.id, n)
+        log.info("%s L1: %d tracks from %d sampled frames", cam.id, n_tracks, n_frames)
+    elif "L0" in todo:
         n = _run_l0(cam, path, ws, store, st, embedder, duration, on_progress)
         log.info("%s L0: %d scene embeddings", cam.id, n)
-    if "L1" in todo:
+    elif "L1" in todo:
         n_tracks, n_frames = _run_l1(cam, path, ws, db, store, st, embedder, duration, on_progress)
         log.info("%s L1: %d tracks from %d sampled frames", cam.id, n_tracks, n_frames)
     if "L2" in todo:

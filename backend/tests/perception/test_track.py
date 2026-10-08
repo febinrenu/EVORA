@@ -1,4 +1,5 @@
 """FrameTracker with a scripted detector: tracker state belongs to the camera, not to the shared model."""
+import threading
 from types import SimpleNamespace
 
 import numpy as np
@@ -25,7 +26,7 @@ class ScriptedModel:
 
 
 def _detector(model):
-    return SimpleNamespace(model=model, class_ids=[0], names={0: "person"}, device="cpu", half=False)
+    return SimpleNamespace(model=model, class_ids=[0], names={0: "person"}, device="cpu", half=False, lock=threading.Lock())
 
 
 def _walk(t, x0):

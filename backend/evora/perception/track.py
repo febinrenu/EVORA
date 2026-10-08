@@ -7,15 +7,12 @@ from __future__ import annotations
 
 import itertools
 import math
-import threading
 from dataclasses import dataclass
 
 import numpy as np
 
 from evora.perception.detect import LoadedDetector
 from evora.perception.settings import IngestSettings
-
-_model_lock = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -83,7 +80,7 @@ class FrameTracker:
 
     def update(self, bgr: np.ndarray) -> list[TrackedBox]:
         """Run detection and tracking on one frame; only boxes that belong to a track are returned."""
-        with _model_lock:
+        with self.det.lock:
             results = self.det.model.predict(
                 bgr, conf=self._conf, imgsz=detector_size(bgr.shape[1], self.cfg), classes=self.det.class_ids,
                 device=self.det.device,

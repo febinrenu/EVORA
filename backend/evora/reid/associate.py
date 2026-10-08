@@ -245,6 +245,56 @@ def _bootstrap(groups: dict[str, list[T]], st: IngestSettings, bg=None) -> dict[
     return fit_links(samples, st)
 
 
+def _seen_together(a: T, b: T, overlap_s: float = 0.0) -> bool:
+    """Both on screen at once for longer than `overlap_s` (0 = any contact of the two intervals)."""
+    if overlap_s <= 0:
+        return time_gap(a, b)[1]
+    return min(a.t1, b.t1) - max(a.t0, b.t0) > overlap_s
+
+
+def recluster_camera(group: list[T], st: IngestSettings) -> list[list[T]]:
+    """Fragments of the same people within one camera, by average-linkage clustering of the appearance vectors.
+
+    Tracks seen at the same time are different people, so their cosines show how alike different people look on
+    this camera (a school entrance full of dark jackets, or a room of four). A merge needs a cosine above a high
+    quantile of that, which adapts to the scene: in the crowd the bar is high, so look-alikes are not merged.
+    Tracks seen at the same time never join. Returns the clusters of 2 or more tracks only.
+    """
+    n = len(group)
+    if n < 3:
+        return []
+    vecs = np.stack([t.vec for t in group])
+    cos = vecs @ vecs.T
+    overlap = np.array([[_seen_together(a, b, st.reid_recluster_overlap_s) for b in group] for a in group])
+    np.fill_diagonal(overlap, False)
+    concurrent = cos[np.triu(overlap, 1)]
+    if concurrent.size < st.reid_recluster_min_pairs:
+        return []
+    thr = float(np.clip(np.quantile(concurrent, st.reid_recluster_q), st.reid_recluster_floor, st.reid_recluster_ceil))
+    sums, size = cos.astype(np.float64).copy(), np.ones(n)
+    cannot, alive = overlap.copy(), np.ones(n, dtype=bool)
+    members: list[list[int]] = [[i] for i in range(n)]
+    while True:
+        avg = sums / np.outer(size, size)
+        avg[cannot | ~alive[:, None] | ~alive[None, :]] = -1.0
+        np.fill_diagonal(avg, -1.0)
+        i, j = np.unravel_index(int(np.argmax(avg)), avg.shape)
+        if avg[i, j] < thr:
+            break
+        if any(_vetoed(group[x].attrs, group[y].attrs, st) for x in members[i] for y in members[j]):
+            cannot[i, j] = cannot[j, i] = True
+            continue
+        sums[i, :] += sums[j, :]
+        sums[:, i] = sums[i, :]
+        size[i] += size[j]
+        cannot[i, :] |= cannot[j, :]
+        cannot[:, i] = cannot[i, :]
+        alive[j] = False
+        members[i] += members[j]
+        members[j] = []
+    return [[group[k] for k in m] for m in members if len(m) > 1]
+
+
 class _Union:
     def __init__(self, tracks: list[T]):
         self.parent = {t.id: t.id for t in tracks}
@@ -256,13 +306,13 @@ class _Union:
             x = self.parent[x]
         return x
 
-    def union(self, a: str, b: str) -> bool:
+    def union(self, a: str, b: str, overlap_s: float = 0.0) -> bool:
         ra, rb = self.find(a), self.find(b)
         if ra == rb:
             return True
         for x in self.members[ra]:
             for y in self.members[rb]:
-                if x.camera_id == y.camera_id and time_gap(x, y)[1]:
+                if x.camera_id == y.camera_id and _seen_together(x, y, overlap_s):
                     return False   # two tracks seen at once by one camera are different objects
         self.parent[rb] = ra
         self.members[ra] += self.members.pop(rb)
@@ -286,6 +336,15 @@ def link_tracks(
     if st.reid_stitch:
         for _, earlier, later in sorted(stitch_pairs(tracks, st), reverse=True):
             uf.union(earlier, later)
+    if st.reid_recluster:
+        by_cam: dict[str, list[T]] = defaultdict(list)
+        for t in tracks:
+            if FAMILIES.get(t.cls) == "person" and t.vec.size > 1:
+                by_cam[t.camera_id].append(t)
+        for group in by_cam.values():
+            for members in recluster_camera(group, st):
+                for other in members[1:]:
+                    uf.union(members[0].id, other.id, st.reid_recluster_overlap_s)
     w_app, w_attr, w_topo = st.reid_w_appearance, st.reid_w_attributes, st.reid_w_topology
     if not st.reid_topology:
         total = w_app + w_attr
