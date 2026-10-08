@@ -20,6 +20,10 @@ import { Toasts, WatchDrawer } from "./WatchDrawer";
 export function AppShell() {
   const [help, setHelp] = useState(false);
   const [check, setCheck] = useState(false);
+  // Times are formatted in the site's zone, which arrives with /api/health. Reading it
+  // here re-renders the whole table when it lands (or changes), so nothing drawn
+  // before it keeps the browser's zone next to times drawn after it.
+  useEvora((s) => s.health?.tz);
 
   useEffect(() => {
     // `?debug` exposes the store for UI tests that must not touch real workspaces
