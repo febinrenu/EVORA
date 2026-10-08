@@ -1,2 +1,4 @@
 profile: gpu
 device: cuda
+jobs:
+  workers: 1

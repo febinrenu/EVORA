@@ -26,3 +26,7 @@ media:
   blur_faces: true
 alerts:
   default_cooldown_s: 30
+jobs:
+  workers: 0            # 0 = auto (cpu cores / 4, at least 1)
+  default_layers: [L0, L1, L2, L3]
+  stub_tick_s: 0.05     # used only while the perception pipeline is not installed
