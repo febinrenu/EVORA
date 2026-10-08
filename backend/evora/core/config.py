@@ -9,6 +9,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CONFIG_DIR = REPO_ROOT / "config"
+_PATH_KEYS = {"HF_HOME"}
 
 
 def load_env_file(path: Path | None = None, environ: dict[str, str] | None = None) -> int:
@@ -31,6 +32,8 @@ def load_env_file(path: Path | None = None, environ: dict[str, str] | None = Non
             value = value[1:-1]
         elif " #" in value:
             value = value.split(" #", 1)[0].rstrip()
+        if key in _PATH_KEYS and value and not Path(value).is_absolute():
+            value = str(REPO_ROOT / value)  # ./models/hf means the repo's folder, not wherever the server was started
         if key and key not in target:
             target[key] = value
             count += 1

@@ -1,4 +1,4 @@
-from evora.core.config import load_env_file
+from evora.core.config import REPO_ROOT, load_env_file
 
 
 def test_loads_values_without_overriding_the_environment(tmp_path):
@@ -26,3 +26,16 @@ def test_values_are_never_printed(tmp_path, capsys, caplog):
     load_env_file(f, {})
     out = capsys.readouterr()
     assert "gsk_supersecret" not in out.out + out.err + caplog.text
+
+
+def test_a_relative_model_cache_path_means_the_repo_folder(tmp_path):
+    f = tmp_path / ".env"
+    f.write_text("HF_HOME=./models/hf\n", encoding="utf-8")
+    env: dict[str, str] = {}
+    load_env_file(f, env)
+    assert env["HF_HOME"] == str(REPO_ROOT / "models" / "hf")
+    absolute = str(tmp_path / "cache")
+    f.write_text(f"HF_HOME={absolute}\n", encoding="utf-8")
+    env = {}
+    load_env_file(f, env)
+    assert env["HF_HOME"] == absolute
