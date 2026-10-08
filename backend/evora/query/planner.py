@@ -151,6 +151,11 @@ def sanitize(plan: QueryPlan, cameras: Sequence[CameraLike], question: str | Non
     plan.targets = _repair_targets(plan.targets)
     plan.limit = max(1, min(plan.limit, MAX_LIMIT))
 
+    # small models list the place under `unresolved` but leave `place` empty
+    places = [r for r in plan.unresolved if r.role == "place"]
+    if plan.place is None and len(places) == 1:
+        plan.place = places[0]
+
     # a place that is really a camera name is a camera filter, not something to ask about
     if plan.place is not None:
         cam = by_name.get(fastpath.norm_name(plan.place.text))

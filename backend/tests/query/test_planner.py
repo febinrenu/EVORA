@@ -227,3 +227,13 @@ async def test_an_invented_camera_in_a_model_plan_does_not_survive_planning():
     res = await Planner(FakeGateway(plan, backend="local")).plan("alert me if anyone enters the server room", CAMS,
                                                                  REF, IST)
     assert res.plan.camera_ids == [] and [r.text for r in res.plan.unresolved] == ["server room"]
+
+
+def test_sanitize_recovers_a_missing_place_from_unresolved():
+    plan = model_plan(place=None, unresolved=[Referent(text="the lot", role="place"),
+                                              Referent(text="my car", role="object")])
+    fixed = sanitize(plan, CAMS)
+    assert fixed.place == Referent(text="the lot", role="place")
+    two = model_plan(place=None, unresolved=[Referent(text="the lot", role="place"),
+                                             Referent(text="the dock", role="place")])
+    assert sanitize(two, CAMS).place is None  # ambiguous: do not guess
