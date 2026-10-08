@@ -122,3 +122,10 @@ def test_caption_colour_must_belong_to_the_garment_asked_for():
     # no garment asked: a colour on something carried is still not the person's colour
     assert caption_supports_colour("a person in a red coat", ["red"], set())
     assert not caption_supports_colour("a person carrying a red bag", ["red"], set())
+
+
+def test_a_brown_shirt_is_found_in_a_caption_that_says_brown_top():
+    shirt = asked_garments("a person wearing a brown shirt")
+    assert caption_supports_colour("a person in a brown top and beige trousers carrying a black bag", ["brown"], shirt)
+    # brown trousers are not a brown shirt
+    assert not caption_supports_colour("a person in a black top and brown trousers", ["brown"], shirt)

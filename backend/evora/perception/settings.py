@@ -51,8 +51,8 @@ class IngestSettings(BaseModel):
     # below 0.6 were right only about 40% of the time (coin flips), those at 0.8 or more 95-100%. 0 disables the floor.
     colour_min_conf: float = 0.6
     # L3 captions
-    l3_max_tracks: int = 20           # best tracks per camera to caption (captions are a bonus; they must never delay indexing)
-    l3_budget_s: float = 45.0         # time limit per camera; the layer stops and keeps what it has
+    l3_max_tracks: int = 30           # best tracks per camera to caption; they run after every camera is searchable
+    l3_budget_s: float = 240.0        # time limit per camera; the layer stops and keeps what it has
     l3_max_tokens: int = 512          # reasoning vision models spend tokens thinking before they answer
     # events
     dwell_s: float = 20.0             # continuous presence in a zone that counts as dwelling

@@ -71,7 +71,7 @@ ingest:                 # perception pipeline (M2); keys and defaults mirror bac
   scene_jpeg_width: 640
   detector: yolo26n.pt
   det_conf: 0.25
-  det_imgsz: 640
+  det_imgsz: 0          # 0 = automatic from the frame width (perception/track.py detector_size)
   tracker: bytetrack.yaml
   track_lost_s: 5.0
   min_track_obs: 3

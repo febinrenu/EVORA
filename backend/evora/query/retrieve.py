@@ -26,6 +26,7 @@ from evora.query.fuse import (
     BM25,
     COLOUR_TERMS,
     DEFAULT_WEIGHTS,
+    UPPER_BODY,
     Calibration,
     TrackSignals,
     aggregate_crops,
@@ -39,6 +40,7 @@ from evora.query.fuse import (
 )
 from evora.query.logic import Candidate, TrackRec, instant_in_window, span_in_window
 
+OTHER_COLOUR_CAP = 0.35     # below the router's accept line, so a person seen in another colour is never an answer
 MIN_POINTS_IN_WINDOW = 2   # track points (about 4 per second) a track needs inside the window to count as present
 MIN_PRESENCE_S = 0.5        # and they must span at least this long
 
@@ -273,6 +275,26 @@ class Retriever:
             return True
         return caption_supports_colour(bm25.docs.get(tid, ""), colours, asked_garments(target.embed_text))
 
+    @staticmethod
+    def _colour_verdict(bm25: BM25 | None, tid: str, target: Target, attrs: dict[str, Any]) -> bool | None:
+        """True when a caption or a confident stored colour backs the colour asked for, False when it shows another
+        colour on that garment, None when nothing is known (an unknown colour is not a different colour)."""
+        colours = [a for a in target.attributes if a in COLOUR_TERMS]
+        if not colours or attrs.get("is_ir"):
+            return None
+        garments = asked_garments(target.embed_text)
+        caption = bm25.docs.get(tid) if bm25 is not None else None
+        if caption:
+            if caption_supports_colour(caption, colours, garments):
+                return True
+            if caption_supports_colour(caption, sorted(COLOUR_TERMS - set(colours)), garments):
+                return False
+        slot = "upper_color" if garments & UPPER_BODY else "lower_color" if garments else "color"
+        stored = attrs.get(slot)
+        if isinstance(stored, str) and stored:
+            return stored in colours
+        return None
+
     def _captions(self, cams: list[str], tables: set[str]) -> BM25 | None:
         if "captions" not in tables:
             return None
@@ -340,6 +362,7 @@ class Retriever:
                 sig.why.append(f"siglip {cos:.2f}")
                 used.add("crops")
             attrs = json.loads(row["attrs"] or "{}")
+            other_colour = self.cfg.attributes and self._colour_verdict(bm25, tid, target, attrs) is False
             if self.cfg.attributes:
                 sig.attributes = attribute_score(target.attributes, attrs)
                 if sig.attributes is not None:
@@ -361,7 +384,10 @@ class Retriever:
                 if peak is None or not instant_in_window(peak, scope.window, scope.tz):
                     peak = min(inside, key=lambda t: abs(t - peak)) if peak is not None else inside[len(inside) // 2]
             track = TrackRec(tid, row["camera_id"], row["cls"], row["t_start"], row["t_end"], peak, row["global_id"])
-            out.candidates.append(Candidate(track, blend(sig, self.cfg.weights), tuple(sig.why)))
+            score, why = blend(sig, self.cfg.weights), tuple(sig.why)
+            if other_colour:  # a caption or a stored colour shows another colour on that garment: a near miss at best
+                score, why = min(score, OTHER_COLOUR_CAP), (*why, "another colour")
+            out.candidates.append(Candidate(track, score, why))
         out.layers += sorted(used - set(out.layers))
 
     # --- scenes only

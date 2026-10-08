@@ -221,6 +221,7 @@ class Router:
         if dropped:
             notes.append("Coarse scene matches were left out because they cannot show the requested action.")
         accepted = [m for m in matches if m.score >= self.cfg.accept]
+        accepted = _backed_by_attributes(plan, accepted, notes)
         near = [m for m in matches if m.score < self.cfg.accept]
         timings["logic"] = _ms(t)
 
@@ -571,6 +572,23 @@ def _confidence(evidence: Sequence[Evidence], miss: Evidence | None) -> float:
 
 
 _SUPPORT_WHY = ("colour ", "carrying ", "vehicle type ", "caption match")
+
+
+def _backed_by_attributes(plan: QueryPlan, accepted: list[Match], notes: list[str]) -> list[Match]:
+    """When attributes are asked for, tracks with something behind them come first and alone.
+
+    A person who merely looks like a person is not "a person in a brown shirt": the unread ones are used only when
+    nothing is backed (the answer is then "partial"), and a count never includes them.
+    """
+    if plan.intent not in ("exists", "list", "first", "last", "count") or not plan.targets or not plan.targets[0].attributes:
+        return accepted
+    backed = [m for m in accepted if any(w.startswith(_SUPPORT_WHY) for w in m.why)]
+    if len(backed) == len(accepted):
+        return accepted
+    if plan.intent == "count":
+        notes.append(f"{len(accepted) - len(backed)} more could not be checked for {' '.join(plan.targets[0].attributes)}.")
+        return backed
+    return backed or accepted
 
 
 def _unconfirmed(plan: QueryPlan, evidence: Sequence[Evidence]) -> bool:

@@ -166,15 +166,22 @@ class BM25:
         return out
 
 
-GARMENTS = {"jacket", "coat", "shirt", "top", "hoodie", "sweater", "jumper", "blouse", "tshirt", "vest", "dress",
+GARMENTS = {"jacket", "coat", "shirt", "top", "hoodie", "sweater", "jumper", "blouse", "tshirt", "tee", "polo", "sweatshirt",
+            "vest", "dress",
             "trousers", "pants", "jeans", "shorts", "skirt", "leggings", "hat", "cap", "beanie", "scarf"}
 CARRIED = {"bag", "backpack", "handbag", "suitcase", "umbrella", "luggage", "box", "bottle"}
+SPELLING = {"gray": "grey", "tshirt": "top"}
 COLOUR_GAP = 3  # words allowed between a colour and the garment it describes ("red long-sleeved jacket")
+
+
+# people say "shirt", captions say "top": for a colour question these name the same thing
+UPPER_BODY = {"shirt", "top", "tshirt", "tee", "blouse", "sweater", "jumper", "hoodie", "sweatshirt", "polo"}
 
 
 def asked_garments(text: str) -> set[str]:
     """Garment words in the planner's description of the target ('a person wearing a red jacket')."""
-    return {w for w in tokenize(text) if w in GARMENTS}
+    found = {w for w in tokenize(text) if w in GARMENTS}
+    return found | UPPER_BODY if found & UPPER_BODY else found
 
 
 def caption_supports_colour(caption: str, colours: Iterable[str], garments: set[str]) -> bool:
@@ -183,8 +190,8 @@ def caption_supports_colour(caption: str, colours: Iterable[str], garments: set[
     The word 'red' next to 'bag' does not describe a red jacket. With a garment asked for, the colour must be
     followed by that garment within a few words; with none, the colour must not be describing something carried.
     """
-    words = tokenize(caption)
-    wanted = set(colours)
+    words = [SPELLING.get(w, w) for w in tokenize(caption)]
+    wanted = {SPELLING.get(c, c) for c in colours}
     for i, w in enumerate(words):
         if w not in wanted:
             continue
