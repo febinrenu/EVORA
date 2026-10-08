@@ -13,7 +13,7 @@
   },
   {
     "question": "how many people with backpacks walked past the loading dock between 9 and 10 am?",
-    "plan": {"intent": "count", "targets": [{"noun": "person", "cls": ["person", "backpack"], "attributes": ["backpack"], "embed_text": "a photo of a person carrying a backpack"}],
+    "plan": {"intent": "count", "targets": [{"noun": "person", "cls": ["person"], "attributes": ["backpack"], "embed_text": "a photo of a person carrying a backpack"}],
       "place": {"text": "loading dock", "role": "place"}, "action": "pass_through",
       "time": {"phrase": "between 9 and 10 am", "tod_after": "09:00", "tod_before": "10:00"},
       "camera_ids": [], "limit": 10, "unresolved": [{"text": "loading dock", "role": "place"}], "source": "llm"}
@@ -50,13 +50,13 @@
   },
   {
     "question": "did someone carrying a large bag go through the main entrance last night?",
-    "plan": {"intent": "exists", "targets": [{"noun": "person", "cls": ["person", "suitcase", "handbag"], "attributes": ["large_bag"], "embed_text": "a photo of a person carrying a large bag"}],
+    "plan": {"intent": "exists", "targets": [{"noun": "person", "cls": ["person"], "attributes": ["large_bag"], "embed_text": "a photo of a person carrying a large bag"}],
       "place": {"text": "main entrance", "role": "place"}, "action": "pass_through", "time": {"phrase": "last night"},
       "camera_ids": [], "limit": 10, "unresolved": [{"text": "main entrance", "role": "place"}], "source": "llm"}
   },
   {
     "question": "was there a blue motorcycle in the parking on 3 October between 14:00 and 14:30?",
-    "plan": {"intent": "exists", "targets": [{"noun": "motorcycle", "cls": ["motorcycle"], "attributes": ["blue", "motorcycle"], "embed_text": "a photo of a blue motorcycle"}],
+    "plan": {"intent": "exists", "targets": [{"noun": "motorcycle", "cls": ["motorcycle"], "attributes": ["blue"], "embed_text": "a photo of a blue motorcycle"}],
       "place": null, "action": "any",
       "time": {"phrase": "on 3 October between 14:00 and 14:30", "tod_after": "14:00", "tod_before": "14:30"},
       "camera_ids": ["cam_04"], "limit": 10, "unresolved": [], "source": "llm"}
