@@ -17,7 +17,7 @@ from evora.evidence import audit, pack, store
 T0 = 1791450000.0  # creation_time of the sample clip
 EXPECTED = {
     "clip.mp4", "frame_1_start.jpg", "frame_2_peak.jpg", "frame_3_end.jpg", "evidence.json", "manifest.json",
-    "SHA256SUMS", "README.txt",
+    "SHA256SUMS", "README.txt", "manifest.sig", "signer.pub",
 }
 
 
@@ -281,7 +281,8 @@ def test_every_export_is_audited_with_hashes(env):
     r = env.pack(eid)
     entry = audit.entries(env.ctx.db, "export")[0]["detail"]
     assert entry["evidence_id"] == eid and entry["pack_sha256"] == r.headers["x-evora-pack-sha256"]
-    assert set(entry["files"]) == EXPECTED - {"SHA256SUMS", "manifest.json"} and entry["faces_blurred"] is True
+    assert set(entry["files"]) == EXPECTED - {"SHA256SUMS", "manifest.json", "manifest.sig", "signer.pub"}
+    assert entry["faces_blurred"] is True and len(entry["signer_fingerprint"]) == 16
     env.pack(eid)
     assert len(audit.entries(env.ctx.db, "export")) == 2
 
@@ -304,3 +305,110 @@ def test_mock_mode_returns_the_fixture(tmp_path, monkeypatch):
     monkeypatch.setenv("evora_WORKSPACE", "mockpack")
     c = TestClient(create_app(workspaces_root=tmp_path / "ws", mock=True))
     assert c.post("/api/evidence/ev_001/pack").content[:2] == b"PK"
+
+
+# ---- signatures ----------------------------------------------------------------------------------------------------------
+
+def resum(members: dict[str, bytes]) -> dict[str, bytes]:
+    """Recompute SHA256SUMS so a forger who edits files cannot be caught by the hashes alone."""
+    body = {k: v for k, v in members.items() if k != "SHA256SUMS"}
+    sums = "".join(f"{hashlib.sha256(v).hexdigest()}  {k}\n" for k, v in sorted(body.items()))
+    return {**body, "SHA256SUMS": sums.encode()}
+
+
+def zipped(members: dict[str, bytes]) -> bytes:
+    return rebuild(members)
+
+
+def test_a_pack_is_signed_and_the_manifest_names_the_signer(env):
+    members = env.members(env.pack(env.evidence()))
+    signer = env.client.get("/api/evidence/signer").json()
+    manifest = json.loads(members["manifest.json"])
+    assert manifest["signer"] == {"algorithm": "ed25519", "fingerprint": signer["fingerprint"]}
+    assert members["signer.pub"].decode() == signer["public_key_pem"] and len(signer["fingerprint"]) == 16
+    assert pack.inspect_signature(zipped(members)) == ("valid", signer["fingerprint"])
+    assert pack.verify_pack(zipped(members), signer["fingerprint"]) == []
+    assert b"PRIVATE" not in b"".join(members.values()), "the private key is never in a pack"
+
+
+def test_the_key_is_created_once_per_workspace_and_kept_private(env):
+    first = env.client.get("/api/evidence/signer").json()
+    env.pack(env.evidence())
+    assert env.client.get("/api/evidence/signer").json() == first
+    root = env.ctx.ws.root
+    assert (root / "signing.key").read_bytes().startswith(b"-----BEGIN PRIVATE KEY-----")
+    assert (root / "signing.pub").read_text() == first["public_key_pem"]
+
+
+def test_editing_the_manifest_breaks_the_signature_even_when_the_hash_list_is_redone(env):
+    members = env.members(env.pack(env.evidence()))
+    forged = json.loads(members["manifest.json"])
+    forged["workspace"] = "somewhere-else"
+    forged_pack = zipped(resum({**members, "manifest.json": json.dumps(forged, indent=2, sort_keys=True).encode()}))
+    problems = pack.verify_pack(forged_pack)
+    assert problems and all("manifest.sig does not match" in p for p in problems)
+    assert pack.inspect_signature(forged_pack)[0] == "invalid"
+
+
+def test_a_pack_resigned_with_another_key_only_fails_against_the_published_fingerprint(env):
+    from evora.evidence import signing
+
+    members = env.members(env.pack(env.evidence()))
+    real = env.client.get("/api/evidence/signer").json()["fingerprint"]
+    other = signing.Signer(signing.Ed25519PrivateKey.generate())
+    forged = resum({**members, "manifest.sig": other.sign(members["manifest.json"]), "signer.pub": other.public_pem})
+    assert pack.verify_pack(zipped(forged)) == [], "a pack that brings its own key is only self-consistent"
+    problems = pack.verify_pack(zipped(forged), real)
+    assert len(problems) == 1 and other.fingerprint in problems[0] and real in problems[0]
+
+
+def test_a_damaged_signature_or_key_is_invalid(env):
+    members = env.members(env.pack(env.evidence()))
+    for changes in ({"manifest.sig": b"AAAA\n"}, {"manifest.sig": b"not base64!!"}, {"signer.pub": b"junk"}):
+        assert pack.inspect_signature(zipped(resum({**members, **changes})))[0] == "invalid"
+    only_sig = {k: v for k, v in members.items() if k != "signer.pub"}
+    assert pack.inspect_signature(zipped(resum(only_sig)))[0] == "invalid"
+
+
+def test_an_older_unsigned_pack_still_verifies_unless_a_signer_is_demanded(env):
+    members = env.members(env.pack(env.evidence()))
+    unsigned = {k: v for k, v in members.items() if k not in ("manifest.sig", "signer.pub")}
+    old = zipped(resum(unsigned))
+    assert pack.inspect_signature(old) == ("unsigned", None) and pack.verify_pack(old) == []
+    assert "not signed" in pack.verify_pack(old, "0" * 16)[0]
+
+
+def test_command_line_reports_the_signer_and_checks_the_fingerprint(env, tmp_path):
+    r = env.pack(env.evidence())
+    good = tmp_path / "good.zip"
+    good.write_bytes(r.content)
+    real = env.client.get("/api/evidence/signer").json()["fingerprint"]
+    run = [sys.executable, "-I", "-m", "evora.evidence.pack", "verify"]
+    plain = subprocess.run([*run, str(good)], capture_output=True, text=True)
+    assert plain.returncode == 0 and f"signed by {real}" in plain.stdout and "published" in plain.stdout
+    match = subprocess.run([*run, str(good), "--fingerprint", real.upper()], capture_output=True, text=True)
+    assert match.returncode == 0 and "as expected" in match.stdout
+    wrong = subprocess.run([*run, str(good), "--fingerprint", "f" * 16], capture_output=True, text=True)
+    assert wrong.returncode == 1 and "not by the expected" in wrong.stdout
+    unsigned = tmp_path / "old.zip"
+    members = {k: v for k, v in env.members(r).items() if k not in ("manifest.sig", "signer.pub")}
+    unsigned.write_bytes(zipped(resum(members)))
+    note = subprocess.run([*run, str(unsigned)], capture_output=True, text=True)
+    assert note.returncode == 0 and "not signed" in note.stdout
+    assert subprocess.run([*run, str(good), "--fingerprint"], capture_output=True, text=True).returncode == 2
+
+
+def test_a_damaged_key_file_is_reported_not_replaced(env):
+    env.client.get("/api/evidence/signer")
+    key = env.ctx.ws.root / "signing.key"
+    key.write_text("garbage")
+    r = env.pack(env.evidence())
+    assert r.status_code == 500 and "signing.key is damaged" in r.json()["detail"]
+    assert key.read_text() == "garbage", "never silently replace a key"
+    assert env.client.get("/api/evidence/signer").status_code == 500
+
+
+def test_the_signer_route_in_mock_mode(tmp_path, monkeypatch):
+    monkeypatch.setenv("evora_WORKSPACE", "signmock")
+    c = TestClient(create_app(workspaces_root=tmp_path / "ws", mock=True))
+    assert c.get("/api/evidence/signer").json()["algorithm"] == "ed25519"

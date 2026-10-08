@@ -22,17 +22,22 @@ from evora.core import cameras as cams
 from evora.core.db import Database
 from evora.core.media_service import MediaError, MediaService
 from evora.core.workspace import Workspace
-from evora.evidence import audit
+from evora.evidence import audit, signing
 from evora.evidence import store as evidence_store
 from evora.query.planner import workspace_tz
 
 ZIP_TIME = (1980, 1, 1, 0, 0, 0)  # fixed, so identical content always gives identical bytes
 SUMS_NAME, MANIFEST_NAME = "SHA256SUMS", "manifest.json"
+SIG_NAME, PUB_NAME = "manifest.sig", "signer.pub"
 _SUM_LINE = re.compile(r"^([0-9a-f]{64})  (\S+)$")
 README = (
     "evora evidence pack\n"
     "Verify the files: unzip this archive, then run `sha256sum -c SHA256SUMS` in the folder.\n"
     "manifest.json lists the same hashes plus the hashes of the original source video, which is not included.\n"
+    "manifest.sig is an Ed25519 signature of manifest.json made with the key in signer.pub.\n"
+    "Check everything, signature included: python -m evora.evidence.pack verify <this zip> [--fingerprint <hex>]\n"
+    "A valid signature shows the manifest was not changed after export. To know the pack came from the installation you\n"
+    "trust, compare the signer fingerprint (in manifest.json) with the one that installation published.\n"
 )
 
 
@@ -171,6 +176,7 @@ def build_pack(
 
     generated = now if now is not None else time.time()
     upload_sha = cams.source_sha256(db, cam.id)
+    signer = signing.load_or_create(ws.root)
     manifest = {
         "format": "evora-evidence-pack/1", "software_version": __version__, "workspace": ws.slug,
         "generated_at": _times(db, generated), "evidence_id": evidence_id, "faces_blurred": faces_blurred,
@@ -181,9 +187,12 @@ def build_pack(
             "fps": cam.fps, "width": cam.width, "height": cam.height, "duration_s": cam.duration_s,
             "note": "The original video is not part of this pack; compare these hashes with the file you hold.",
         },
+        "signer": {"algorithm": signing.ALGORITHM, "fingerprint": signer.fingerprint},
         "files": {n: {"sha256": sha256_bytes(b), "size": len(b)} for n, b in sorted(members.items())},
     }
     members[MANIFEST_NAME] = _json(manifest)
+    members[SIG_NAME] = signer.sign(members[MANIFEST_NAME])
+    members[PUB_NAME] = signer.public_pem
     sums = "".join(f"{sha256_bytes(b)}  {n}\n" for n, b in sorted(members.items()))
     members[SUMS_NAME] = sums.encode("ascii")
 
@@ -201,13 +210,38 @@ def build_pack(
     result = PackResult(out, sha256_file(out), manifest["files"], faces_blurred, context)
     audit.record(db, "export", {
         "evidence_id": evidence_id, "files": {n: v["sha256"] for n, v in manifest["files"].items()},
-        "pack_sha256": result.sha256, "faces_blurred": faces_blurred, "unblurred_because": why_unblurred,
+        "pack_sha256": result.sha256, "faces_blurred": faces_blurred, "signer_fingerprint": signer.fingerprint,
+        "unblurred_because": why_unblurred,
     })
     return result
 
 
-def verify_pack(source: Path | bytes) -> list[str]:
-    """Problems found in a pack; an empty list means every file matches its recorded hash."""
+def inspect_signature(source: Path | bytes) -> tuple[str, str | None]:
+    """("valid" | "unsigned" | "invalid", signer fingerprint) for a pack's manifest signature."""
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(source) if isinstance(source, bytes) else source)
+    except (zipfile.BadZipFile, OSError):
+        return "invalid", None
+    with zf:
+        names = set(zf.namelist())
+        if not {SIG_NAME, PUB_NAME} & names:
+            return "unsigned", None
+        if not {SIG_NAME, PUB_NAME, MANIFEST_NAME} <= names:
+            return "invalid", None
+        public = zf.read(PUB_NAME)
+        try:
+            fingerprint = signing.fingerprint_of(public)
+        except signing.SigningError:
+            return "invalid", None
+        ok = signing.verify(public, zf.read(MANIFEST_NAME), zf.read(SIG_NAME))
+    return ("valid" if ok else "invalid"), fingerprint
+
+
+def verify_pack(source: Path | bytes, fingerprint: str | None = None) -> list[str]:
+    """Problems found in a pack; an empty list means every file matches its recorded hash and the signature holds.
+
+    An unsigned (older) pack is not a problem by itself, unless `fingerprint` says whose signature is required.
+    """
     problems: list[str] = []
     try:
         zf = zipfile.ZipFile(io.BytesIO(source) if isinstance(source, bytes) else source)
@@ -251,20 +285,44 @@ def verify_pack(source: Path | bytes) -> list[str]:
                         problems.append(f"{n} does not match {MANIFEST_NAME}")
         else:
             problems.append(f"{MANIFEST_NAME} is missing")
+    state, signer = inspect_signature(source)
+    if state == "invalid":
+        problems.append(f"{SIG_NAME} does not match {MANIFEST_NAME} (the manifest was changed, or the signature is damaged)")
+    if fingerprint is not None:
+        if state == "unsigned":
+            problems.append(f"this pack is not signed, so it cannot be tied to signer {fingerprint}")
+        elif state == "valid" and signer != fingerprint.lower():
+            problems.append(f"signed by {signer}, not by the expected {fingerprint}")
     return problems
 
 
 def _main(argv: list[str]) -> int:
-    if len(argv) != 3 or argv[1] != "verify":
-        print("usage: python -m evora.evidence.pack verify <pack.zip>")
+    usage = "usage: python -m evora.evidence.pack verify <pack.zip> [--fingerprint <hex>]"
+    args = argv[1:]
+    fingerprint: str | None = None
+    if "--fingerprint" in args:
+        k = args.index("--fingerprint")
+        if k + 1 >= len(args):
+            print(usage)
+            return 2
+        fingerprint = args[k + 1].strip().lower()
+        del args[k:k + 2]
+    if len(args) != 2 or args[0] != "verify":
+        print(usage)
         return 2
-    problems = verify_pack(Path(argv[2]))
+    problems = verify_pack(Path(args[1]), fingerprint)
     if problems:
         print("PACK DOES NOT VERIFY")
         for p in problems:
             print(" -", p)
         return 1
+    state, signer = inspect_signature(Path(args[1]))
     print("OK: every file matches its SHA-256")
+    if state == "valid":
+        print(f"OK: the manifest is signed by {signer}" + (" (as expected)" if fingerprint else
+              "; compare this fingerprint with the one the operator published to know where the pack came from"))
+    else:
+        print("NOTE: this pack is not signed (exported by an older version): only its file hashes were checked")
     return 0
 
 

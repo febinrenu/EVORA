@@ -8,11 +8,23 @@ from fastapi.responses import FileResponse
 from evora.api.context import AppContext
 from evora.core import cameras as cams
 from evora.core.media_service import MediaError
-from evora.evidence import pack, store
+from evora.evidence import pack, signing, store
 
 
 def make_router(ctx: AppContext) -> APIRouter:
     router = APIRouter(prefix="/api/evidence")
+
+    @router.get("/signer")
+    def signer() -> dict:
+        """The key that signs this workspace's evidence packs: publish the fingerprint so recipients can check it."""
+        if ctx.mock:
+            return {"algorithm": signing.ALGORITHM, "fingerprint": "0123456789abcdef",
+                    "public_key_pem": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n"}
+        try:
+            s = signing.load_or_create(ctx.ws.root)
+        except signing.SigningError as exc:
+            raise HTTPException(500, str(exc)) from None
+        return {"algorithm": signing.ALGORITHM, "fingerprint": s.fingerprint, "public_key_pem": s.public_pem.decode("ascii")}
 
     @router.post("/{evidence_id}/pack")
     async def export_pack(evidence_id: str, unblur: str | None = None):
@@ -30,6 +42,8 @@ def make_router(ctx: AppContext) -> APIRouter:
             raise HTTPException(404, "unknown evidence") from None
         except pack.PackRefused as exc:
             raise HTTPException(409, exc.message) from None
+        except signing.SigningError as exc:
+            raise HTTPException(500, str(exc)) from None
         except MediaError as exc:
             raise HTTPException(exc.status, exc.message) from None
         return FileResponse(

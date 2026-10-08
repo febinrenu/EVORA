@@ -18,6 +18,7 @@ dependencies = [
   "av>=12",
   "tzdata",
   "scipy>=1.11",
+  "cryptography>=42",
 ]
 
 [project.optional-dependencies]
