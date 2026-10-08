@@ -17,8 +17,8 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M1 — Platform, Memory & Integration
 - State: on track
-- Doing: P1.13 done; starting P1.14 privacy guard
-- Next: P1.14 privacy guard, P1.15 evidence pack, P1.16 replay-as-live
+- Doing: P1.14 done; starting P1.15 evidence pack
+- Next: P1.15 evidence pack + audit view, P1.16 replay-as-live, P1.18 doctor
 - Blockers:
 
 ### M2 — Perception & Identity
@@ -74,6 +74,7 @@ State values: not started · on track · at risk · blocked · done
 - [17:44] [M2] DECISION: L2 means attributes + events for now (ReID features join it in P2.14/P2.15). Re-running L2 is idempotent and recomputes events for every stored zone.
 
 ## Contract change requests (append only)
+- [00:20] [M1] REQUEST (self-approved, additive): `GET /api/health` gains `egress_blocked` and `blur`; `POST /api/settings` is validated (422) and persistent; bus note `kind="privacy"`; `POST /api/voice` answers 503 in on-prem mode. Why: privacy badge and Wi-Fi-off fallback. Affects: M4. → [00:20] [M1] APPROVED v1.5 (93d7a0f)
 - [22:40] [M1] REQUEST (self-approved, additive): `POST /api/standing` may answer `409 {clarify}`; `/api/events` notes with `kind="alert"`; `GET /api/alerts?acknowledged=`. Why: standing queries reuse clarify-once; the UI needs live alerts. Affects: M4. → [22:40] [M1] APPROVED v1.4 (a1c9d05)
 - [21:30] [M1] REQUEST (self-approved, additive): `DELETE /api/zones/{id}` and response header `X-Evora-Events` on `POST /api/zones`. Why: redraw/remove zones and tell the UI whether crossings were computed. Affects: M4. → [21:30] [M1] APPROVED v1.3 (d9a9358)
 - [19:30] [M1] REQUEST (self-approved, additive): `MemoryFact.inferred_aliases: list[str] = []` and table `memory_inferred`; `PATCH /api/memory/{id}` takes `confirm_aliases`. Why: the Known places ledger should show which aliases are guesses, and a correction must drop wrong guesses. Affects: M4 (types regenerated). → [19:30] [M1] APPROVED v1.2 (f15509a)
@@ -81,6 +82,8 @@ State values: not started · on track · at risk · blocked · done
 <!-- - [HH:MM] [M3] REQUEST: add optional `Answer.followups: list[str]`. Why: UI suggestions. Affects: M1, M4. → [HH:MM] [M1] APPROVED v1.1 -->
 
 ## Requests to other areas (append only)
+- [00:20] [M1] → M4 (privacy): the badge reads `GET /api/health`: `onprem`, `egress_blocked` (outside connections refused since start), `blur` (`applied` / `off` / `unavailable`; `unavailable` also covers a model file that is missing, show a warning). Toggle with `POST /api/settings {onprem: bool}` (it persists across restarts; 422 for wrong types) and listen for `/api/events` note `kind=privacy` `{onprem}` to update every open tab. In on-prem mode `POST /api/voice` returns 503: fall back to the browser microphone or typing.
+- [00:20] [M1] → M2 and M3: in on-prem mode every connection that leaves the machine raises `evora.core.privacy_guard.EgressBlocked` (an OSError): sockets, DNS, UDP and asyncio (the Windows proactor loop is covered too). So `make models` and any first-time download (HF, Ultralytics, BoxMOT, YuNet, fastembed) must be done while online; set `HF_HUB_OFFLINE=1` for demo runs. `make offline-test` (on-prem env, e2e plus privacy tests) is wired.
 - [22:40] [M1] → M3: please add `async Gateway.notify(topic: str, title: str, message: str) -> None` to `llm/gateway.py`: one POST to ntfy (`https://ntfy.sh/<topic>`, body = message, `Title` header) with a short timeout, refusing in on-prem mode, never logging the topic or message. Rule 9 says outbound calls go through the gateway; M1's `alerts/notify.py` already calls it when it exists and is silent otherwise.
 - [22:40] [M1] → M4 (Watch panel): `POST /api/standing {text}` returns the watch, or `409 {clarify: ClarifyRequest}` when the place is not known yet (show the clarify card, `POST /api/clarify`, then post the same text again). `GET /api/standing`, `PATCH /api/standing/{id} {active}`, `GET /api/alerts?acknowledged=`, `POST /api/alerts/{id}/ack`. Live alerts arrive on `/api/events` as `note` with `kind="alert"` `{alert, historical}`; `historical: true` means found in already-processed footage (no toast, just add to the drawer). `rule.summary` is a ready-made sentence for the card.
 - [22:40] [M1] → M2: when `live_ingest` runs, pass `on_event` event dicts shaped exactly like `events` rows (`id, camera_id, track_id, kind, zone_id, t, payload`); M1's alert engine evaluates each one. Also: face blur raised `FaceBlurUnavailable` because `models/yunet/face_detection_yunet_2023mar.onnx` is missing on my machine; M1 now degrades to `X-Evora-Blur: unavailable` instead of crashing, but please make sure `make models` fetches yunet.
@@ -169,3 +172,4 @@ State values: not started · on track · at risk · blocked · done
 - [23:10] [M3] Environment: uv and ffmpeg installed here; `uv sync` project env: full suite 733 passed, 3 skipped, 0 failed (the earlier 3 failures were only missing ffmpeg/uv). Local model qwen3.5:4b works (thinking disabled, ~3.5 s per plan) but its plans are weaker than Groq; planner repairs them.
 - [17:44] [M2] P2.11 and P2.12 done: colour naming (CIELAB k-means, grey-world gains), infrared detection, vehicle type, carrying, events from track points with retroactive recompute; 77 perception tests (0d7b0e7).
 - [17:58] [M2] P2.14 and P2.15 done: OSNet ReID features, learned camera topology (robust, ignored when gaps look like chance), Hungarian linking with cannot-link constraint, global ids, paths, query by example; 87 perception tests (ace7abf). First full index built: meva-school (8 cameras).
+- [00:20] [M1] P1.14 done (93d7a0f, guard ecbd850): egress guard (loopback, Unix sockets and an allow-list only; refuses outside names, DNS and UDP) installed once and switched live by the on-prem flag; tests include the real Gateway: on-prem planning only ever touches loopback, switching off lets it reach the cloud, switching on blocks again; real /api/health; validated settings persisted in meta and `evora_ONPREM=1` always starts on-prem; audit and bus note on toggle; voice 503 in on-prem. Found on the way: on Windows asyncio connects without calling `socket.connect`, so the guard also patches the event loops (the first version silently let asyncio through). CONTRACT v1.5. 773 tests in make check, 54 in make offline-test.
