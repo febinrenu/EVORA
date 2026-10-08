@@ -233,4 +233,75 @@ def build_b0(slug: str, root: Path | None = None, replay_path: Path | None = Non
     return B0System(db, open_store(ws.vectors_dir), Planner(gateway, SqlitePlanCache(db)), embedder, name)
 
 
-SYSTEM_BUILDERS: dict[str, Callable[..., Any]] = {"ours": build_ours, "b0": build_b0}
+# ------------------------------------------------------------------------- null
+class NullSystem:
+    """The chance level: random moments inside the same camera filter and time window every system gets.
+
+    It looks at no pixels. Ground truth that is dense in time (MEVA's annotated actors) lets a random moment
+    score well, so every object result is only meaningful next to this row. It also never says "nothing there".
+    """
+
+    name = "null"
+    EVIDENCE_WIDTH_S = 3.0
+    PER_QUERY = 5
+    TRIES = 4000
+
+    def __init__(self, db: Any, planner: Any, name: str = "null", seed: int = 0) -> None:
+        self._db, self._planner, self.name, self._seed = db, planner, name, seed
+        self._cameras = self._load_cameras()
+
+    def _load_cameras(self) -> list[Any]:
+        from types import SimpleNamespace
+
+        with self._db.read() as conn:
+            return [SimpleNamespace(id=r["id"], name=r["name"], t0=r["t0"], duration=r["duration_s"] or 0.0)
+                    for r in conn.execute("SELECT id, name, t0, duration_s FROM cameras ORDER BY id")]
+
+    async def run(self, item: QueryItem) -> RunResult:
+        import random
+
+        from evora.query.logic import instant_in_window
+
+        started = time.perf_counter()
+        ref, tz = reference_now(self._db), workspace_tz(self._db)
+        plan = (await self._planner.plan(item.text, self._cameras, ref, tz)).plan
+        wanted = set(plan.camera_ids)
+        answer_cam = (item.clarify_answer or {}).get("camera_id")
+        if answer_cam:
+            wanted.add(answer_cam)
+        cams = [c for c in self._cameras if not wanted or c.id in wanted]
+        rng = random.Random(f"{self._seed}:{item.id}")
+        evidence = []
+        for _ in range(self.TRIES):
+            if len(evidence) >= self.PER_QUERY or not cams:
+                break
+            cam = rng.choice(cams)
+            t = cam.t0 + rng.uniform(0.0, max(cam.duration, 1.0))
+            if instant_in_window(t, plan.time, tz):
+                evidence.append((cam, t))
+        from contracts.models import Evidence
+
+        half = self.EVIDENCE_WIDTH_S / 2
+        ev = [Evidence(id=f"null_{i:03d}", camera_id=c.id, camera_name=c.name, t_start=t - half, t_end=t + half,
+                       t_peak=t, offset_s=t - c.t0, thumb_url="", clip_url="", score=0.0, why=["random moment"])
+              for i, (c, t) in enumerate(evidence, start=1)]
+        answer = Answer(query_id=item.id, text=f"{len(ev)} random moments", verdict="found" if ev else "not_found",
+                        evidence=ev, confidence=0.0, plan=plan)
+        ms = (time.perf_counter() - started) * 1000
+        return RunResult(item.id, answer, ttfa_ms=ms, ttva_ms=ms, plan_source=plan.source)
+
+
+def build_null(slug: str, root: Path | None = None, replay_path: Path | None = None, gateway: Any = None,
+               name: str = "null") -> NullSystem:
+    from evora.core import workspace as wsmod
+    from evora.core.db import open_db
+    from evora.query.planner import Planner, SqlitePlanCache
+
+    ws = wsmod.get(slug, root)
+    db = open_db(ws.db_path)
+    if gateway is None:
+        gateway = _gateway(replay_path)
+    return NullSystem(db, Planner(gateway, SqlitePlanCache(db)), name)
+
+
+SYSTEM_BUILDERS: dict[str, Callable[..., Any]] = {"ours": build_ours, "b0": build_b0, "null": build_null}

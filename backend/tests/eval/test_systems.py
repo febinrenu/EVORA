@@ -172,3 +172,60 @@ def test_building_a_system_without_a_workspace_explains_what_is_missing():
         harness.build_system("ours")
     with pytest.raises(harness.SystemNotReady, match="unknown system"):
         harness.build_system("nope", "ws")
+
+
+# ------------------------------------------------------------------------ null
+@pytest.fixture
+def null_sys(tmp_path):
+    from eval.systems import NullSystem
+
+    ws = Workspace(tmp_path)
+    ws.camera("cam_01", "Gate", t0=1000.0, duration=300.0)
+    ws.camera("cam_02", "Lobby", t0=1000.0, duration=300.0)
+    yield NullSystem(ws.db, Planner(None)), ws
+    ws.close()
+
+
+@pytest.mark.asyncio
+async def test_null_returns_random_moments_inside_the_camera_filter_and_the_window(null_sys):
+    system, _ = null_sys
+    q = item("q1", "was there a person at the Gate between 00:17 and 00:18")  # 1000 s is 00:16:40 UTC: 1020-1080 s
+    res = await system.run(q)
+    ev = res.answer.evidence
+    assert len(ev) == 5 and {e.camera_id for e in ev} == {"cam_01"}
+    assert all(1020.0 <= e.t_peak <= 1080.0 for e in ev)  # inside the window the plan carries
+    assert all(e.t_end - e.t_start == 3.0 and e.score == 0.0 for e in ev)
+    assert res.plan_source == "fastpath" and res.answer.verdict == "found"
+
+
+@pytest.mark.asyncio
+async def test_null_is_deterministic_per_query_and_differs_between_queries(null_sys):
+    system, _ = null_sys
+    a = await system.run(item("q1", "was there a person at the Gate"))
+    b = await system.run(item("q1", "was there a person at the Gate"))
+    c = await system.run(item("q2", "was there a person at the Gate"))
+    times = lambda r: [round(e.t_peak, 3) for e in r.answer.evidence]  # noqa: E731
+    assert times(a) == times(b) and times(a) != times(c)
+
+
+@pytest.mark.asyncio
+async def test_null_follows_the_scripted_camera_and_never_says_nothing(null_sys):
+    system, _ = null_sys
+    q = item("q1", "was there a red car at the main gate", clarify=["main gate"], answer={"camera_id": "cam_02"})
+    res = await system.run(q)
+    assert {e.camera_id for e in res.answer.evidence} == {"cam_02"}
+    negative = await system.run(item("q2", "was there a vehicle at the Lobby", hits=False))
+    assert negative.answer.verdict == "found"  # chance has no way to answer "nothing there"
+
+
+@pytest.mark.asyncio
+async def test_a_window_outside_the_footage_gives_no_moments_rather_than_invented_ones(null_sys):
+    system, _ = null_sys
+    res = await system.run(item("q1", "was there a person at the Gate between 05:00 and 05:01"))
+    assert res.answer.evidence == [] and res.answer.verdict == "not_found"
+
+
+def test_null_is_a_registered_system():
+    from eval.systems import SYSTEM_BUILDERS
+
+    assert {"ours", "b0", "null"} <= set(SYSTEM_BUILDERS)

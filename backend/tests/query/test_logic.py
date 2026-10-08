@@ -248,3 +248,17 @@ def test_event_from_sqlite_row_and_json_payload():
     first, second = (EventRec.from_row(r) for r in rows)
     assert first.payload == {"direction": "a_to_b"} and first.zone_id == "z1" and first.t == 12.5
     assert second.payload == {} and second.zone_id is None
+
+
+def test_a_time_of_day_range_ends_at_the_stated_clock_time_not_at_the_end_of_that_minute():
+    def at(h, m, sec):
+        return datetime(2026, 10, 9, h, m, sec, tzinfo=IST).timestamp()
+
+    # "between 10:12 and 10:13" is one minute: 10:12:00 to 10:13:00
+    assert tod_contains(at(10, 12, 0), "10:12", "10:13", IST) and tod_contains(at(10, 12, 59), "10:12", "10:13", IST)
+    assert tod_contains(at(10, 13, 0), "10:12", "10:13", IST)  # the end instant itself is included
+    assert not tod_contains(at(10, 13, 1), "10:12", "10:13", IST)  # but nothing after it
+    assert not tod_contains(at(10, 11, 59), "10:12", "10:13", IST)
+    assert tod_contains(at(5, 59, 59), "22:00", "06:00", IST) and not tod_contains(at(6, 0, 30), "22:00", "06:00", IST)
+    assert tod_contains(at(23, 59, 59), "20:00", None, IST) and not tod_contains(at(19, 59, 59), "20:00", None, IST)
+    assert tod_contains(at(0, 0, 0), None, "06:00", IST) and not tod_contains(at(6, 0, 1), None, "06:00", IST)

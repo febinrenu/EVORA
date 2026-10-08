@@ -83,9 +83,9 @@ class Match:
 
 
 # ------------------------------------------------------------- time filters
-def _minutes_of_day(ts: float, tz: tzinfo) -> int:
+def _seconds_of_day(ts: float, tz: tzinfo) -> float:
     dt = datetime.fromtimestamp(ts, tz)
-    return dt.hour * 60 + dt.minute
+    return dt.hour * 3600 + dt.minute * 60 + dt.second + dt.microsecond / 1e6
 
 
 def _parse_hhmm(value: str) -> int:
@@ -94,15 +94,19 @@ def _parse_hhmm(value: str) -> int:
 
 
 def tod_contains(ts: float, after: str | None, before: str | None, tz: tzinfo = UTC) -> bool:
-    """Is the local time of day of `ts` inside [after, before]? Ranges may wrap midnight."""
+    """Is the local time of day of `ts` inside [after, before]? Ranges may wrap midnight.
+
+    The bounds are clock times to the minute and the comparison is to the second: "between 10:12 and 10:13" is
+    10:12:00 to 10:13:00, not the whole of the 10:13 minute.
+    """
     if not after and not before:
         return True
-    m = _minutes_of_day(ts, tz)
-    lo = _parse_hhmm(after) if after else 0
-    hi = _parse_hhmm(before) if before else 24 * 60
+    sec = _seconds_of_day(ts, tz)
+    lo = _parse_hhmm(after) * 60 if after else 0
+    hi = _parse_hhmm(before) * 60 if before else 24 * 3600
     if lo <= hi:
-        return lo <= m <= hi
-    return m >= lo or m <= hi  # "after 22:00 before 06:00"
+        return lo <= sec <= hi
+    return sec >= lo or sec <= hi  # "after 22:00 before 06:00"
 
 
 def span_touches_tod(t0: float, t1: float, after: str | None, before: str | None, tz: tzinfo = UTC) -> bool:
