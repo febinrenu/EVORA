@@ -1,27 +1,48 @@
 "use client";
 
 // Right column: the site plan in cyanotype (P4.11) and the Known places
-// ledger. Camera nodes sit at their site_xy; drag one (or focus it and use the
-// arrow keys) to put it where the camera really is, which is saved on the
-// camera. The focused answer's path is drawn hop by hop with its times.
-import { useMemo, useRef, useState } from "react";
-import { endpoints } from "@/lib/api/client";
-import { clock } from "./format";
+// ledger. Camera nodes sit at their site_xy over an optional floor plan; drag
+// one (or focus it and use the arrow keys) to put it where the camera really
+// is, which is saved on the camera. Click a camera to see its latest frame.
+// The focused answer's path is drawn hop by hop with its times, and listed
+// beneath the plan as a film strip of the frames at each camera.
+import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { endpoints, frameUrl, liveUrl, type CameraInfo } from "@/lib/api/client";
+import { clock, day } from "./format";
 import { useEvora } from "./store";
+import { Frame } from "./Frame";
 import { KnownPlaces } from "./KnownPlaces";
+
+/** a press that moves less than this (plan units, 0..100) is a click, not a drag */
+const CLICK_SLOP = 1.2;
+/** the floor plan is downscaled to this many pixels on its long side before it is kept */
+const PLAN_MAX_PX = 1600;
+
+interface Node {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  placed: boolean;
+}
 
 export function SidePanel() {
   const cameras = useEvora((s) => s.cameras);
   const focus = useEvora((s) => s.focus);
   const cases = useEvora((s) => s.cases);
-  const answer = cases.find((c) => c.id === focus?.caseId)?.answer;
+  const workspace = useEvora((s) => s.health?.workspace ?? "default");
+  const focusedCase = cases.find((c) => c.id === focus?.caseId);
+  const answer = focusedCase?.answer;
   const svg = useRef<SVGSVGElement>(null);
   // the node being moved, before the position is saved
   const [moving, setMoving] = useState<{ id: string; x: number; y: number } | null>(null);
+  const press = useRef<{ id: string; x: number; y: number; dragged: boolean } | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
   const saveTimer = useRef(0);
+  const floor = useFloorPlan(workspace);
 
   // cameras without a site position are laid out on a gentle arc so the plan is never empty
-  const nodes = useMemo(
+  const nodes = useMemo<Node[]>(
     () =>
       cameras.map((c, i) => {
         const xy = c.site_xy ?? [0.18 + (0.64 * i) / Math.max(1, cameras.length - 1), 0.5 + Math.sin(i * 1.3) * 0.18];
@@ -32,6 +53,7 @@ export function SidePanel() {
   const shown = nodes.map((n) => (moving?.id === n.id ? { ...n, x: moving.x, y: moving.y } : n));
   const byId = new Map(shown.map((n) => [n.id, n]));
   const hops = (answer?.path ?? []).map((h) => ({ ...h, node: byId.get(h.camera_id) })).filter((h) => h.node);
+  const selectedCam = cameras.find((c) => c.id === selected) ?? null;
 
   const toPlan = (e: React.PointerEvent): { x: number; y: number } => {
     const r = svg.current?.getBoundingClientRect();
@@ -49,32 +71,58 @@ export function SidePanel() {
     }
   };
 
+  const toggle = (id: string) => setSelected((s) => (s === id ? null : id));
+
   return (
     <aside className="lt-side" aria-label="Site plan and known places">
       <section className="lt-plan" aria-label="Site plan">
-        <h2>Site plan</h2>
+        <div className="lt-plan-head">
+          <h2>Site plan</h2>
+          <FloorPlanControls floor={floor} />
+        </div>
         {shown.length ? (
-          <svg ref={svg} viewBox="0 0 100 100" aria-label={hops.length ? `Path: ${hops.map((h) => `${h.camera_name} ${clock(h.t_in)}`).join(", then ")}` : "Camera positions. Drag a camera to where it is on site."}>
+          <svg
+            ref={svg}
+            viewBox="0 0 100 100"
+            className={floor.url ? "has-floor" : undefined}
+            aria-label={hops.length ? `Path: ${hops.map((h) => `${h.camera_name} ${clock(h.t_in)}`).join(", then ")}` : "Camera positions. Drag a camera to where it is on site; click it to see its latest frame."}
+          >
+            {floor.url ? <image href={floor.url} x={0} y={0} width={100} height={100} preserveAspectRatio="xMidYMid meet" className="lt-plan-floor" /> : null}
             {hops.length > 1 ? <polyline key={answer?.query_id} className="lt-plan-path" points={hops.map((h) => `${h.node?.x},${h.node?.y}`).join(" ")} pathLength={1} /> : null}
             {shown.map((n) => (
               <g
                 key={n.id}
-                className="lt-plan-node"
+                className={`lt-plan-node${selected === n.id ? " is-selected" : ""}`}
                 transform={`translate(${n.x} ${n.y})`}
                 tabIndex={0}
                 role="button"
-                aria-label={`${n.name}${n.placed ? "" : ", not placed yet"}. Drag, or use the arrow keys, to move it.`}
+                aria-pressed={selected === n.id}
+                aria-label={`${n.name}${n.placed ? "" : ", not placed yet"}. Press Enter to see its latest frame; drag, or use the arrow keys, to move it.`}
                 onPointerDown={(e) => {
                   (e.currentTarget as Element).setPointerCapture(e.pointerId);
-                  setMoving({ id: n.id, ...toPlan(e) });
+                  press.current = { id: n.id, ...toPlan(e), dragged: false };
                 }}
                 onPointerMove={(e) => {
-                  if (moving?.id === n.id) setMoving({ id: n.id, ...toPlan(e) });
+                  const p = press.current;
+                  if (!p || p.id !== n.id) return;
+                  const at = toPlan(e);
+                  if (!p.dragged && Math.hypot(at.x - p.x, at.y - p.y) < CLICK_SLOP) return;
+                  p.dragged = true;
+                  setMoving({ id: n.id, ...at });
                 }}
                 onPointerUp={() => {
-                  if (moving?.id === n.id) void save(n.id, moving.x, moving.y);
+                  const p = press.current;
+                  press.current = null;
+                  if (!p || p.id !== n.id) return;
+                  if (p.dragged && moving?.id === n.id) void save(n.id, moving.x, moving.y);
+                  else toggle(n.id);
                 }}
                 onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    return toggle(n.id);
+                  }
+                  if (e.key === "Escape") return setSelected(null);
                   const d: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
                   const step = d[e.key];
                   if (!step) return;
@@ -100,8 +148,191 @@ export function SidePanel() {
         ) : (
           <p className="lt-quiet">Cameras appear here once footage is loaded. Drag them into place later.</p>
         )}
+        {floor.error ? (
+          <p className="lt-error" role="alert">
+            {floor.error}
+          </p>
+        ) : null}
+        {selectedCam ? <CameraCard cam={selectedCam} onClose={() => setSelected(null)} /> : null}
+        {hops.length && focusedCase ? <RouteStrip hops={hops} caseId={focusedCase.id} evidenceIds={new Set(focusedCase.evidence.map((e) => e.id))} /> : null}
       </section>
       <KnownPlaces />
     </aside>
+  );
+}
+
+/** The camera clicked on the plan: its latest frame (live when it is streaming) and what is indexed. */
+function CameraCard({ cam, onClose }: { cam: CameraInfo; onClose: () => void }) {
+  const live = useEvora((s) => s.live[cam.id]);
+  const streaming = cam.status === "live" || live === "running" || live === "retrying" || live === "starting";
+  // a moment before the end, so the frame exists even when the duration is rounded up
+  const last = cam.t0 + Math.max(0, (cam.duration_s ?? 1) - 1);
+  return (
+    <div className="lt-plan-card" role="region" aria-label={`${cam.name}, latest frame`}>
+      {streaming ? (
+        <Frame src={liveUrl(cam.id)} alt={`${cam.name}, live`} osd="● LIVE" />
+      ) : (
+        <Frame src={frameUrl(cam.id, last)} alt={`${cam.name}, last recorded frame`} osd={`${cam.name.toUpperCase()} ${clock(last)}`} />
+      )}
+      <div className="lt-plan-card-body">
+        <p className="lt-plan-card-name">{cam.name}</p>
+        <p className="lt-cam-state">
+          {streaming
+            ? "Streaming now"
+            : `Recorded ${day(cam.t0)} ${clock(cam.t0).slice(0, 5)} to ${clock(cam.t0 + (cam.duration_s ?? 0)).slice(0, 5)}${cam.status === "ready" ? ", indexed" : cam.status === "ingesting" ? ", being indexed" : cam.status === "error" ? ", indexing stopped" : ", not indexed yet"}`}
+        </p>
+        <button type="button" className="lt-link" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** The route as a film strip: the frame at each camera, in order; a frame opens that step's evidence. */
+function RouteStrip({ hops, caseId, evidenceIds }: { hops: { camera_id: string; camera_name: string; t_in: number; t_out: number; evidence_id: string }[]; caseId: string; evidenceIds: Set<string> }) {
+  const setFocus = useEvora((s) => s.setFocus);
+  const active = useEvora((s) => s.focus?.evidenceId);
+  return (
+    <ol className="lt-route" aria-label="The route, camera by camera">
+      {hops.map((h, i) => {
+        const open = evidenceIds.has(h.evidence_id);
+        const body = (
+          <>
+            <Frame src={`/api/media/thumb/${encodeURIComponent(h.evidence_id)}.jpg`} alt={`${h.camera_name} at ${clock(h.t_in)}`} />
+            <span className="lt-route-step">
+              {i + 1} of {hops.length}
+            </span>
+            <span className="lt-route-where">
+              <b>{h.camera_name}</b> {clock(h.t_in).slice(0, 5)}
+              {h.t_out - h.t_in >= 1 ? ` for ${Math.round(h.t_out - h.t_in)} s` : ""}
+            </span>
+          </>
+        );
+        return (
+          <li key={`${h.evidence_id}-${i}`}>
+            {open ? (
+              <button type="button" className={active === h.evidence_id ? "is-active" : undefined} aria-pressed={active === h.evidence_id} onClick={() => setFocus({ caseId, evidenceId: h.evidence_id })}>
+                {body}
+              </button>
+            ) : (
+              <div>{body}</div>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+interface FloorPlan {
+  url: string | null;
+  error: string | null;
+  set: (file: File) => void;
+  clear: () => void;
+}
+
+/**
+ * A picture of the site under the camera nodes. There is no API for it yet,
+ * so it is kept in this browser, per workspace, downscaled to a small JPEG.
+ */
+// pictures the browser would not keep (too large, storage blocked) stay for this visit
+const floorMemory = new Map<string, string | null>();
+const floorListeners = new Set<() => void>();
+const floorChanged = () => floorListeners.forEach((l) => l());
+const subscribeFloor = (l: () => void) => {
+  floorListeners.add(l);
+  window.addEventListener("storage", l);
+  return () => {
+    floorListeners.delete(l);
+    window.removeEventListener("storage", l);
+  };
+};
+const readFloor = (key: string): string | null => {
+  if (floorMemory.has(key)) return floorMemory.get(key) ?? null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+function useFloorPlan(workspace: string): FloorPlan {
+  const key = `evora.floorplan.${workspace}`;
+  const url = useSyncExternalStore(subscribeFloor, () => readFloor(key), () => null);
+  const [error, setError] = useState<string | null>(null);
+
+  const set = (file: File) => {
+    setError(null);
+    if (!file.type.startsWith("image/")) return setError("Choose a picture of the site: png, jpg or webp.");
+    const img = new Image();
+    const src = URL.createObjectURL(file);
+    img.onload = () => {
+      const s = Math.min(1, PLAN_MAX_PX / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.naturalWidth * s));
+      c.height = Math.max(1, Math.round(img.naturalHeight * s));
+      const ctx = c.getContext("2d");
+      URL.revokeObjectURL(src);
+      if (!ctx) return setError("This browser could not read that picture.");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      const data = c.toDataURL("image/jpeg", 0.82);
+      try {
+        window.localStorage.setItem(key, data);
+        floorMemory.delete(key);
+      } catch {
+        // too large for this browser's storage, or storage blocked: show it for this visit only
+        floorMemory.set(key, data);
+        setError("Shown for this visit only: this browser would not keep a picture that large.");
+      }
+      floorChanged();
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(src);
+      setError("That file could not be read as a picture.");
+    };
+    img.src = src;
+  };
+
+  const clear = () => {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      /* nothing kept */
+    }
+    floorMemory.delete(key);
+    setError(null);
+    floorChanged();
+  };
+
+  return { url, error, set, clear };
+}
+
+function FloorPlanControls({ floor }: { floor: FloorPlan }) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <span className="lt-plan-tools">
+      <input
+        ref={input}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) floor.set(f);
+          e.target.value = "";
+        }}
+      />
+      <button type="button" className="lt-link" onClick={() => input.current?.click()} title="A drawing or photo of the site, kept in this browser">
+        {floor.url ? "Replace floor plan" : "Add a floor plan"}
+      </button>
+      {floor.url ? (
+        <button type="button" className="lt-link" onClick={floor.clear}>
+          Remove
+        </button>
+      ) : null}
+    </span>
   );
 }

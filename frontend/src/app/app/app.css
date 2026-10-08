@@ -798,6 +798,82 @@
     linear-gradient(90deg, rgb(31 78 121 / 0.08) 1px, transparent 1px) 0 0 / 10% 10%;
   border: 1px solid rgb(31 78 121 / 0.25);
 }
+.lt-plan-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.2rem 0.8rem;
+}
+.lt-plan-tools {
+  display: inline-flex;
+  gap: 0.7rem;
+}
+.lt-plan-tools .lt-link {
+  margin-top: 0;
+}
+/* a floor plan reads as the blueprint under the cyanotype marks */
+.lt-plan-floor {
+  opacity: 0.42;
+  filter: grayscale(1) contrast(1.1);
+}
+.lt-plan svg.has-floor {
+  background-color: var(--diffuser);
+}
+.lt-plan-node.is-selected circle {
+  fill: var(--cyanotype);
+  stroke-width: 1;
+}
+.lt-plan-node.is-selected text {
+  font-weight: 700;
+}
+.lt-plan-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: start;
+  margin-top: 0.6rem;
+  padding: 0.5rem;
+  border: 1px solid rgb(31 78 121 / 0.25);
+  background: var(--diffuser);
+}
+.lt-plan-card-body p {
+  margin: 0;
+}
+.lt-plan-card-name {
+  font-weight: 650;
+  font-stretch: 112%;
+}
+.lt-route {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(6.5rem, 1fr);
+  gap: 0.4rem;
+  overflow-x: auto;
+}
+.lt-route button,
+.lt-route li > div {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-size: 0.75rem;
+  color: var(--graphite);
+}
+.lt-route button.is-active .lt-frame {
+  outline: 2px solid var(--cyanotype);
+  outline-offset: 1px;
+}
+.lt-route-step {
+  color: var(--cyanotype);
+  font-weight: 650;
+}
 .lt-plan-node circle {
   fill: var(--diffuser);
   stroke: var(--cyanotype);
@@ -1421,8 +1497,14 @@
 .lt-plan-node:active {
   cursor: grabbing;
 }
+/* the node draws its own focus ring; the browser's box around an svg group is not wanted */
+.lt-plan-node:focus {
+  outline: none;
+}
 .lt-plan-node:focus-visible circle {
   stroke-width: 1.2;
+  stroke-dasharray: none;
+  r: 2.8;
 }
 .lt-plan-node circle.is-unplaced {
   stroke-dasharray: 1 0.8;
