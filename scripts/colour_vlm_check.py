@@ -63,6 +63,7 @@ def main() -> int:
     ap.add_argument("--model", default="qwen3-vl:4b")
     ap.add_argument("--host", default="http://127.0.0.1:11434")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--resume", action="store_true", help="keep labels already in --out and only ask about the rest")
     args = ap.parse_args()
     html = args.page.read_text(encoding="utf-8")
     match = re.search(r"const ITEMS=(\[.*?\]), COLOURS=", html, re.S)
@@ -75,8 +76,19 @@ def main() -> int:
     if args.limit:
         items = items[: args.limit]
     started, out_items = time.time(), []
+    done = {}
+    if args.resume and args.out.is_file():
+        done = {d["id"]: d for d in json.loads(args.out.read_text(encoding="utf-8"))["items"]}
+        print(f"resuming: {len(done)} items already labelled")
     for i, it in enumerate(items, 1):
-        reply = ask(args.host, args.model, it.pop("jpeg"), PERSON_PROMPT if it["kind"] == "person" else VEHICLE_PROMPT)
+        if it["id"] in done:
+            out_items.append(done[it["id"]])
+            continue
+        try:
+            reply = ask(args.host, args.model, it.pop("jpeg"), PERSON_PROMPT if it["kind"] == "person" else VEHICLE_PROMPT)
+        except OSError as exc:    # a stalled model call: record nothing for this crop and carry on
+            print(f"item {i} skipped: {exc}", flush=True)
+            continue
         slots = ("upper", "lower") if it["kind"] == "person" else ("color",)
         for slot in slots:
             term = normalise(reply.get(slot))
