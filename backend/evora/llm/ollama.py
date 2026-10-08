@@ -40,6 +40,19 @@ class OllamaClient:
         }
         return await self._chat(payload)
 
+    async def vision_text(self, model: str, image_jpeg: bytes, prompt: str, num_predict: int) -> str:
+        """One free-text answer about an image. `num_predict` must leave room for the model's own reasoning."""
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "user", "content": prompt, "images": [base64.b64encode(image_jpeg).decode("ascii")]}
+            ],
+            "stream": False,
+            "think": False,
+            "options": {"temperature": 0, "num_predict": num_predict},
+        }
+        return await self._chat(payload)
+
     async def vision_json(self, model: str, image_jpeg: bytes, prompt: str) -> str:
         payload = {
             "model": model,

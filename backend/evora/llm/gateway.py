@@ -26,6 +26,8 @@ from evora.llm.schemas import GROQ_BASE_URL, GatewayConfig, LLMError
 log = logging.getLogger("evora.llm")
 
 NTFY_TIMEOUT_S = 5.0
+VISION_REASONING_HEADROOM = 512  # tokens the local vision model spends reasoning before it answers
+_THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _NTFY_TOPIC = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 M = TypeVar("M", bound=BaseModel)
@@ -41,6 +43,19 @@ def _approx_tokens(messages: list[dict]) -> int:
 
 def _validated(schema: type[M], text: str) -> M:
     return schema.model_validate_json(_strip_fences(text))
+
+
+def _answer_only(raw: str) -> str | None:
+    """The model's answer without its reasoning, or None when there is no answer.
+
+    A reply that opens a reasoning block and never closes it means the budget ran out while the model was still
+    thinking: whatever follows is reasoning, not an answer.
+    """
+    text = _THINK_BLOCK.sub("", raw)
+    if re.search(r"<think>", text, re.IGNORECASE):
+        return None
+    text = text.strip()
+    return text or None
 
 
 def _retry_after(resp: httpx.Response) -> float | None:
@@ -329,6 +344,51 @@ class Gateway:
         self._log(task="notify", backend="ntfy", ok=ok, status=resp.status_code)
         if not ok:
             raise LLMError(f"ntfy refused the notification (HTTP {resp.status_code})")
+
+    async def vision_text(self, image_jpeg: bytes, prompt: str, *, local_only: bool = True,
+                          max_tokens: int = 64) -> str | None:
+        """One free-text answer about an image (captions, reading a burned-in clock), or None.
+
+        By default only the local vision model is used, never the cloud, because these images show people;
+        `local_only=False` allows a Groq vision fallback and is never used in on-prem mode. The model reasons
+        before it answers even with thinking off, so the output budget is `max_tokens` plus headroom for that,
+        and any reasoning block is removed from the reply. Neither the prompt nor the answer is logged.
+        """
+        if not image_jpeg or not prompt.strip():
+            return None
+        started = time.monotonic()
+        budget = max_tokens + VISION_REASONING_HEADROOM
+        try:
+            raw = await self._ollama.vision_text(self._cfg.local_vision_model, image_jpeg, prompt, budget)
+            text = _answer_only(raw)
+            self._log(task="vision_text", backend="ollama", model=self._cfg.local_vision_model, ok=text is not None,
+                      latency_ms=round((time.monotonic() - started) * 1000))
+            if text is not None or local_only or self._onprem():
+                return text
+        except LLMError as exc:
+            self._log(task="vision_text", backend="ollama", model=self._cfg.local_vision_model, ok=False,
+                      error=type(exc).__name__)
+            if local_only or self._onprem():
+                return None
+        return await self._cloud_vision_text(image_jpeg, prompt, max_tokens)
+
+    async def _cloud_vision_text(self, image_jpeg: bytes, prompt: str, max_tokens: int) -> str | None:
+        model = self._cfg.groq_vision_model
+        data_uri = "data:image/jpeg;base64," + base64.b64encode(image_jpeg).decode("ascii")
+        body = {
+            "model": model, "temperature": 0, "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": [
+                {"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": data_uri}}]}],
+        }
+        got = await self._groq_post("/chat/completions", model, 2048 + 300, "vision_text", json=body)
+        if got is None or got[0].status_code != 200:
+            return None
+        resp, idx = got
+        self._log_usage("vision_text", model, idx, resp, ok=True)
+        try:
+            return _answer_only(resp.json()["choices"][0]["message"]["content"] or "")
+        except (KeyError, IndexError, ValueError):
+            return None
 
     async def transcribe(self, audio: bytes) -> str:
         if self._onprem():

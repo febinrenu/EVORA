@@ -397,3 +397,89 @@ async def test_notify_survives_titles_and_messages_that_are_awkward():
     req = seen[0]
     assert req.headers["title"] == ("Alert ? ? " + "x" * 300)[:100]  # characters a header cannot carry become "?"
     assert len(req.content) == 4000
+
+
+# -------------------------------------------------------------- vision_text
+def ollama_text(content):
+    return lambda r: httpx.Response(200, json={"message": {"content": content}})
+
+
+@pytest.mark.asyncio
+async def test_vision_text_asks_the_local_model_for_free_text_with_room_to_reason(tmp_path):
+    seen = []
+    rec = Recorder(no_groq, lambda r: (seen.append(json.loads(r.content)), ollama_text("A man in a red coat.")(r))[1])
+    gw = make(rec, tmp_path=tmp_path)
+    out = await gw.vision_text(b"jpeg-bytes", "Describe the person in one sentence.", max_tokens=64)
+    assert out == "A man in a red coat."
+    body = seen[0]
+    assert body["model"] == "qwen3-vl:2b" and body["stream"] is False and body["think"] is False
+    assert "format" not in body  # free text, not JSON
+    assert body["options"]["num_predict"] >= 500  # with 32 the reply is empty: the model reasons before answering
+    assert body["options"]["num_predict"] == 64 + 512
+    msg = body["messages"][0]
+    assert msg["content"] == "Describe the person in one sentence." and len(msg["images"]) == 1
+    assert rec.hosts() == ["127.0.0.1"]  # nothing left the machine
+    log = (tmp_path / "llm.jsonl").read_text()
+    assert "Describe the person" not in log and "red coat" not in log  # prompts and answers are never logged
+
+
+@pytest.mark.asyncio
+async def test_vision_text_removes_the_reasoning_block():
+    reply = "<think>The image shows... a clock reading 10:42.</think>\n\n  2018-03-09T10:42:07  "
+    gw = make(Recorder(no_groq, ollama_text(reply)))
+    assert await gw.vision_text(b"x", "Read the time.") == "2018-03-09T10:42:07"
+    multi = "<think>a</think>first<think>b</think> second"
+    assert await make(Recorder(no_groq, ollama_text(multi))).vision_text(b"x", "p") == "first second"
+
+
+@pytest.mark.asyncio
+async def test_a_reply_that_never_finishes_thinking_or_is_empty_is_none_not_reasoning():
+    cut_off = "<think>Let me look at the image carefully. The top left shows"  # the budget ran out mid-thought
+    assert await make(Recorder(no_groq, ollama_text(cut_off))).vision_text(b"x", "p") is None
+    assert await make(Recorder(no_groq, ollama_text(""))).vision_text(b"x", "p") is None
+    assert await make(Recorder(no_groq, ollama_text("<think>only thoughts</think>"))).vision_text(b"x", "p") is None
+
+
+@pytest.mark.asyncio
+async def test_vision_text_never_goes_to_the_cloud_by_default_even_when_the_local_model_fails():
+    def down(_):
+        raise httpx.ConnectError("refused")
+
+    rec = Recorder(no_groq, down)
+    assert await make(rec).vision_text(b"x", "p") is None  # returns None instead of raising or leaking the image
+    assert set(rec.hosts()) == {"127.0.0.1"}
+    rec500 = Recorder(no_groq, lambda r: httpx.Response(500, text="model not found"))
+    assert await make(rec500).vision_text(b"x", "p") is None
+
+
+@pytest.mark.asyncio
+async def test_the_cloud_is_used_only_when_asked_for_and_never_on_prem():
+    def down(_):
+        raise httpx.ConnectError("refused")
+
+    rec = Recorder(lambda r: groq_ok("A clock reading ten past ten."), down)
+    out = await make(rec).vision_text(b"jpeg", "Read the clock.", local_only=False, max_tokens=40)
+    assert out == "A clock reading ten past ten."
+    groq_body = rec.bodies("api.groq.com")[0]
+    assert groq_body["model"] == "qwen/qwen3.8-27b" and groq_body["max_tokens"] == 40
+    assert groq_body["messages"][0]["content"][1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+
+    onprem = Recorder(no_groq, down)
+    assert await make(onprem, onprem=True).vision_text(b"x", "p", local_only=False) is None
+    assert set(onprem.hosts()) == {"127.0.0.1"}  # on-prem keeps every image on this machine
+
+
+@pytest.mark.asyncio
+async def test_vision_text_ignores_empty_input_without_any_request():
+    def boom(_):
+        raise AssertionError("no request may be made")
+
+    gw = make(Recorder(boom, boom))
+    assert await gw.vision_text(b"", "p") is None and await gw.vision_text(b"x", "   ") is None
+
+
+def test_the_local_model_names_can_be_set_from_the_environment():
+    cfg = GatewayConfig.from_env({"OLLAMA_VISION_MODEL": "qwen3-vl:4b", "OLLAMA_TEXT_MODEL": "qwen3.5:4b"})
+    assert (cfg.local_vision_model, cfg.local_text_model) == ("qwen3-vl:4b", "qwen3.5:4b")
+    default = GatewayConfig.from_env({})
+    assert default.local_vision_model == "qwen3-vl:2b" and default.local_text_model == "qwen3.5:4b"

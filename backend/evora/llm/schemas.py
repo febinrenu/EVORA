@@ -47,5 +47,9 @@ class GatewayConfig:
         kwargs: dict[str, object] = {}
         if env.get("OLLAMA_HOST"):
             kwargs["ollama_host"] = env["OLLAMA_HOST"]
+        if env.get("OLLAMA_VISION_MODEL"):  # e.g. qwen3-vl:4b on a machine with the GPU memory for it
+            kwargs["local_vision_model"] = env["OLLAMA_VISION_MODEL"]
+        if env.get("OLLAMA_TEXT_MODEL"):
+            kwargs["local_text_model"] = env["OLLAMA_TEXT_MODEL"]
         kwargs.update(overrides)
         return cls(**kwargs)  # type: ignore[arg-type]
