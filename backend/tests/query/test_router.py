@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 import pytest
-from contracts.models import ClarifyRequest, ClarifyResponse, MemoryFact, QueryPlan, Referent, Target
+from contracts.models import ClarifyRequest, ClarifyResponse, MemoryFact, QueryPlan, Referent, Target, TimeWindow
 
 from evora.llm.schemas import LLMError
 from evora.query.fuse import Calibration
@@ -322,3 +322,25 @@ async def test_remembered_time_is_merged_into_the_window(ws):
 
 def test_router_config_defaults():
     assert RouterConfig().accept == 0.40
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_time_word_is_asked_once_through_memory(ws):
+    red_car_crossing(ws, tid="inside", eid="e1", t=1100.0 + 3600 * 5)
+    plan = QueryPlan(intent="exists", targets=[Target(noun="car", cls=["car"], attributes=["red"],
+                                                      embed_text="a photo of a red car")],
+                     place=Referent(text="main gate", role="place"), action="pass_through",
+                     time=TimeWindow(phrase="after hours"), unresolved=[Referent(text="main gate", role="place")])
+    resolver = FakeResolver({"main gate": place_fact()})
+    clarifier = FakeClarifier(resolver)
+    events = await collect(make_router(ws, resolver, clarifier, gateway=FakeGateway(plan)).answer("odd", "s1"))
+    assert types(events) == ["plan", "clarify"]
+    assert of(events, "plan")[0]["unresolved"][-1] == {"text": "after hours", "role": "time"}
+    assert clarifier.asked[0][0] == "after hours"
+
+    fact = MemoryFact(id="mf_t", kind="time", canonical="after hours",
+                      binding={"tod_after": "20:00", "tod_before": "06:00"}, source="statement", created_at=0.0)
+    resolver.known["after hours"] = fact  # once remembered it is never asked again
+    again = await collect(make_router(ws, resolver, clarifier, gateway=FakeGateway(plan)).answer("odd", "s1"))
+    assert types(again)[-2:] == ["answer", "done"] and "clarify" not in types(again)
+    assert of(again, "answer")[0]["plan"]["time"]["tod_after"] == "20:00"

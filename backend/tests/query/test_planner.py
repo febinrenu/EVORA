@@ -130,11 +130,40 @@ async def test_failed_planning_is_not_cached():
 
 
 @pytest.mark.asyncio
-async def test_uninterpretable_time_adds_a_note_and_leaves_bounds_open():
+async def test_an_unknown_time_word_becomes_a_time_referent_for_memory():
     plan = model_plan(time=TimeWindow(phrase="after hours"))
     res = await Planner(FakeGateway(plan)).plan(HARD, CAMS, REF, IST)
     assert res.plan.time.start is None and res.plan.time.end is None
-    assert any("after hours" in n for n in res.notes)
+    assert Referent(text="after hours", role="time") in res.plan.unresolved
+    # a model that already listed it is not duplicated
+    listed = model_plan(time=TimeWindow(phrase="After  hours"), unresolved=[Referent(text="after hours", role="time")])
+    again = await Planner(FakeGateway(listed)).plan(HARD, CAMS, REF, IST)
+    assert [r.text for r in again.plan.unresolved if r.role == "time"] == ["after hours"]
+
+
+@pytest.mark.asyncio
+async def test_time_of_day_and_ordinary_phrases_never_go_to_memory():
+    for window in (TimeWindow(phrase="after 8pm", tod_after="20:00"), TimeWindow(phrase="last week"),
+                   TimeWindow(phrase="yesterday evening")):
+        res = await Planner(FakeGateway(model_plan(time=window))).plan(HARD, CAMS, REF, IST)
+        assert not [r for r in res.plan.unresolved if r.role == "time"], window.phrase
+
+
+@pytest.mark.asyncio
+async def test_standing_plans_keep_places_actions_and_time_of_day_but_no_fixed_dates():
+    plan = QueryPlan(
+        intent="standing",
+        targets=[Target(noun="person", cls=["person"], embed_text="a photo of a person")],
+        place=Referent(text="server room", role="place"), action="enter",
+        time=TimeWindow(phrase="after 8pm", tod_after="20:00"),
+        unresolved=[Referent(text="server room", role="place")])
+    res = await Planner(FakeGateway(plan)).plan("alert me if anyone enters the server room after 8pm", CAMS, REF, IST)
+    p = res.plan
+    assert (p.intent, p.action, p.place.text, p.time.tod_after) == ("standing", "enter", "server room", "20:00")
+    assert p.time.start is None and p.time.end is None and p.source == "llm"
+    dated = plan.model_copy(update={"time": TimeWindow(phrase="today")})
+    again = await Planner(FakeGateway(dated)).plan("alert me today", CAMS, REF, IST)
+    assert again.plan.time.start is None and again.plan.time.phrase == "today"  # the rule must not freeze today's date
 
 
 def test_sanitize_keeps_valid_plans_unchanged():
@@ -237,3 +266,14 @@ def test_sanitize_recovers_a_missing_place_from_unresolved():
     two = model_plan(place=None, unresolved=[Referent(text="the lot", role="place"),
                                              Referent(text="the dock", role="place")])
     assert sanitize(two, CAMS).place is None  # ambiguous: do not guess
+
+
+@pytest.mark.asyncio
+async def test_ordinary_times_listed_as_unresolved_by_a_model_are_dropped_but_idiosyncratic_ones_stay():
+    plan = model_plan(
+        time=TimeWindow(phrase="after 8pm", tod_after="20:00"),
+        unresolved=[Referent(text="after 8pm", role="time"), Referent(text="last week", role="time"),
+                    Referent(text="in the last hour", role="time"), Referent(text="night shift", role="time"),
+                    Referent(text="server room", role="place")])
+    res = await Planner(FakeGateway(plan)).plan(HARD, CAMS, REF, IST)
+    assert [(r.text, r.role) for r in res.plan.unresolved] == [("night shift", "time"), ("server room", "place")]

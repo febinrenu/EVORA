@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, tzinfo
 from typing import Protocol
 
-from contracts.models import QueryPlan, Referent, Target
+from contracts.models import QueryPlan, Referent, Target, TimeWindow
 from pydantic import ValidationError
 
 from evora.core.db import Database
@@ -84,6 +84,17 @@ class SqlitePlanCache:
 def normalize_text(text: str) -> str:
     text = re.sub(r"[^\w\s:]", " ", text.lower())
     return re.sub(r"\s+", " ", text).strip()
+
+
+def _is_ordinary_time(text: str, reference: float, tz: tzinfo) -> bool:
+    if fastpath.is_standard_time(text):
+        return True
+    resolved, ok = resolve_window(TimeWindow(phrase=text), reference, tz)
+    return ok and resolved is not None and resolved.start is not None
+
+
+def norm_key(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
 
 
 def cache_key(text: str, cameras: Sequence[CameraLike]) -> str:
@@ -212,9 +223,17 @@ class Planner:
                 timings["plan_llm"] = _ms(started)
 
         window, understood = resolve_window(plan.time, reference, tz)
-        if not understood:
-            notes.append(f'Could not interpret the time phrase "{plan.time.phrase}"; searched all footage.')
-        return PlanResult(plan=plan.model_copy(update={"time": window}), notes=notes, timings_ms=timings)
+        # models sometimes list "after 8pm" or "last week" as something to look up; those never need memory
+        unresolved = [r for r in plan.unresolved if not (r.role == "time" and _is_ordinary_time(r.text, reference, tz))]
+        if not understood and plan.time is not None and plan.time.phrase:
+            # a phrase like "after hours" is the user's own word: hand it to memory, which asks once and remembers
+            if not any(r.role == "time" and norm_key(r.text) == norm_key(plan.time.phrase) for r in unresolved):
+                unresolved.append(Referent(text=plan.time.phrase, role="time"))
+        if plan.intent == "standing":
+            # a standing rule watches the future: keep the phrase and time-of-day bounds, never fixed dates
+            window = window.model_copy(update={"start": None, "end": None}) if window is not None else None
+        return PlanResult(plan=plan.model_copy(update={"time": window, "unresolved": unresolved}), notes=notes,
+                          timings_ms=timings)
 
     async def _ask_model(self, text: str, cameras: Sequence[CameraLike], notes: list[str]) -> QueryPlan:
         if self._gateway is None:

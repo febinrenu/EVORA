@@ -26,11 +26,17 @@ _MONTH_RX = "|".join(MONTHS)
 _RELATIVE = re.compile(
     r"\b(?:in|within|during|over)\s+the\s+(?:last|past)\s+(?:(\d+|[a-z]+)\s+)?(second|minute|hour|day|week)s?\b"
 )
+_PERIOD = re.compile(r"\b(this|last)\s+(week|month)\b")
 _DAY = re.compile(r"\b(today|tonight|yesterday|this|last)(?:\s+(morning|afternoon|evening|night))?\b")
 _DMY = re.compile(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+({_MONTH_RX})(?:\s+(\d{{4}}))?\b")
 _MDY = re.compile(rf"\b({_MONTH_RX})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,?\s+(\d{{4}}))?\b")
 _ISO = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 _OFFSET = re.compile(r"^(?:utc|gmt)?\s*([+-])(\d{1,2})(?::?(\d{2}))?$", re.IGNORECASE)
+
+
+def _tod_only(window: TimeWindow) -> bool:
+    """A phrase we cannot place on the calendar is still fine when it came with time-of-day bounds."""
+    return bool(window.tod_after or window.tod_before)
 
 
 def parse_tz(name: str | None) -> tzinfo:
@@ -100,18 +106,29 @@ def resolve_window(window: TimeWindow | None, reference_now: float, tz: tzinfo =
         raw = m.group(1)
         count = 1 if raw is None else int(raw) if raw.isdigit() else NUMBER_WORDS.get(raw)
         if count is None:
-            return window, False
+            return window, _tod_only(window)
         end, start = reference_now, reference_now - count * UNIT_S[m.group(2)]
     elif d := _absolute_date(phrase, today):
         start = _midnight(d, tz).timestamp()
         end = _midnight(d + timedelta(days=1), tz).timestamp()
         day_based = True
+    elif m := _PERIOD.search(phrase):
+        this = m.group(1) == "this"
+        if m.group(2) == "week":  # weeks run Monday to Sunday
+            monday = today - timedelta(days=today.weekday())
+            first = monday if this else monday - timedelta(days=7)
+            after = None if this else monday
+        else:
+            first = today.replace(day=1) if this else (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+            after = None if this else today.replace(day=1)
+        start = _midnight(first, tz).timestamp()
+        end = reference_now if after is None else _midnight(after, tz).timestamp()
     elif m := _DAY.search(phrase):
         word, part = m.group(1), m.group(2)
         if word == "this" and part is None:  # "this week", "this year": not handled
-            return window, False
+            return window, _tod_only(window)
         if word == "last" and part is None:
-            return window, False
+            return window, _tod_only(window)
         if word == "tonight":
             word, part = "today", part or "night"
         if word == "last":  # "last night", "last evening"
@@ -132,7 +149,7 @@ def resolve_window(window: TimeWindow | None, reference_now: float, tz: tzinfo =
         if base == today and end > reference_now > start:
             end = reference_now  # the footage ends at reference_now
     else:
-        return window, False
+        return window, _tod_only(window)
 
     if day_based:
         if window.tod_after:
@@ -140,7 +157,7 @@ def resolve_window(window: TimeWindow | None, reference_now: float, tz: tzinfo =
         if window.tod_before:
             end = min(end, start_of_day(start, tz) + _tod_seconds(window.tod_before))
     if start is not None and end is not None and end < start:
-        return window, False
+        return window, _tod_only(window)
     return window.model_copy(update={"start": start, "end": end}), True
 
 

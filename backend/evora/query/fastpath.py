@@ -363,3 +363,9 @@ def parse(text: str, cameras: Sequence[CameraLike] = ()) -> QueryPlan | None:
         unresolved=unresolved,
         source="fastpath",
     )
+
+
+def is_standard_time(text: str) -> bool:
+    """True for ordinary time expressions ("after 8pm", "in the last hour", "yesterday evening")."""
+    found = _extract_time(_normalize(text))
+    return found is not None and found[1] is not None

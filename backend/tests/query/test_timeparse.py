@@ -62,12 +62,12 @@ def test_time_of_day_bounds_narrow_a_single_day():
 
 def test_time_of_day_alone_leaves_bounds_open():
     out, ok = resolve_window(TimeWindow(phrase="after 8pm", tod_after="20:00"), REF, IST)
-    assert ok is False  # no date to anchor: nothing to resolve, the logic layer applies the filter
+    assert ok is True  # a time-of-day filter is a complete answer: nothing to anchor, nothing to ask
     assert out.start is None and out.end is None and out.tod_after == "20:00"
 
 
 def test_unparseable_phrases_are_reported_not_guessed():
-    for phrase in ("after hours", "last week", "this week", "sometime", "in the last few hours"):
+    for phrase in ("after hours", "night shift", "sometime", "in the last few hours", "lunch time"):
         out, ok = resolve(phrase)
         assert ok is False and out.start is None and out.end is None, phrase
 
@@ -101,3 +101,27 @@ def test_parse_tz_forms():
     assert parse_tz("UTC+5:30").utcoffset(None).total_seconds() == 19800
     assert parse_tz("-08:00").utcoffset(None).total_seconds() == -28800
     assert parse_tz("Not/AZone").utcoffset(None).total_seconds() == 0
+
+
+def test_weeks_and_months():
+    # REF is Friday 9 Oct 2026 10:30 IST: this week began Monday 5 Oct
+    out, ok = resolve("this week")
+    assert ok and (out.start, out.end) == (pytest.approx(at(2026, 10, 5)), pytest.approx(REF))
+    out, ok = resolve("last week")
+    assert ok and (out.start, out.end) == (pytest.approx(at(2026, 9, 28)), pytest.approx(at(2026, 10, 5)))
+    out, ok = resolve("this month")
+    assert ok and (out.start, out.end) == (pytest.approx(at(2026, 10, 1)), pytest.approx(REF))
+    out, ok = resolve("last month")
+    assert ok and (out.start, out.end) == (pytest.approx(at(2026, 9, 1)), pytest.approx(at(2026, 10, 1)))
+
+
+def test_last_month_across_a_year_boundary():
+    jan = datetime(2027, 1, 15, 12, 0, tzinfo=IST).timestamp()
+    out, ok = resolve_window(TimeWindow(phrase="last month"), jan, IST)
+    assert ok and out.start == pytest.approx(datetime(2026, 12, 1, tzinfo=IST).timestamp())
+    assert out.end == pytest.approx(datetime(2027, 1, 1, tzinfo=IST).timestamp())
+
+
+def test_a_phrase_with_time_of_day_bounds_is_never_reported_as_unknown():
+    out, ok = resolve_window(TimeWindow(phrase="after hours", tod_after="20:00", tod_before="06:00"), REF, IST)
+    assert ok is True and out.start is None
