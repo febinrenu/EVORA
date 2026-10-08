@@ -16,7 +16,7 @@ More targets: `make dev` (API with reload; `evora_MOCK=1 make dev` serves fixtur
 (download local models while online), `make offline-test` (the suite with Wi-Fi-off rules), `make eval`, `make ablate`.
 Pass options with `ARGS`, for example `make up ARGS="--live --open"` or `make doctor ARGS="--on-prem"`.
 
-Judge day: follow Appendix C of the plan; the first step is `make doctor` all green.
+Judge day: follow `docs/DEMO.md` and `docs/JUDGE_SIM.md`; the first step is `make doctor` all green.
 
 ## Layout
 
@@ -25,3 +25,7 @@ Judge day: follow Appendix C of the plan; the first step is `make doctor` all gr
 - `PROGRESS.md` live team state.
 
 Copy `.env.example` to `.env` and fill in your own keys. Never commit `.env`.
+
+## Licence
+
+AGPL-3.0, see `LICENSE`. The detector and tracker libraries (Ultralytics, BoxMOT) are AGPL-3.0, so the whole project is released under the same licence.
