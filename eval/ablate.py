@@ -51,7 +51,8 @@ SWITCHES: list[Switch] = [
            needs_reindex=True, owner="M2"),
 ]
 
-COLUMNS = [("Hit@1", "hit@1", "{:.2f}"), ("Hit@5", "hit@5", "{:.2f}"), ("MRR", "mrr", "{:.2f}"),
+COLUMNS = [("Hit@1", "hit@1", "{:.2f}"), ("Strict Hit@1", "hit@1_strict", "{:.2f}"), ("Hit@5", "hit@5", "{:.2f}"),
+           ("MRR", "mrr", "{:.2f}"),
            ("Neg prec", "negative_precision", "{:.2f}"), ("TTFA p50 (ms)", "ttfa_p50_ms", "{:.0f}")]
 
 

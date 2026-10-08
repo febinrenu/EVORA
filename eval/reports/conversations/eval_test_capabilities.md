@@ -1,7 +1,7 @@
 System: ours
 
-| Capability | n | Hit@1 | Hit@5 | MRR | Cam acc | Ts err (s) | Neg prec | Count acc | Count MAE | Within 1 |
-|---|---|---|---|---|---|---|---|---|---|---|
+| Capability | n | Hit@1 | Strict Hit@1 | Hit@5 | Strict Hit@5 | MRR | Cam acc | Ts err (s) | Neg prec | Count acc | Count MAE | Within 1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
 
 Not evaluated (no reliable ground truth in the available data):
 - count: MEVA labels only actors in annotated activities (parked cars and bystanders are unlabelled), so annotated counts are lower bounds and exact counts cannot be scored

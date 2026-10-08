@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 from contracts.models import Answer, Evidence, PathHop, QueryPlan
-from eval.metrics import RunResult, is_correct, percentile, score, temporal_iou
+from eval.metrics import RunResult, is_correct, is_correct_strict, percentile, score, temporal_iou
 from eval.queries import GroundTruthHit, QueryItem, load_queries
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -200,3 +200,30 @@ def test_no_model_share_counts_fastpath_and_cache_but_not_llm_plans():
     share = metric(score(items, results), "no_model_share")
     assert share.value == 0.5 and share.n == 4  # the result with no recorded source is not counted
     assert metric(score(items, []), "no_model_share").value is None
+
+
+def test_strict_hit_needs_the_peak_inside_the_labelled_window_not_just_an_overlap():
+    hits = [GroundTruthHit(**gt("cam_01", t(10, 12, 0), t(10, 12, 10)))]
+    long_window = ev("cam_01", t(10, 12, 0), t(10, 13, 0), peak=t(10, 12, 50))   # spans the minute, points elsewhere
+    on_target = ev("cam_01", t(10, 12, 3), t(10, 12, 6), peak=t(10, 12, 5))
+    near = ev("cam_01", t(10, 12, 11), t(10, 12, 12), peak=t(10, 12, 11) + 0.5)         # within the 2 s slack
+    wrong_camera = ev("cam_02", t(10, 12, 3), t(10, 12, 6), peak=t(10, 12, 5))
+    assert is_correct(long_window, hits) and not is_correct_strict(long_window, hits)
+    assert is_correct_strict(on_target, hits) and is_correct_strict(near, hits)
+    assert not is_correct_strict(wrong_camera, hits)
+    assert not is_correct_strict(ev("cam_01", t(10, 12, 20), t(10, 12, 21), peak=t(10, 12, 12) + 0.1), hits)  # 2.1 s late
+
+
+def test_strict_metrics_are_reported_next_to_the_lenient_ones():
+    items = [item("a", hits=[gt("cam_01", t(10, 12, 0), t(10, 12, 10))])]
+    lazy = answer("yes", [ev("cam_01", t(10, 12, 0), t(10, 13, 0), peak=t(10, 12, 50), eid="e1")])
+    m = score(items, [run("a", lazy)]).metrics
+    assert m["hit@1"].value == 1.0 and m["hit@1_strict"].value == 0.0
+    assert m["mrr"].value == 1.0 and m["mrr_strict"].value == 0.0 and m["hit@5_strict"].value == 0.0
+    good = answer("yes", [ev("cam_01", t(10, 12, 3), t(10, 12, 6), peak=t(10, 12, 5), eid="e1")])
+    m = score(items, [run("a", good)]).metrics
+    assert m["hit@1_strict"].value == 1.0 and m["mrr_strict"].value == 1.0
+    second = answer("yes", [ev("cam_01", t(10, 14, 0), t(10, 14, 5), eid="e0"),
+                            ev("cam_01", t(10, 12, 3), t(10, 12, 6), peak=t(10, 12, 5), eid="e1")])
+    m = score(items, [run("a", second)]).metrics
+    assert m["hit@1_strict"].value == 0.0 and m["hit@5_strict"].value == 1.0 and m["mrr_strict"].value == 0.5

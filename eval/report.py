@@ -23,7 +23,7 @@ FROZEN_FILE = Path(__file__).resolve().parent / "frozen.json"
 SPLITS = ("dev", "test", "judge_sim")
 # capability -> the metrics worth pooling across splits
 POOLED = {
-    "object": ["hit@1", "hit@5", "mrr", "camera_accuracy"],
+    "object": ["hit@1", "hit@1_strict", "hit@5", "hit@5_strict", "mrr", "mrr_strict", "camera_accuracy"],
     "negative": ["negative_precision"],
 }
 # statements that hold whatever the numbers are; the data decides which capabilities are listed as not evaluated
@@ -36,9 +36,9 @@ LIMITS = [
     "Thresholds were frozen before the test and judge_sim runs; nothing was tuned on them.",
 ]
 NOT_SHOWN = [
-    "Object retrieval better than chance: a random moment inside the same camera and window (the null system) scores "
-    "as well as or better than our object Hit@1 on every split, and the frame-similarity baseline is the only "
-    "system clearly above it.",
+    "Object retrieval better than chance on the main set: a random moment inside the same camera and window (the "
+    "null system) scores as well as or better than our object Hit@1 on every split. The frame-similarity baseline "
+    "is above it on the lenient score; see the strict comparison in the limits.",
     "Better timestamp localisation than chance or the frame baseline: after the time-window boundary fix the "
     "differences are within noise, and the random baseline is not worse.",
     "A benefit of track-centric indexing: frame-level retrieval is better than the full system in the ablation. "
@@ -60,7 +60,7 @@ EXTENDED = {
         "what": "The same kind of object question, kept only for 1-minute windows where MEVA's annotated actors fill at "
                 "most half of the window, so a random moment is less likely to be right. Cameras keep their split. "
                 "These windows overlap the main set: this re-weights it toward harder chance, it is not new footage.",
-        "capability": {"object": ["hit@1", "hit@5", "mrr"]},
+        "capability": {"object": ["hit@1", "hit@1_strict", "hit@5", "hit@5_strict", "mrr", "mrr_strict"]},
     },
     "conversations": {
         "dir": "conversations",
@@ -174,6 +174,22 @@ def _colour_verification(reports_dir: Path) -> dict[str, Any] | None:
     }
 
 
+def _strict_note(pooled: dict[str, Any]) -> str:
+    """Lenient and strict Hit@1 side by side, from the pooled data, with what each one means."""
+    parts, n = [], 0
+    for system, label in (("ours", "ours"), ("b0", "frame baseline"), ("null", "random moment")):
+        row = pooled.get(system, {}).get("object", {})
+        lenient, strict = row.get("hit@1", {}), row.get("hit@1_strict", {})
+        if lenient.get("value") is not None and strict.get("value") is not None:
+            parts.append(f"{label} {lenient['value']:.2f} to {strict['value']:.2f}")
+            n = max(n, lenient["n"])
+    detail = f" (pooled, n={n}): " + "; ".join(parts) + "." if parts else "."
+    return ("Hit@1 is reported two ways" + detail + " The lenient score counts any overlap between the returned window "
+            "and the labelled one, so a system that returns long windows is right almost by construction; the strict "
+            "score needs the returned peak moment inside the labelled window widened by 2 s. Compare systems on the "
+            "strict score.")
+
+
 def build_report(reports_dir: Path = REPORTS_DIR, frozen_file: Path = FROZEN_FILE) -> dict[str, Any]:
     splits: dict[str, Any] = {}
     cap_by_split: dict[str, dict[str, Any]] = {}
@@ -200,6 +216,7 @@ def build_report(reports_dir: Path = REPORTS_DIR, frozen_file: Path = FROZEN_FIL
             f"{chance['value']:.2f} (n={chance['n']}), because MEVA's annotated actors are dense in time. "
             "Read every object result next to this row."
         )
+    limits.append(_strict_note(pooled))
     frozen_v1 = reports_dir / "frozen_v1"
     if frozen_v1.is_dir():
         v1 = {}

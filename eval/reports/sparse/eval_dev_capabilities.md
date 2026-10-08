@@ -1,8 +1,8 @@
 System: ours
 
-| Capability | n | Hit@1 | Hit@5 | MRR | Cam acc | Ts err (s) | Neg prec | Count acc | Count MAE | Within 1 |
-|---|---|---|---|---|---|---|---|---|---|---|
-| object | 11 | 0.64 | 0.82 | 0.73 | 1.00 | 1.1 | n/a | n/a | n/a | n/a |
+| Capability | n | Hit@1 | Strict Hit@1 | Hit@5 | Strict Hit@5 | MRR | Cam acc | Ts err (s) | Neg prec | Count acc | Count MAE | Within 1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| object | 11 | 0.64 | 0.64 | 0.82 | 0.82 | 0.73 | 1.00 | 1.1 | n/a | n/a | n/a | n/a |
 
 Not evaluated (no reliable ground truth in the available data):
 - count: MEVA labels only actors in annotated activities (parked cars and bystanders are unlabelled), so annotated counts are lower bounds and exact counts cannot be scored
@@ -12,9 +12,9 @@ Not evaluated (no reliable ground truth in the available data):
 
 System: b0
 
-| Capability | n | Hit@1 | Hit@5 | MRR | Cam acc | Ts err (s) | Neg prec | Count acc | Count MAE | Within 1 |
-|---|---|---|---|---|---|---|---|---|---|---|
-| object | 11 | 1.00 | 1.00 | 1.00 | 1.00 | 5.3 | n/a | n/a | n/a | n/a |
+| Capability | n | Hit@1 | Strict Hit@1 | Hit@5 | Strict Hit@5 | MRR | Cam acc | Ts err (s) | Neg prec | Count acc | Count MAE | Within 1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| object | 11 | 1.00 | 0.45 | 1.00 | 0.45 | 1.00 | 1.00 | 5.3 | n/a | n/a | n/a | n/a |
 
 Not evaluated (no reliable ground truth in the available data):
 - count: MEVA labels only actors in annotated activities (parked cars and bystanders are unlabelled), so annotated counts are lower bounds and exact counts cannot be scored
@@ -24,9 +24,9 @@ Not evaluated (no reliable ground truth in the available data):
 
 System: null
 
-| Capability | n | Hit@1 | Hit@5 | MRR | Cam acc | Ts err (s) | Neg prec | Count acc | Count MAE | Within 1 |
-|---|---|---|---|---|---|---|---|---|---|---|
-| object | 11 | 0.36 | 0.91 | 0.58 | 1.00 | 12.3 | n/a | n/a | n/a | n/a |
+| Capability | n | Hit@1 | Strict Hit@1 | Hit@5 | Strict Hit@5 | MRR | Cam acc | Ts err (s) | Neg prec | Count acc | Count MAE | Within 1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| object | 11 | 0.36 | 0.27 | 0.91 | 0.82 | 0.58 | 1.00 | 12.3 | n/a | n/a | n/a | n/a |
 
 Not evaluated (no reliable ground truth in the available data):
 - count: MEVA labels only actors in annotated activities (parked cars and bystanders are unlabelled), so annotated counts are lower bounds and exact counts cannot be scored

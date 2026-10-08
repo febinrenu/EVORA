@@ -41,6 +41,7 @@ from evora.query.fuse import (
 from evora.query.logic import Candidate, TrackRec, instant_in_window, span_in_window
 
 OTHER_COLOUR_CAP = 0.35     # below the router's accept line, so a person seen in another colour is never an answer
+VECTOR_CACHE = 128        # distinct query texts whose embeddings are kept
 MIN_POINTS_IN_WINDOW = 2   # track points (about 4 per second) a track needs inside the window to count as present
 MIN_PRESENCE_S = 0.5        # and they must span at least this long
 
@@ -125,6 +126,7 @@ class Retriever:
         self.cfg = cfg or RetrievalConfig()
         self._gateway = gateway
         self._bm25_cache: tuple[int, BM25] | None = None
+        self._vectors: dict[str, np.ndarray] = {}
 
     # ------------------------------------------------------------------ public
     async def search(self, plan: QueryPlan, scope: SearchScope | None = None) -> RetrievalResult:
@@ -148,6 +150,15 @@ class Retriever:
     def _tables(self) -> set[str]:
         return set(self._store.list_tables().tables)
 
+    def _text_vector(self, text: str) -> np.ndarray:
+        """The unit text embedding, computed once per distinct text: crops and scenes share the same query."""
+        vec = self._vectors.get(text)
+        if vec is None:
+            if len(self._vectors) >= VECTOR_CACHE:
+                self._vectors.pop(next(iter(self._vectors)))  # oldest first
+            vec = self._vectors[text] = _unit(self._embedder.embed_text(text))
+        return vec
+
     def _all_cameras(self) -> list[tuple[str, str]]:
         with self._db.read() as conn:
             return [(r["id"], r["name"]) for r in conn.execute("SELECT id, name FROM cameras ORDER BY id")]
@@ -170,7 +181,8 @@ class Retriever:
         return int(self._store.open_table("scenes").count_rows(_in_clause("camera_id", cams)))
 
     def _search_sync(self, plan: QueryPlan, scope: SearchScope, variants: list[str], out: RetrievalResult) -> None:
-        cams = [c for c, _ in self._all_cameras()]
+        names = dict(self._all_cameras())
+        cams = list(names)
         if scope.camera_ids:
             cams = [c for c in cams if c in scope.camera_ids]
         if not cams:
@@ -185,7 +197,6 @@ class Retriever:
         empty = [c for c in cams if c not in track_cams and "L1" in layers.get(c, set())]
         scene_only = [c for c in cams if c not in track_cams and c not in empty]
         if empty:
-            names = dict(self._all_cameras())
             out.notes.append("Nothing was detected on " + ", ".join(names.get(c, c) for c in empty) + ".")
 
         if track_cams and "crops" in tables:
@@ -197,7 +208,6 @@ class Retriever:
         if scene_only and "scenes" in tables:
             self._scene_candidates(scope, scene_only, variants, out, full_frames_only=self.cfg.unit == "frame")
             if self.cfg.unit != "frame":
-                names = dict(self._all_cameras())
                 out.notes.append(
                     "Still indexing " + ", ".join(names.get(c, c) for c in scene_only)
                     + ": only coarse scene search is available there."
@@ -237,8 +247,7 @@ class Retriever:
         where = _where(_in_clause("camera_id", cams), _in_clause("cls", classes))
         best: dict[str, tuple[float, list[tuple[float, float]]]] = {}
         for text in variants:
-            vec = _unit(self._embedder.embed_text(text))
-            query = table.search(vec).metric("cosine")
+            query = table.search(self._text_vector(text)).metric("cosine")
             if where:
                 query = query.where(where, prefilter=True)
             per_track: dict[str, list[tuple[float, float]]] = {}
@@ -257,7 +266,7 @@ class Retriever:
         where = _where(_in_clause("camera_id", cams), "tile = 'full'" if full_only else None)
         best: dict[tuple[str, float], float] = {}
         for text in variants:
-            query = table.search(_unit(self._embedder.embed_text(text))).metric("cosine")
+            query = table.search(self._text_vector(text)).metric("cosine")
             if where:
                 query = query.where(where, prefilter=True)
             for row in query.limit(self.cfg.scene_k).to_list():
@@ -324,13 +333,25 @@ class Retriever:
             return {}
         out: dict[str, list[float]] = {}
         ids = list(pool)
+        bounds, args = "", []
+        if window.start is not None:  # the same inclusive bounds instant_in_window applies, now in SQL
+            bounds, args = bounds + " AND t >= ?", [*args, window.start]
+        if window.end is not None:
+            bounds, args = bounds + " AND t <= ?", [*args, window.end]
         with self._db.read() as conn:
             for i in range(0, len(ids), 400):
                 chunk = ids[i:i + 400]
                 marks = ",".join("?" * len(chunk))
-                for row in conn.execute(f"SELECT track_id, t FROM track_points WHERE track_id IN ({marks}) "
-                                        "ORDER BY track_id, t", chunk):
+                for row in conn.execute(f"SELECT track_id, t FROM track_points WHERE track_id IN ({marks}){bounds} "
+                                        "ORDER BY track_id, t", [*chunk, *args]):
                     out.setdefault(row["track_id"], []).append(row["t"])
+            if bounds:
+                # a track with points but none inside the window is "never on screen in it" (empty list), which
+                # differs from a track with no stored points at all (absent): one index seek per such track
+                for tid in ids:
+                    if tid not in out and conn.execute("SELECT 1 FROM track_points WHERE track_id=? LIMIT 1",
+                                                       (tid,)).fetchone():
+                        out[tid] = []
         return {tid: [t for t in times if instant_in_window(t, window, scope.tz)] for tid, times in out.items()}
 
     def _track_candidates(self, plan: QueryPlan, scope: SearchScope, cams: list[str], variants: list[str],

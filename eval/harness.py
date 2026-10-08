@@ -24,7 +24,8 @@ REPORTS_DIR = Path(__file__).resolve().parent / "reports"
 
 # (display name, metric key, format). Order is the order of columns in the scoreboard.
 HEADLINE = [
-    ("Hit@1", "hit@1", "{:.2f}"), ("Hit@5", "hit@5", "{:.2f}"), ("MRR", "mrr", "{:.2f}"),
+    ("Hit@1", "hit@1", "{:.2f}"), ("Strict Hit@1", "hit@1_strict", "{:.2f}"), ("Hit@5", "hit@5", "{:.2f}"),
+    ("MRR", "mrr", "{:.2f}"),
     ("Cam acc", "camera_accuracy", "{:.2f}"), ("Ts err (s)", "timestamp_error_s", "{:.1f}"),
     ("Neg prec", "negative_precision", "{:.2f}"), ("Re-asks", "reask_count", "{:.0f}"),
     ("TTFA p50 (ms)", "ttfa_p50_ms", "{:.0f}"), ("No-LLM share", "no_model_share", "{:.2f}"),
@@ -88,6 +89,8 @@ def scoreboard_row(report: Report, commit: str, baseline_hit1: float | None = No
 
     base = "n/a" if baseline_hit1 is None else f"{baseline_hit1:.2f}"
     stamp = time.strftime("%H:%M")
+    # the table's columns are fixed (old rows are never edited), so the stricter hit rides in the notes cell
+    notes = " ".join(x for x in (f"strict Hit@1 {val('hit@1_strict')}", notes) if x)
     return (f"| {stamp} | {commit} | {report.split} | {val('hit@1')} | {val('hit@5')} | {val('mrr')} | "
             f"{val('camera_accuracy')} | {val('timestamp_error_s', '{:.1f}')} | {val('negative_precision')} | "
             f"{val('reask_count', '{:.0f}')} | {val('ttfa_p50_ms', '{:.0f}')} | {base} | {notes} |")
@@ -129,7 +132,8 @@ UNSUPPORTED_CAPABILITIES = {
     "path": "no cross-camera identity ground truth (MEVA actor ids are per clip and camera)",
 }
 CAPABILITY_COLUMNS = [
-    ("Hit@1", "hit@1", "{:.2f}"), ("Hit@5", "hit@5", "{:.2f}"), ("MRR", "mrr", "{:.2f}"),
+    ("Hit@1", "hit@1", "{:.2f}"), ("Strict Hit@1", "hit@1_strict", "{:.2f}"), ("Hit@5", "hit@5", "{:.2f}"),
+    ("Strict Hit@5", "hit@5_strict", "{:.2f}"), ("MRR", "mrr", "{:.2f}"),
     ("Cam acc", "camera_accuracy", "{:.2f}"), ("Ts err (s)", "timestamp_error_s", "{:.1f}"),
     ("Neg prec", "negative_precision", "{:.2f}"), ("Count acc", "count_accuracy", "{:.2f}"),
     ("Count MAE", "count_mae", "{:.2f}"), ("Within 1", "count_within_1", "{:.2f}"),

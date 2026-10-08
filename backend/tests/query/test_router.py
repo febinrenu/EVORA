@@ -653,3 +653,17 @@ async def test_an_undecided_check_leaves_the_answer_unconfirmed(ws):
     events = await collect(make_router(ws, verifier=FakeVerifier(default=None)).answer(GATE_Q, "s1"))
     answers = of(events, "answer")
     assert len(answers) == 1 and answers[0]["verdict"] == "partial"
+
+
+@pytest.mark.asyncio
+async def test_the_box_comes_from_the_stored_point_nearest_in_time(ws):
+    ws.track("t1", "cam_01", attrs=RED_CAR, crops=[E[0]], t0=1100.0, t1=1110.0)
+    with ws.db.write() as c:
+        for t, box in ((1101.0, (0.1, 0.1, 0.2, 0.2)), (1103.0, (0.3, 0.3, 0.4, 0.4)), (1109.0, (0.7, 0.7, 0.8, 0.8))):
+            c.execute("INSERT INTO track_points(track_id,t,x1,y1,x2,y2,conf) VALUES(?,?,?,?,?,?,1)", ("t1", t, *box))
+    router = make_router(ws)
+    assert router._bbox("t1", 1102.4) == (0.3, 0.3, 0.4, 0.4)       # 0.6 s from 1103, 1.4 s from 1101
+    assert router._bbox("t1", 1101.4) == (0.1, 0.1, 0.2, 0.2)
+    assert router._bbox("t1", 1090.0) == (0.1, 0.1, 0.2, 0.2)       # before the first point: the first one
+    assert router._bbox("t1", 1200.0) == (0.7, 0.7, 0.8, 0.8)       # after the last: the last one
+    assert router._bbox("nobody", 1102.0) is None

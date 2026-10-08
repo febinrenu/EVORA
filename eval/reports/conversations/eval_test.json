@@ -15,6 +15,18 @@
         "value": 0.6111,
         "n": 9
       },
+      "hit@1_strict": {
+        "value": 0.5556,
+        "n": 9
+      },
+      "hit@5_strict": {
+        "value": 0.6667,
+        "n": 9
+      },
+      "mrr_strict": {
+        "value": 0.5926,
+        "n": 9
+      },
       "camera_accuracy": {
         "value": 0.6667,
         "n": 9
@@ -68,19 +80,19 @@
         "n": 0
       },
       "ttfa_p50_ms": {
-        "value": 217.3817,
+        "value": 214.7912,
         "n": 10
       },
       "ttfa_p95_ms": {
-        "value": 2412.2333,
+        "value": 1170.3413,
         "n": 10
       },
       "ttva_p50_ms": {
-        "value": 219.0297,
+        "value": 216.6704,
         "n": 10
       },
       "ttva_p95_ms": {
-        "value": 2413.8519,
+        "value": 1172.5,
         "n": 10
       },
       "no_model_share": {

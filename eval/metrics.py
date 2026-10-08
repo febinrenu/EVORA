@@ -62,9 +62,19 @@ def is_correct(ev: Evidence, hits: list[GroundTruthHit], tau: float = TAU_S) -> 
     return any(ev.camera_id == h.camera_id and ev.t_end >= h.start - tau and ev.t_start <= h.end + tau for h in hits)
 
 
-def _first_correct_rank(evidence: list[Evidence], hits: list[GroundTruthHit]) -> int | None:
+def is_correct_strict(ev: Evidence, hits: list[GroundTruthHit], tau: float = TAU_S) -> bool:
+    """Right camera, and the moment the evidence points at (`t_peak`) lies inside a ground-truth window widened by tau.
+
+    The lenient `is_correct` accepts any overlap between the whole evidence window and the labelled one, so a result
+    that spans most of a minute is right almost by construction. This one cannot be met by returning a long window.
+    """
+    return any(ev.camera_id == h.camera_id and h.start - tau <= ev.t_peak <= h.end + tau for h in hits)
+
+
+def _first_correct_rank(evidence: list[Evidence], hits: list[GroundTruthHit], strict: bool = False) -> int | None:
+    check = is_correct_strict if strict else is_correct
     for rank, ev in enumerate(evidence, start=1):
-        if is_correct(ev, hits):
+        if check(ev, hits):
             return rank
     return None
 
@@ -109,6 +119,9 @@ def score(items: list[QueryItem], results: list[RunResult], split: str = "all") 
     hit1: list[float] = []
     hit5: list[float] = []
     rr: list[float] = []
+    hit1_s: list[float] = []
+    hit5_s: list[float] = []
+    rr_s: list[float] = []
     cam_ok: list[float] = []
     ts_err: list[float] = []
     ious: list[float] = []
@@ -119,6 +132,10 @@ def score(items: list[QueryItem], results: list[RunResult], split: str = "all") 
         hit1.append(1.0 if rank == 1 else 0.0)
         hit5.append(1.0 if rank is not None and rank <= 5 else 0.0)
         rr.append(1.0 / rank if rank else 0.0)
+        strict = _first_correct_rank(evidence, item.expected.hits, strict=True)
+        hit1_s.append(1.0 if strict == 1 else 0.0)
+        hit5_s.append(1.0 if strict is not None and strict <= 5 else 0.0)
+        rr_s.append(1.0 / strict if strict else 0.0)
         if evidence:
             top = evidence[0]
             right_cam = any(top.camera_id == h.camera_id for h in item.expected.hits)
@@ -131,6 +148,7 @@ def score(items: list[QueryItem], results: list[RunResult], split: str = "all") 
             cam_ok.append(0.0)
             ious.append(0.0)
     m["hit@1"], m["hit@5"], m["mrr"] = _mean(hit1), _mean(hit5), _mean(rr)
+    m["hit@1_strict"], m["hit@5_strict"], m["mrr_strict"] = _mean(hit1_s), _mean(hit5_s), _mean(rr_s)
     m["camera_accuracy"] = _mean(cam_ok)
     m["temporal_iou"] = _mean(ious)
     m["timestamp_error_s"] = Metric(statistics.median(ts_err) if ts_err else None, len(ts_err))

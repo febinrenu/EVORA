@@ -161,3 +161,15 @@ def test_extended_sets_are_pooled_with_their_n_and_reasks_are_summed(tmp_path):
     assert ask["ask_precision"]["value"] == pytest.approx((0.75 * 4 + 1.0 * 2) / 6, abs=1e-3)
     assert ask["reask_count"] == {"value": 1.0, "n": 15, "splits": ["dev", "test"]}   # a sum over 15 queries
     assert rp.build_extended(tmp_path / "nowhere") == {}
+
+
+def test_the_report_states_lenient_and_strict_hit_side_by_side(tmp_path):
+    def caps(lenient, strict):
+        return {"object": cap_report(10, **{"hit@1": (lenient, 10), "hit@1_strict": (strict, 10)})}
+    (tmp_path / "eval_dev_capabilities.json").write_text(json.dumps(
+        {"ours": caps(0.5, 0.5), "b0": caps(1.0, 0.6), "null": caps(0.5, 0.4)}))
+    note = [x for x in rp.build_report(tmp_path, tmp_path / "none.json")["limits"] if x.startswith("Hit@1 is reported")][0]
+    assert "ours 0.50 to 0.50" in note and "frame baseline 1.00 to 0.60" in note and "random moment 0.50 to 0.40" in note
+    assert "n=10" in note and "Compare systems on the strict score" in note
+    bare = rp.build_report(tmp_path / "empty", tmp_path / "none.json")["limits"]
+    assert any(x.startswith("Hit@1 is reported two ways.") for x in bare)           # no data: the definition still shows

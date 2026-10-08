@@ -6,6 +6,7 @@ from contracts.models import QueryPlan, Target, TimeWindow
 
 from evora.core.db import close_all, open_db
 from evora.core.vectors import ensure_tables, open_store
+from evora.query import retrieve as retrieve_mod
 from evora.query.fuse import Calibration
 from evora.query.retrieve import RetrievalConfig, Retriever, SearchScope
 
@@ -323,3 +324,65 @@ async def test_a_colour_next_to_a_bag_does_not_count_as_that_colour_on_a_jacket(
     assert "caption match" in why["jacket"]
     assert "caption match" not in why["bag"]
     assert ids(res)[0] == "jacket"
+
+
+# ------------------------------------------------------- what a search costs
+class CountingEmbedder(ToyEmbedder):
+    def __init__(self):
+        self.calls: list[str] = []
+
+    def embed_text(self, text):
+        self.calls.append(text)
+        return super().embed_text(text)
+
+
+@pytest.mark.asyncio
+async def test_one_search_encodes_the_question_once_for_crops_and_scenes(ws):
+    ws.camera("cam_01")
+    ws.track("t1", "cam_01", crops=[E[0]])
+    ws.scene("cam_01", 105.0, E[0])
+    retriever = ws.retriever()
+    retriever._embedder = CountingEmbedder()
+    res = await retriever.search(plan(attrs=()))
+    assert "scenes" in res.layers and "crops" in res.layers          # both indexes were searched
+    assert retriever._embedder.calls == ["a photo of a red car"]     # ... with one encode
+    await retriever.search(plan(attrs=()))
+    assert len(retriever._embedder.calls) == 1                       # and a repeat of the same text is not re-encoded
+
+
+@pytest.mark.asyncio
+async def test_the_vector_cache_is_bounded(ws):
+    ws.camera("cam_01")
+    retriever = ws.retriever()
+    for i in range(retrieve_mod.VECTOR_CACHE + 20):
+        retriever._text_vector(f"a photo of car number {i}")
+    assert len(retriever._vectors) == retrieve_mod.VECTOR_CACHE
+
+
+@pytest.mark.asyncio
+async def test_a_search_lists_the_cameras_once(ws):
+    ws.camera("ready", "Gate")
+    ws.camera("indexing", "Lobby")       # no tracks, so both note paths that used to list the cameras again run
+    ws.camera("empty", "Yard", layers=("L0", "L1"))
+    ws.track("t1", "ready", crops=[E[0]])
+    ws.scene("indexing", 50.0, E[0])
+    retriever = ws.retriever()
+    calls = []
+    original = retriever._all_cameras
+    retriever._all_cameras = lambda: calls.append(1) or original()
+    res = await retriever.search(plan(attrs=()))
+    assert len(calls) == 1
+    assert any("Still indexing Lobby" in n for n in res.notes) and any("Nothing was detected on Yard" in n for n in res.notes)
+
+
+@pytest.mark.asyncio
+async def test_presence_keeps_in_window_points_and_still_tells_apart_never_on_screen(ws):
+    ws.camera("cam_01")
+    ws.track("away", "cam_01", t0=0.0, t1=200.0, points=spaced(0, 10) + spaced(190, 200), crops=[E[0]])
+    ws.track("nopoints", "cam_01", t0=0.0, t1=200.0, points=None, crops=[E[0]])
+    ws.track("here", "cam_01", t0=50.0, t1=130.0, points=spaced(50, 130), crops=[E[0]])
+    retriever = ws.retriever()
+    scope = SearchScope(window=TimeWindow(start=60.0, end=120.0))
+    presence = retriever._presence({"away": {}, "nopoints": {}, "here": {}}, scope)
+    assert presence["away"] == [] and "nopoints" not in presence      # points elsewhere vs no points at all
+    assert min(presence["here"]) >= 60.0 and max(presence["here"]) <= 120.0

@@ -16,6 +16,18 @@
           "value": 1.0,
           "n": 1
         },
+        "hit@1_strict": {
+          "value": 1.0,
+          "n": 1
+        },
+        "hit@5_strict": {
+          "value": 1.0,
+          "n": 1
+        },
+        "mrr_strict": {
+          "value": 1.0,
+          "n": 1
+        },
         "camera_accuracy": {
           "value": 1.0,
           "n": 1
@@ -69,19 +81,19 @@
           "n": 0
         },
         "ttfa_p50_ms": {
-          "value": 267.0659,
+          "value": 841.6462,
           "n": 1
         },
         "ttfa_p95_ms": {
-          "value": 267.0659,
+          "value": 841.6462,
           "n": 1
         },
         "ttva_p50_ms": {
-          "value": 269.1394,
+          "value": 845.0744,
           "n": 1
         },
         "ttva_p95_ms": {
-          "value": 269.1394,
+          "value": 845.0744,
           "n": 1
         },
         "no_model_share": {
@@ -109,6 +121,18 @@
           "n": 1
         },
         "mrr": {
+          "value": 1.0,
+          "n": 1
+        },
+        "hit@1_strict": {
+          "value": 1.0,
+          "n": 1
+        },
+        "hit@5_strict": {
+          "value": 1.0,
+          "n": 1
+        },
+        "mrr_strict": {
           "value": 1.0,
           "n": 1
         },
@@ -165,19 +189,19 @@
           "n": 0
         },
         "ttfa_p50_ms": {
-          "value": 52.5891,
+          "value": 189.9731,
           "n": 1
         },
         "ttfa_p95_ms": {
-          "value": 52.5891,
+          "value": 189.9731,
           "n": 1
         },
         "ttva_p50_ms": {
-          "value": 52.5891,
+          "value": 189.9731,
           "n": 1
         },
         "ttva_p95_ms": {
-          "value": 52.5891,
+          "value": 189.9731,
           "n": 1
         },
         "no_model_share": {
@@ -205,6 +229,18 @@
           "n": 1
         },
         "mrr": {
+          "value": 0.3333,
+          "n": 1
+        },
+        "hit@1_strict": {
+          "value": 0.0,
+          "n": 1
+        },
+        "hit@5_strict": {
+          "value": 1.0,
+          "n": 1
+        },
+        "mrr_strict": {
           "value": 0.3333,
           "n": 1
         },
@@ -261,19 +297,19 @@
           "n": 0
         },
         "ttfa_p50_ms": {
-          "value": 1.0606,
+          "value": 3.4272,
           "n": 1
         },
         "ttfa_p95_ms": {
-          "value": 1.0606,
+          "value": 3.4272,
           "n": 1
         },
         "ttva_p50_ms": {
-          "value": 1.0606,
+          "value": 3.4272,
           "n": 1
         },
         "ttva_p95_ms": {
-          "value": 1.0606,
+          "value": 3.4272,
           "n": 1
         },
         "no_model_share": {

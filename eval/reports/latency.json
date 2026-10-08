@@ -6,193 +6,193 @@
         {
           "text": "Was there a person on G299 between 10:10 and 10:11?",
           "source": "fastpath",
-          "ttfa_ms": 286.35140000005777,
-          "ttva_ms": 288.3839000005537,
+          "ttfa_ms": 303.20170000049984,
+          "ttva_ms": 305.1314000003913,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_fastpath": 0.52,
-            "plan_total": 2.53,
-            "retrieve": 255.0,
-            "logic": 0.1,
-            "compose": 28.78,
-            "ttfa": 286.48
+            "plan_fastpath": 0.62,
+            "plan_total": 3.26,
+            "retrieve": 280.97,
+            "logic": 0.08,
+            "compose": 18.93,
+            "ttfa": 303.32
           }
         },
         {
           "text": "Was there a vehicle on G299 between 10:10 and 10:11?",
           "source": "fastpath",
-          "ttfa_ms": 13.221399998656125,
-          "ttva_ms": 14.866199999232776,
+          "ttfa_ms": 12.05889999982901,
+          "ttva_ms": 13.659200001711724,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_fastpath": 0.13,
-            "plan_total": 9.67,
-            "retrieve": 3.34,
+            "plan_fastpath": 0.12,
+            "plan_total": 9.05,
+            "retrieve": 2.81,
             "logic": 0.01,
-            "compose": 0.06,
-            "ttfa": 13.14
+            "compose": 0.07,
+            "ttfa": 11.98
           }
         },
         {
           "text": "Was there a vehicle on G299 between 10:11 and 10:12?",
           "source": "fastpath",
-          "ttfa_ms": 11.300000000119326,
-          "ttva_ms": 12.891600001239567,
+          "ttfa_ms": 10.216399998171255,
+          "ttva_ms": 11.896699998033,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_fastpath": 0.15,
-            "plan_total": 8.02,
-            "retrieve": 3.1,
+            "plan_fastpath": 0.12,
+            "plan_total": 7.17,
+            "retrieve": 2.84,
             "logic": 0.01,
-            "compose": 0.06,
-            "ttfa": 11.24
+            "compose": 0.07,
+            "ttfa": 10.14
           }
         },
         {
           "text": "Was there a vehicle on G299 between 10:12 and 10:13?",
           "source": "fastpath",
-          "ttfa_ms": 11.447099999713828,
-          "ttva_ms": 13.098899999022251,
+          "ttfa_ms": 12.12409999789088,
+          "ttva_ms": 13.806399998429697,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_fastpath": 0.13,
-            "plan_total": 7.82,
-            "retrieve": 3.39,
+            "plan_fastpath": 0.12,
+            "plan_total": 8.47,
+            "retrieve": 3.45,
             "logic": 0.01,
-            "compose": 0.08,
-            "ttfa": 11.36
+            "compose": 0.07,
+            "ttfa": 12.04
           }
         },
         {
           "text": "Was there a vehicle on G299 between 10:13 and 10:14?",
           "source": "fastpath",
-          "ttfa_ms": 11.367600000085076,
-          "ttva_ms": 13.015900000027614,
+          "ttfa_ms": 10.356599999795435,
+          "ttva_ms": 11.850200000480982,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_fastpath": 0.14,
-            "plan_total": 7.69,
-            "retrieve": 3.48,
+            "plan_fastpath": 0.1,
+            "plan_total": 7.23,
+            "retrieve": 2.99,
             "logic": 0.01,
-            "compose": 0.07,
-            "ttfa": 11.29
+            "compose": 0.05,
+            "ttfa": 10.3
           }
         },
         {
           "text": "Was there a person on G300 between 10:13 and 10:14?",
           "source": "fastpath",
-          "ttfa_ms": 10.772199999337317,
-          "ttva_ms": 12.35869999982242,
+          "ttfa_ms": 10.199600001215003,
+          "ttva_ms": 11.81900000301539,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_fastpath": 0.14,
-            "plan_total": 7.14,
-            "retrieve": 3.45,
+            "plan_fastpath": 0.1,
+            "plan_total": 6.98,
+            "retrieve": 3.05,
             "logic": 0.01,
             "compose": 0.06,
-            "ttfa": 10.7
+            "ttfa": 10.14
           }
         },
         {
           "text": "Was there a person on G300 between 10:10 and 10:11?",
           "source": "fastpath",
-          "ttfa_ms": 183.75059999925725,
-          "ttva_ms": 185.46489999971527,
+          "ttfa_ms": 85.11119999820949,
+          "ttva_ms": 86.9087999999465,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_fastpath": 0.12,
-            "plan_total": 8.76,
-            "retrieve": 171.79,
+            "plan_fastpath": 0.11,
+            "plan_total": 7.99,
+            "retrieve": 73.97,
             "logic": 0.04,
-            "compose": 3.17,
-            "ttfa": 183.8
+            "compose": 3.15,
+            "ttfa": 85.18
           }
         },
         {
           "text": "Was there a person on G300 between 10:11 and 10:12?",
           "source": "fastpath",
-          "ttfa_ms": 10.184500000832486,
-          "ttva_ms": 11.852400000861962,
+          "ttfa_ms": 9.566299999278272,
+          "ttva_ms": 11.142799998197006,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_fastpath": 0.13,
-            "plan_total": 6.76,
-            "retrieve": 3.25,
+            "plan_fastpath": 0.11,
+            "plan_total": 6.49,
+            "retrieve": 2.9,
             "logic": 0.01,
-            "compose": 0.06,
-            "ttfa": 10.12
+            "compose": 0.07,
+            "ttfa": 9.51
           }
         },
         {
           "text": "Was there a vehicle on G300 between 10:11 and 10:12?",
           "source": "fastpath",
-          "ttfa_ms": 193.5628999999608,
-          "ttva_ms": 195.1497999998537,
+          "ttfa_ms": 143.1929999998829,
+          "ttva_ms": 144.93149999907473,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_fastpath": 0.11,
-            "plan_total": 7.6,
-            "retrieve": 178.23,
+            "plan_fastpath": 0.1,
+            "plan_total": 6.33,
+            "retrieve": 129.11,
             "logic": 0.04,
-            "compose": 7.73,
-            "ttfa": 193.64
+            "compose": 7.79,
+            "ttfa": 143.31
           }
         },
         {
           "text": "Was there a person on G419 between 10:12 and 10:13?",
           "source": "fastpath",
-          "ttfa_ms": 417.0541999992565,
-          "ttva_ms": 418.8771999997698,
+          "ttfa_ms": 298.522299999604,
+          "ttva_ms": 300.3227000008337,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_fastpath": 0.18,
-            "plan_total": 8.88,
-            "retrieve": 397.58,
-            "logic": 0.03,
-            "compose": 10.62,
-            "ttfa": 417.15
+            "plan_fastpath": 0.17,
+            "plan_total": 9.02,
+            "retrieve": 286.17,
+            "logic": 0.04,
+            "compose": 3.32,
+            "ttfa": 298.59
           }
         },
         {
           "text": "Was there a person on G419 between 10:14 and 10:15?",
           "source": "fastpath",
-          "ttfa_ms": 220.8888000004663,
-          "ttva_ms": 222.6620000001276,
+          "ttfa_ms": 111.46459999872604,
+          "ttva_ms": 113.4593999995559,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_fastpath": 0.13,
-            "plan_total": 7.59,
-            "retrieve": 199.09,
-            "logic": 0.06,
-            "compose": 14.23,
-            "ttfa": 221.01
+            "plan_fastpath": 0.12,
+            "plan_total": 7.17,
+            "retrieve": 89.86,
+            "logic": 0.05,
+            "compose": 14.49,
+            "ttfa": 111.62
           }
         },
         {
           "text": "Was there a vehicle on G419 between 10:10 and 10:11?",
           "source": "fastpath",
-          "ttfa_ms": 11.284600001090439,
-          "ttva_ms": 12.842100000852952,
+          "ttfa_ms": 11.875799998961156,
+          "ttva_ms": 13.612699996883748,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_fastpath": 0.15,
-            "plan_total": 8.26,
-            "retrieve": 2.86,
+            "plan_fastpath": 0.17,
+            "plan_total": 8.79,
+            "retrieve": 2.91,
             "logic": 0.01,
             "compose": 0.05,
-            "ttfa": 11.22
+            "ttfa": 11.8
           }
         }
       ],
@@ -201,16 +201,16 @@
       "by_route": {
         "fastpath": {
           "n": 12,
-          "p50_ms": 12.3,
-          "p95_ms": 417.1,
-          "max_ms": 417.1
+          "p50_ms": 12.1,
+          "p95_ms": 303.2,
+          "max_ms": 303.2
         }
       },
       "by_stage": {
         "compose": {
           "n": 12,
           "p50_ms": 0.1,
-          "p95_ms": 28.8
+          "p95_ms": 18.9
         },
         "logic": {
           "n": 12,
@@ -220,22 +220,22 @@
         "plan_fastpath": {
           "n": 12,
           "p50_ms": 0.1,
-          "p95_ms": 0.5
+          "p95_ms": 0.6
         },
         "plan_total": {
           "n": 12,
-          "p50_ms": 7.8,
-          "p95_ms": 9.7
+          "p50_ms": 7.2,
+          "p95_ms": 9.1
         },
         "retrieve": {
           "n": 12,
-          "p50_ms": 3.5,
-          "p95_ms": 397.6
+          "p50_ms": 3.2,
+          "p95_ms": 286.2
         },
         "ttfa": {
           "n": 12,
-          "p50_ms": 12.2,
-          "p95_ms": 417.1
+          "p50_ms": 12.0,
+          "p95_ms": 303.3
         }
       },
       "no_network_share": 1.0
@@ -245,8 +245,8 @@
         {
           "text": "Has any car turned up on G328 in the first couple of minutes?",
           "source": "llm",
-          "ttfa_ms": 1012.283899999602,
-          "ttva_ms": 1012.283899999602,
+          "ttfa_ms": 1181.599899999128,
+          "ttva_ms": 1181.599899999128,
           "asked": true,
           "error": null,
           "stages": {}
@@ -254,120 +254,120 @@
         {
           "text": "Anybody walking about on G299 between ten past and quarter past ten?",
           "source": "llm",
-          "ttfa_ms": 1060.5902000006608,
-          "ttva_ms": 1069.7863999994297,
+          "ttfa_ms": 932.6449000000139,
+          "ttva_ms": 934.7598999993352,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 787.45,
-            "plan_total": 794.52,
-            "retrieve": 264.16,
-            "logic": 1.72,
+            "plan_llm": 791.0,
+            "plan_total": 798.5,
+            "retrieve": 132.14,
+            "logic": 1.84,
             "compose": 0.05,
-            "ttfa": 1060.51
+            "ttfa": 932.57
           }
         },
         {
           "text": "Show me when a vehicle shows up on G423",
           "source": "llm",
-          "ttfa_ms": 1244.8304000008648,
-          "ttva_ms": 1246.3274000001547,
+          "ttfa_ms": 952.372200001264,
+          "ttva_ms": 953.8716999995813,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 1227.37,
-            "plan_total": 1234.69,
-            "retrieve": 9.96,
+            "plan_llm": 933.84,
+            "plan_total": 941.34,
+            "retrieve": 10.85,
             "logic": 0.01,
             "compose": 0.05,
-            "ttfa": 1244.77
+            "ttfa": 952.3
           }
         },
         {
           "text": "Any people hanging around G300 near 10:12?",
           "source": "llm",
-          "ttfa_ms": 679.5509000003221,
-          "ttva_ms": 681.0917999991943,
+          "ttfa_ms": 890.4581000024336,
+          "ttva_ms": 891.9941000021936,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 662.08,
-            "plan_total": 668.77,
-            "retrieve": 10.14,
-            "logic": 0.46,
+            "plan_llm": 872.9,
+            "plan_total": 880.36,
+            "retrieve": 9.5,
+            "logic": 0.4,
             "compose": 0.05,
-            "ttfa": 679.47
+            "ttfa": 890.39
           }
         },
         {
           "text": "Was somebody in dark clothing seen on G419?",
           "source": "llm",
-          "ttfa_ms": 1168.9733999992313,
-          "ttva_ms": 1170.6646000002365,
+          "ttfa_ms": 714.5874999987427,
+          "ttva_ms": 716.4452999968489,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 941.57,
-            "plan_total": 948.87,
-            "retrieve": 196.54,
-            "logic": 0.04,
-            "compose": 23.56,
-            "ttfa": 1169.08
+            "plan_llm": 546.28,
+            "plan_total": 553.48,
+            "retrieve": 92.61,
+            "logic": 0.06,
+            "compose": 68.41,
+            "ttfa": 714.76
           }
         },
         {
           "text": "Find the earliest time somebody appears on G421",
           "source": "llm",
-          "ttfa_ms": 1077.3858000011387,
-          "ttva_ms": 1079.1057000005821,
+          "ttfa_ms": 695.0911999992968,
+          "ttva_ms": 696.7803000006825,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 866.62,
-            "plan_total": 873.63,
-            "retrieve": 199.59,
-            "logic": 1.13,
-            "compose": 3.06,
-            "ttfa": 1077.47
+            "plan_llm": 584.96,
+            "plan_total": 593.95,
+            "retrieve": 96.73,
+            "logic": 1.34,
+            "compose": 3.07,
+            "ttfa": 695.16
           }
         },
         {
           "text": "Is there any activity on G299 at 10:13?",
           "source": "llm",
-          "ttfa_ms": 866.968899999847,
-          "ttva_ms": 868.3528000001388,
+          "ttfa_ms": 769.9252000020351,
+          "ttva_ms": 772.4157000011473,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 859.44,
-            "plan_total": 866.84,
+            "plan_llm": 763.15,
+            "plan_total": 769.72,
             "retrieve": 0.01,
-            "logic": 0.0,
-            "compose": 0.04,
-            "ttfa": 866.92
+            "logic": 0.01,
+            "compose": 0.06,
+            "ttfa": 769.87
           }
         },
         {
           "text": "Did someone cross the view of G423 around 10:14?",
           "source": "llm",
-          "ttfa_ms": 1001.6821000008349,
-          "ttva_ms": 1003.2807000006869,
+          "ttfa_ms": 864.0814999998838,
+          "ttva_ms": 866.2149999981921,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 787.42,
-            "plan_total": 793.78,
-            "retrieve": 207.01,
-            "logic": 0.68,
-            "compose": 0.05,
-            "ttfa": 1001.59
+            "plan_llm": 769.3,
+            "plan_total": 775.55,
+            "retrieve": 87.43,
+            "logic": 0.87,
+            "compose": 0.06,
+            "ttfa": 863.99
           }
         },
         {
           "text": "Were there pedestrians on G328 early on?",
           "source": "llm",
-          "ttfa_ms": 833.5391000000527,
-          "ttva_ms": 833.5391000000527,
+          "ttfa_ms": 802.918099998351,
+          "ttva_ms": 802.918099998351,
           "asked": true,
           "error": null,
           "stages": {}
@@ -375,47 +375,47 @@
         {
           "text": "Tell me about vehicles on G300",
           "source": "llm",
-          "ttfa_ms": 1232.0601000010356,
-          "ttva_ms": 1233.7929000004806,
+          "ttfa_ms": 614.7762999971746,
+          "ttva_ms": 616.5074999989884,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 1037.11,
-            "plan_total": 1043.53,
-            "retrieve": 180.14,
-            "logic": 0.01,
-            "compose": 8.43,
-            "ttfa": 1232.17
+            "plan_llm": 521.7,
+            "plan_total": 527.9,
+            "retrieve": 79.15,
+            "logic": 0.03,
+            "compose": 7.7,
+            "ttfa": 614.88
           }
         },
         {
           "text": "What happened on G419 between 10:11 and 10:12?",
           "source": "llm",
-          "ttfa_ms": 730.9457999999722,
-          "ttva_ms": 732.5674999992771,
+          "ttfa_ms": 612.4601000010443,
+          "ttva_ms": 614.1207000000577,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 717.27,
-            "plan_total": 723.65,
-            "describe": 7.15,
-            "ttfa": 730.85
+            "plan_llm": 598.99,
+            "plan_total": 606.6,
+            "describe": 5.72,
+            "ttfa": 612.38
           }
         },
         {
           "text": "Anything moving on G421 in the last minute of the clip?",
           "source": "llm",
-          "ttfa_ms": 1174.3148999994446,
-          "ttva_ms": 1176.172100000258,
+          "ttfa_ms": 1082.4853999984043,
+          "ttva_ms": 1083.9936999982456,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 954.01,
-            "plan_total": 960.79,
-            "retrieve": 189.55,
-            "logic": 0.05,
-            "compose": 24.04,
-            "ttfa": 1174.47
+            "plan_llm": 1074.41,
+            "plan_total": 1082.32,
+            "retrieve": 0.01,
+            "logic": 0.01,
+            "compose": 0.05,
+            "ttfa": 1082.44
           }
         }
       ],
@@ -424,46 +424,46 @@
       "by_route": {
         "llm": {
           "n": 10,
-          "p50_ms": 1069.0,
-          "p95_ms": 1244.8,
-          "max_ms": 1244.8
+          "p50_ms": 817.0,
+          "p95_ms": 1082.5,
+          "max_ms": 1082.5
         }
       },
       "by_stage": {
         "compose": {
           "n": 9,
           "p50_ms": 0.1,
-          "p95_ms": 24.0
+          "p95_ms": 68.4
         },
         "describe": {
           "n": 1,
-          "p50_ms": 7.2,
-          "p95_ms": 7.2
+          "p50_ms": 5.7,
+          "p95_ms": 5.7
         },
         "logic": {
           "n": 9,
           "p50_ms": 0.1,
-          "p95_ms": 1.7
+          "p95_ms": 1.8
         },
         "plan_llm": {
           "n": 10,
-          "p50_ms": 863.0,
-          "p95_ms": 1227.4
+          "p50_ms": 766.2,
+          "p95_ms": 1074.4
         },
         "plan_total": {
           "n": 10,
-          "p50_ms": 870.2,
-          "p95_ms": 1234.7
+          "p50_ms": 772.6,
+          "p95_ms": 1082.3
         },
         "retrieve": {
           "n": 9,
-          "p50_ms": 189.6,
-          "p95_ms": 264.2
+          "p50_ms": 79.2,
+          "p95_ms": 132.1
         },
         "ttfa": {
           "n": 10,
-          "p50_ms": 1069.0,
-          "p95_ms": 1244.8
+          "p50_ms": 816.9,
+          "p95_ms": 1082.4
         }
       },
       "no_network_share": 0.0
@@ -473,8 +473,8 @@
         {
           "text": "Has any car turned up on G328 in the first couple of minutes?",
           "source": "cache",
-          "ttfa_ms": 11.071000000811182,
-          "ttva_ms": 11.071000000811182,
+          "ttfa_ms": 10.454800001753028,
+          "ttva_ms": 10.454800001753028,
           "asked": true,
           "error": null,
           "stages": {}
@@ -482,120 +482,120 @@
         {
           "text": "Anybody walking about on G299 between ten past and quarter past ten?",
           "source": "cache",
-          "ttfa_ms": 265.13300000078743,
-          "ttva_ms": 274.3234999998094,
+          "ttfa_ms": 133.93290000021807,
+          "ttva_ms": 136.03169999987585,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_cache": 0.67,
-            "plan_total": 8.3,
-            "retrieve": 254.82,
-            "logic": 1.85,
-            "compose": 0.05,
-            "ttfa": 265.06
+            "plan_cache": 0.55,
+            "plan_total": 7.85,
+            "retrieve": 124.72,
+            "logic": 1.19,
+            "compose": 0.04,
+            "ttfa": 133.85
           }
         },
         {
           "text": "Show me when a vehicle shows up on G423",
           "source": "cache",
-          "ttfa_ms": 10.736000000179047,
-          "ttva_ms": 12.25249999879452,
+          "ttfa_ms": 10.74240000161808,
+          "ttva_ms": 12.306900000112364,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_cache": 0.56,
-            "plan_total": 7.64,
-            "retrieve": 2.96,
+            "plan_cache": 0.51,
+            "plan_total": 6.96,
+            "retrieve": 3.63,
             "logic": 0.01,
-            "compose": 0.04,
+            "compose": 0.06,
             "ttfa": 10.68
           }
         },
         {
           "text": "Any people hanging around G300 near 10:12?",
           "source": "cache",
-          "ttfa_ms": 12.874400001237518,
-          "ttva_ms": 14.430900000661495,
+          "ttfa_ms": 14.140700001007644,
+          "ttva_ms": 15.723200001957593,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_cache": 0.55,
-            "plan_total": 8.47,
-            "retrieve": 3.68,
-            "logic": 0.54,
-            "compose": 0.06,
-            "ttfa": 12.8
+            "plan_cache": 4.35,
+            "plan_total": 10.24,
+            "retrieve": 3.17,
+            "logic": 0.55,
+            "compose": 0.05,
+            "ttfa": 14.08
           }
         },
         {
           "text": "Was somebody in dark clothing seen on G419?",
           "source": "cache",
-          "ttfa_ms": 219.32439999909548,
-          "ttva_ms": 221.20240000003832,
+          "ttfa_ms": 114.52199999985169,
+          "ttva_ms": 116.47389999779989,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_cache": 0.53,
-            "plan_total": 7.98,
-            "retrieve": 188.21,
+            "plan_cache": 0.51,
+            "plan_total": 7.61,
+            "retrieve": 84.04,
             "logic": 0.04,
-            "compose": 23.23,
-            "ttfa": 219.49
+            "compose": 22.98,
+            "ttfa": 114.7
           }
         },
         {
           "text": "Find the earliest time somebody appears on G421",
           "source": "cache",
-          "ttfa_ms": 192.1407999998337,
-          "ttva_ms": 193.8110000010056,
+          "ttfa_ms": 99.26289999930304,
+          "ttva_ms": 101.16449999986799,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_cache": 0.56,
-            "plan_total": 6.93,
-            "retrieve": 180.73,
-            "logic": 1.34,
-            "compose": 3.18,
-            "ttfa": 192.22
+            "plan_cache": 0.52,
+            "plan_total": 7.16,
+            "retrieve": 87.85,
+            "logic": 1.24,
+            "compose": 3.03,
+            "ttfa": 99.33
           }
         },
         {
           "text": "Is there any activity on G299 at 10:13?",
           "source": "cache",
-          "ttfa_ms": 8.66199999836681,
-          "ttva_ms": 10.150999998586485,
+          "ttfa_ms": 6.568099997821264,
+          "ttva_ms": 8.028899999771966,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_cache": 0.63,
-            "plan_total": 8.51,
+            "plan_cache": 0.53,
+            "plan_total": 6.44,
             "retrieve": 0.01,
             "logic": 0.01,
             "compose": 0.04,
-            "ttfa": 8.61
+            "ttfa": 6.52
           }
         },
         {
           "text": "Did someone cross the view of G423 around 10:14?",
           "source": "cache",
-          "ttfa_ms": 186.77569999999832,
-          "ttva_ms": 188.92439999945054,
+          "ttfa_ms": 87.31189999889466,
+          "ttva_ms": 89.36489999905461,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_cache": 0.53,
-            "plan_total": 7.33,
-            "retrieve": 178.72,
-            "logic": 0.57,
+            "plan_cache": 0.93,
+            "plan_total": 8.16,
+            "retrieve": 78.44,
+            "logic": 0.55,
             "compose": 0.04,
-            "ttfa": 186.7
+            "ttfa": 87.24
           }
         },
         {
           "text": "Were there pedestrians on G328 early on?",
           "source": "cache",
-          "ttfa_ms": 11.91110000036133,
-          "ttva_ms": 11.91110000036133,
+          "ttfa_ms": 10.642500001267763,
+          "ttva_ms": 10.642500001267763,
           "asked": true,
           "error": null,
           "stages": {}
@@ -603,47 +603,47 @@
         {
           "text": "Tell me about vehicles on G300",
           "source": "cache",
-          "ttfa_ms": 205.69419999992533,
-          "ttva_ms": 207.32569999927364,
+          "ttfa_ms": 87.55830000154674,
+          "ttva_ms": 89.35449999989942,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_cache": 0.57,
-            "plan_total": 7.48,
-            "retrieve": 189.29,
+            "plan_cache": 0.5,
+            "plan_total": 7.9,
+            "retrieve": 72.58,
             "logic": 0.02,
-            "compose": 8.96,
-            "ttfa": 205.78
+            "compose": 7.12,
+            "ttfa": 87.66
           }
         },
         {
           "text": "What happened on G419 between 10:11 and 10:12?",
           "source": "cache",
-          "ttfa_ms": 10.98910000109754,
-          "ttva_ms": 12.705900000582915,
+          "ttfa_ms": 8.815299999696435,
+          "ttva_ms": 10.34559999970952,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_cache": 0.63,
-            "plan_total": 9.48,
-            "describe": 1.37,
-            "ttfa": 10.9
+            "plan_cache": 0.57,
+            "plan_total": 7.54,
+            "describe": 1.16,
+            "ttfa": 8.75
           }
         },
         {
           "text": "Anything moving on G421 in the last minute of the clip?",
           "source": "cache",
-          "ttfa_ms": 259.3488000002253,
-          "ttva_ms": 261.1867000014172,
+          "ttfa_ms": 8.105900000373367,
+          "ttva_ms": 9.619000000384403,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_cache": 0.71,
-            "plan_total": 9.01,
-            "retrieve": 214.71,
-            "logic": 0.05,
-            "compose": 35.67,
-            "ttfa": 259.49
+            "plan_cache": 0.55,
+            "plan_total": 7.98,
+            "retrieve": 0.01,
+            "logic": 0.01,
+            "compose": 0.04,
+            "ttfa": 8.06
           }
         }
       ],
@@ -652,46 +652,46 @@
       "by_route": {
         "cache": {
           "n": 10,
-          "p50_ms": 189.5,
-          "p95_ms": 265.1,
-          "max_ms": 265.1
+          "p50_ms": 50.7,
+          "p95_ms": 133.9,
+          "max_ms": 133.9
         }
       },
       "by_stage": {
         "compose": {
           "n": 9,
           "p50_ms": 0.1,
-          "p95_ms": 35.7
+          "p95_ms": 23.0
         },
         "describe": {
           "n": 1,
-          "p50_ms": 1.4,
-          "p95_ms": 1.4
+          "p50_ms": 1.2,
+          "p95_ms": 1.2
         },
         "logic": {
           "n": 9,
-          "p50_ms": 0.1,
-          "p95_ms": 1.9
+          "p50_ms": 0.0,
+          "p95_ms": 1.2
         },
         "plan_cache": {
           "n": 10,
-          "p50_ms": 0.6,
-          "p95_ms": 0.7
+          "p50_ms": 0.5,
+          "p95_ms": 4.3
         },
         "plan_total": {
           "n": 10,
-          "p50_ms": 8.1,
-          "p95_ms": 9.5
+          "p50_ms": 7.7,
+          "p95_ms": 10.2
         },
         "retrieve": {
           "n": 9,
-          "p50_ms": 180.7,
-          "p95_ms": 254.8
+          "p50_ms": 72.6,
+          "p95_ms": 124.7
         },
         "ttfa": {
           "n": 10,
-          "p50_ms": 189.5,
-          "p95_ms": 265.1
+          "p50_ms": 50.7,
+          "p95_ms": 133.8
         }
       },
       "no_network_share": 1.0
@@ -701,189 +701,189 @@
         {
           "text": "Has any car turned up on G328 in the first couple of minutes today?",
           "source": "local_llm",
-          "ttfa_ms": 3057.600599999205,
-          "ttva_ms": 3059.5493000000715,
+          "ttfa_ms": 9264.918900000339,
+          "ttva_ms": 9267.112900000939,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 2813.92,
-            "plan_total": 2816.18,
-            "retrieve": 208.82,
-            "logic": 0.76,
-            "compose": 31.96,
-            "ttfa": 3057.79
+            "plan_llm": 8382.01,
+            "plan_total": 8384.22,
+            "retrieve": 843.81,
+            "logic": 1.65,
+            "compose": 35.35,
+            "ttfa": 9265.14
           }
         },
         {
           "text": "Anybody walking about on G299 between ten past and quarter past ten today?",
           "source": "local_llm",
-          "ttfa_ms": 3116.645800000697,
-          "ttva_ms": 3118.823299999349,
+          "ttfa_ms": 3630.418599997938,
+          "ttva_ms": 3632.7127999975346,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 2873.84,
-            "plan_total": 2881.86,
-            "retrieve": 232.95,
-            "logic": 1.62,
+            "plan_llm": 3389.26,
+            "plan_total": 3401.25,
+            "retrieve": 227.07,
+            "logic": 1.89,
             "compose": 0.06,
-            "ttfa": 3116.56
+            "ttfa": 3630.32
           }
         },
         {
           "text": "Show me when a vehicle shows up on G423 today?",
           "source": "local_llm",
-          "ttfa_ms": 2364.2939000001206,
-          "ttva_ms": 2365.8247999992454,
+          "ttfa_ms": 2426.877100002457,
+          "ttva_ms": 2428.690700002335,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 2346.8,
-            "plan_total": 2353.7,
-            "retrieve": 9.77,
+            "plan_llm": 2402.35,
+            "plan_total": 2410.75,
+            "retrieve": 15.25,
             "logic": 0.63,
-            "compose": 0.07,
-            "ttfa": 2364.21
+            "compose": 0.08,
+            "ttfa": 2426.78
           }
         },
         {
           "text": "Any people hanging around G300 near 10:12 today?",
           "source": "local_llm",
-          "ttfa_ms": 2796.2282999997115,
-          "ttva_ms": 2797.8982999993605,
+          "ttfa_ms": 2842.7496000003885,
+          "ttva_ms": 2844.1754000014043,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 2777.98,
-            "plan_total": 2785.44,
-            "retrieve": 9.91,
-            "logic": 0.68,
-            "compose": 0.07,
-            "ttfa": 2796.15
+            "plan_llm": 2824.02,
+            "plan_total": 2831.86,
+            "retrieve": 10.22,
+            "logic": 0.47,
+            "compose": 0.05,
+            "ttfa": 2842.67
           }
         },
         {
           "text": "Was somebody in dark clothing seen on G419 today?",
           "source": "local_llm",
-          "ttfa_ms": 2562.593399999969,
-          "ttva_ms": 2564.307700000427,
+          "ttfa_ms": 2509.7948999973596,
+          "ttva_ms": 2511.7733999977645,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 2314.44,
-            "plan_total": 2321.45,
-            "retrieve": 208.91,
+            "plan_llm": 2331.53,
+            "plan_total": 2338.86,
+            "retrieve": 146.03,
             "logic": 0.06,
-            "compose": 32.23,
-            "ttfa": 2562.73
+            "compose": 24.99,
+            "ttfa": 2509.99
           }
         },
         {
           "text": "Find the earliest time somebody appears on G421 today?",
           "source": "local_llm",
-          "ttfa_ms": 2468.0559000007634,
-          "ttva_ms": 2469.814199999746,
+          "ttfa_ms": 2348.5013999998046,
+          "ttva_ms": 2350.205700000515,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 2252.88,
-            "plan_total": 2259.13,
-            "retrieve": 203.5,
-            "logic": 1.41,
-            "compose": 4.03,
-            "ttfa": 2468.14
+            "plan_llm": 2228.34,
+            "plan_total": 2235.61,
+            "retrieve": 109.5,
+            "logic": 0.96,
+            "compose": 2.46,
+            "ttfa": 2348.58
           }
         },
         {
           "text": "Is there any activity on G299 at 10:13 today?",
           "source": "local_llm",
-          "ttfa_ms": 2056.0074000004533,
-          "ttva_ms": 2057.5475999994524,
+          "ttfa_ms": 2046.1985000001732,
+          "ttva_ms": 2047.714199998154,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 2048.38,
-            "plan_total": 2055.83,
+            "plan_llm": 2038.19,
+            "plan_total": 2046.01,
             "retrieve": 0.01,
             "logic": 0.01,
-            "compose": 0.05,
-            "ttfa": 2055.95
+            "compose": 0.07,
+            "ttfa": 2046.14
           }
         },
         {
           "text": "Did someone cross the view of G423 around 10:14 today?",
           "source": "local_llm",
-          "ttfa_ms": 2899.366599998757,
-          "ttva_ms": 2900.9040999990248,
+          "ttfa_ms": 2751.68830000257,
+          "ttva_ms": 2753.1387000017276,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 2694.35,
-            "plan_total": 2701.62,
-            "retrieve": 196.91,
-            "logic": 0.65,
+            "plan_llm": 2647.55,
+            "plan_total": 2655.42,
+            "retrieve": 95.45,
+            "logic": 0.62,
             "compose": 0.05,
-            "ttfa": 2899.28
+            "ttfa": 2751.6
           }
         },
         {
           "text": "Were there pedestrians on G328 early on today?",
           "source": "local_llm",
-          "ttfa_ms": 2628.4271000004082,
-          "ttva_ms": 2630.162100000234,
+          "ttfa_ms": 2552.6325999999244,
+          "ttva_ms": 2554.469099999551,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 2435.52,
-            "plan_total": 2443.94,
-            "retrieve": 173.66,
+            "plan_llm": 2447.27,
+            "plan_total": 2454.18,
+            "retrieve": 88.67,
             "logic": 0.02,
-            "compose": 10.84,
-            "ttfa": 2628.54
+            "compose": 9.86,
+            "ttfa": 2552.77
           }
         },
         {
           "text": "Tell me about vehicles on G300 today?",
           "source": "local_llm",
-          "ttfa_ms": 4879.523699999481,
-          "ttva_ms": 4885.76699999976,
+          "ttfa_ms": 5242.406499997742,
+          "ttva_ms": 5249.063399998704,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 3328.21,
-            "plan_total": 3336.87,
-            "describe": 1547.13,
-            "ttfa": 4884.06
+            "plan_llm": 3337.34,
+            "plan_total": 3345.38,
+            "describe": 1901.87,
+            "ttfa": 5247.31
           }
         },
         {
           "text": "What happened on G419 between 10:11 and 10:12 today?",
           "source": "local_llm",
-          "ttfa_ms": 5722.60549999919,
-          "ttva_ms": 5733.036899999206,
+          "ttfa_ms": 6186.840800000937,
+          "ttva_ms": 6203.916899998148,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 2222.11,
-            "plan_total": 2229.17,
-            "describe": 3502.14,
-            "ttfa": 5731.38
+            "plan_llm": 2445.5,
+            "plan_total": 2453.86,
+            "describe": 3748.35,
+            "ttfa": 6202.26
           }
         },
         {
           "text": "Anything moving on G421 in the last minute of the clip today?",
           "source": "local_llm",
-          "ttfa_ms": 3002.3329999985435,
-          "ttva_ms": 3003.9753999990353,
+          "ttfa_ms": 3204.181699999026,
+          "ttva_ms": 3206.3921999979357,
           "asked": false,
           "error": null,
           "stages": {
-            "plan_llm": 2766.85,
-            "plan_total": 2774.35,
-            "retrieve": 202.6,
-            "logic": 0.06,
-            "compose": 25.39,
-            "ttfa": 3002.46
+            "plan_llm": 2958.86,
+            "plan_total": 2966.55,
+            "retrieve": 198.53,
+            "logic": 0.11,
+            "compose": 39.06,
+            "ttfa": 3204.35
           }
         }
       ],
@@ -892,46 +892,46 @@
       "by_route": {
         "local_llm": {
           "n": 12,
-          "p50_ms": 2847.8,
-          "p95_ms": 5722.6,
-          "max_ms": 5722.6
+          "p50_ms": 2797.2,
+          "p95_ms": 9264.9,
+          "max_ms": 9264.9
         }
       },
       "by_stage": {
         "compose": {
           "n": 10,
-          "p50_ms": 2.1,
-          "p95_ms": 32.2
+          "p50_ms": 1.3,
+          "p95_ms": 39.1
         },
         "describe": {
           "n": 2,
-          "p50_ms": 2524.6,
-          "p95_ms": 3502.1
+          "p50_ms": 2825.1,
+          "p95_ms": 3748.3
         },
         "logic": {
           "n": 10,
-          "p50_ms": 0.6,
-          "p95_ms": 1.6
+          "p50_ms": 0.5,
+          "p95_ms": 1.9
         },
         "plan_llm": {
           "n": 12,
-          "p50_ms": 2564.9,
-          "p95_ms": 3328.2
+          "p50_ms": 2547.4,
+          "p95_ms": 8382.0
         },
         "plan_total": {
           "n": 12,
-          "p50_ms": 2572.8,
-          "p95_ms": 3336.9
+          "p50_ms": 2554.8,
+          "p95_ms": 8384.2
         },
         "retrieve": {
           "n": 10,
-          "p50_ms": 199.8,
-          "p95_ms": 232.9
+          "p50_ms": 102.5,
+          "p95_ms": 843.8
         },
         "ttfa": {
           "n": 12,
-          "p50_ms": 2847.7,
-          "p95_ms": 5731.4
+          "p50_ms": 2797.1,
+          "p95_ms": 9265.1
         }
       },
       "no_network_share": 1.0

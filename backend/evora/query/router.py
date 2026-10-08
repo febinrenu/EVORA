@@ -536,9 +536,14 @@ class Router:
         return t - cam.t0
 
     def _bbox(self, track_id: str, t: float) -> tuple[float, float, float, float] | None:
+        # nearest stored point: one index seek on each side of t instead of sorting all of the track's points
         with self._db.read() as conn:
-            row = conn.execute("SELECT x1, y1, x2, y2 FROM track_points WHERE track_id=? "
-                               "ORDER BY ABS(t - ?) LIMIT 1", (track_id, t)).fetchone()
+            before = conn.execute("SELECT t, x1, y1, x2, y2 FROM track_points WHERE track_id=? AND t <= ? "
+                                  "ORDER BY t DESC LIMIT 1", (track_id, t)).fetchone()
+            after = conn.execute("SELECT t, x1, y1, x2, y2 FROM track_points WHERE track_id=? AND t > ? "
+                                 "ORDER BY t LIMIT 1", (track_id, t)).fetchone()
+        candidates = [r for r in (before, after) if r is not None]
+        row = min(candidates, key=lambda r: abs(r["t"] - t)) if candidates else None
         if row is None or None in tuple(row):
             return None
         return (row["x1"], row["y1"], row["x2"], row["y2"])

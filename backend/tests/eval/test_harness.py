@@ -82,7 +82,7 @@ async def test_markdown_and_scoreboard_row(tmp_path):
     assert "| ours | dev | 2 | 1.00 |" in table
     row = harness.scoreboard_row(report, "abc1234", baseline_hit1=0.5, notes="smoke")
     cells = [c.strip() for c in row.strip("|").split("|")]
-    assert cells[1:4] == ["abc1234", "dev", "1.00"] and cells[-2:] == ["0.50", "smoke"]
+    assert cells[1:4] == ["abc1234", "dev", "1.00"] and cells[-2:] == ["0.50", "strict Hit@1 1.00 smoke"]
     assert len(cells) == 13  # matches the PROGRESS.md scoreboard header
 
     json_path, md_path = harness.write_reports({"ours": report}, tmp_path, stem="t")
