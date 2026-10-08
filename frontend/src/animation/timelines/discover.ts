@@ -7,23 +7,20 @@ export function opening(c: Ctx): void {
   const { tl } = c;
   actLayer(c, { first: true });
   const title = el(c, "title");
-  const glyphs = Array.from(title.querySelectorAll<HTMLElement>(".ch"));
-  const n = glyphs.length;
 
   tl.to(el(c, "cue"), { autoAlpha: 0, duration: dur(c, 0.15) }, at(c, 0.02));
-  tl.to(el(c, "meta"), { autoAlpha: 0, y: -10, duration: dur(c, 0.3) }, at(c, 0.12));
-  // the words begin separating before they let go
-  tl.to(glyphs, { x: (i: number) => (i - n / 2) * (c.mobile ? 2.4 : 5.5), duration: dur(c, 0.7), ease: "power1.in" }, at(c, 0.05));
-  tl.to(title, { "--wdth": 118, duration: dur(c, 0.7), ease: "power1.in" }, at(c, 0.05));
-  // DOM type hands over to particles sitting exactly on the same glyphs
-  tl.to(S.universe, { alpha: 1, duration: dur(c, 0.3), ease: "none" }, at(c, 0.5));
-  tl.to(title, { autoAlpha: 0, duration: dur(c, 0.3), ease: "none" }, at(c, 0.58));
-  // letters become particles, particles multiply, the camera backs away
-  tl.to(S.universe, { wText: 0, duration: dur(c, 1.35), ease: "power2.inOut" }, at(c, 0.9));
-  tl.to(S.universe, { burst: 1, duration: dur(c, 0.55), ease: "power2.out" }, at(c, 0.9));
-  tl.to(S.universe, { burst: 0, duration: dur(c, 1.1), ease: "power2.inOut" }, at(c, 1.45));
-  tl.to(S.universe, { reveal: 1, duration: dur(c, 1.4), ease: "power1.in" }, at(c, 1.0));
-  cam(c, { pos: [0, 22, 168], look: [0, 0, 0] }, 0.9, 2.3, "power2.inOut");
+  tl.to(el(c, "meta"), { autoAlpha: 0, y: -10, duration: dur(c, 0.3) }, at(c, 0.08));
+  // The DOM title holds still while particles sitting exactly on its glyphs fade
+  // in under it, then it fades out: two identical shapes, so the swap is not seen.
+  // Moving the DOM letters first would put two different shapes on screen.
+  tl.to(S.universe, { alpha: 1, duration: dur(c, 0.22), ease: "sine.inOut" }, at(c, 0.3));
+  tl.to(title, { autoAlpha: 0, duration: dur(c, 0.26), ease: "sine.inOut" }, at(c, 0.4));
+  // only then do the letters let go: they loosen, burst and drift as the camera backs away
+  tl.to(S.universe, { wText: 0, duration: dur(c, 1.6), ease: "power2.inOut" }, at(c, 0.72));
+  tl.to(S.universe, { burst: 1, duration: dur(c, 0.7), ease: "power2.out" }, at(c, 0.78));
+  tl.to(S.universe, { burst: 0, duration: dur(c, 1.2), ease: "power2.inOut" }, at(c, 1.48));
+  tl.to(S.universe, { reveal: 1, duration: dur(c, 1.5), ease: "power1.in" }, at(c, 0.9));
+  cam(c, { pos: [0, 22, 168], look: [0, 0, 0] }, 0.8, 2.4, "power2.inOut");
   line(c, el(c, "fragment"), 2.2, 2.95);
 }
 
