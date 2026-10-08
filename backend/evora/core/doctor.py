@@ -31,12 +31,21 @@ OLLAMA_NEEDED = {"planner": ["qwen3.5:4b"], "vision": ["qwen3-vl:2b", "qwen3-vl:
 
 
 @dataclass
+class Fix:
+    """One command `--fix` may run: an argument list (never a shell string) and the folder to run it in."""
+
+    argv: list[str]
+    cwd: str = ""  # relative to the repository root
+
+
+@dataclass
 class Check:
     id: str
     title: str
     status: str
     detail: str = ""
     fix: str = ""
+    fixes: list[Fix] = field(default_factory=list)  # what `--fix` runs; every one of them downloads something
 
 
 def mask(key: str) -> str:
@@ -72,6 +81,15 @@ def _http_get(url: str, timeout: float = 1.0) -> tuple[int, str] | None:
         return exc.code, ""
     except (OSError, ValueError):
         return None
+
+
+def _run_fix(argv: list[str], cwd: Path, env: Mapping[str, str]) -> int:
+    """Run one fix with its output on the screen (downloads can take minutes). A missing program is a failure, not a crash."""
+    try:
+        return subprocess.run(argv, cwd=cwd, env=dict(env), check=False).returncode
+    except OSError as exc:
+        print(f"      could not start {argv[0]}: {exc}")
+        return 127
 
 
 def _port_state(port: int) -> str:
@@ -202,6 +220,7 @@ class Env:
     tz_ok: Callable[[], bool] = _tz_ok
     groq_probe: Callable[[], list[dict[str, Any]]] | None = None
     mediamtx: Callable[[], Path | None] = lambda: find_mediamtx()
+    run_fix: Callable[[list[str], Path, Mapping[str, str]], int] = lambda argv, cwd, env: _run_fix(argv, cwd, env)
     python_version: tuple[int, int] = field(default_factory=lambda: sys.version_info[:2])
 
     @property
@@ -219,6 +238,19 @@ class Env:
         return _groq_probe(self.root, self.environ, planner)
 
 
+def _uv(env: Env) -> list[str]:
+    exe = env.which("uv")
+    return [exe] if exe else [env.which("python") or sys.executable, "-m", "uv"]
+
+
+def _sync_fix(env: Env) -> list[Fix]:
+    return [Fix([*_uv(env), "--directory", "backend", "sync"])]
+
+
+def _model_fix(env: Env, only: str) -> list[Fix]:
+    return [Fix([*_uv(env), "--directory", "backend", "run", "python", "../scripts/models_download.py", "--only", only])]
+
+
 # ---- checks ---------------------------------------------------------------------------------------------------
 
 def check_python(env: Env) -> list[Check]:
@@ -230,7 +262,8 @@ def check_python(env: Env) -> list[Check]:
     missing = [p for p in CORE_PACKAGES if env.version_of(p) is None]
     shown = ", ".join(f"{p} {env.version_of(p)}" for p in CORE_PACKAGES[:4]) + ", ..."
     out.append(Check("packages", "Core packages", FAIL if missing else OK,
-                     "missing: " + ", ".join(missing) if missing else shown, "make setup" if missing else ""))
+                     "missing: " + ", ".join(missing) if missing else shown, "make setup" if missing else "",
+                     _sync_fix(env) if missing else []))
     absent = [p for p in PERCEPTION_PACKAGES if env.version_of(p) is None]
     out.append(Check("perception", "Perception stack", WARN if absent else OK,
                      ("not installed: " + ", ".join(absent) + ". New footage cannot be indexed yet.") if absent
@@ -308,23 +341,23 @@ def check_models(env: Env) -> list[Check]:
     primary = spec["yolo"][0]
     rows.append(Check("m_detector", "Detector weights", FAIL if primary in yolo_missing else (WARN if yolo_missing else OK),
                       "missing: " + ", ".join(yolo_missing) if yolo_missing else f"{len(spec['yolo'])} files",
-                      fix.format("yolo") if yolo_missing else ""))
+                      fix.format("yolo") if yolo_missing else "", _model_fix(env, "yolo") if yolo_missing else []))
     sig = _hf_present(env, spec["siglip"])
     siglip_detail = spec["siglip"] if sig else f"{spec['siglip']} is not cached"
     rows.append(Check("m_siglip", "SigLIP2 (image and text)", OK if sig else FAIL, siglip_detail,
-                      "" if sig else fix.format("siglip2")))
+                      "" if sig else fix.format("siglip2"), [] if sig else _model_fix(env, "siglip2")))
     bge_ok = (md / "fastembed").is_dir() and any((md / "fastembed").iterdir())
     rows.append(Check("m_bge", "Text embedder for aliases", OK if bge_ok else WARN,
                       "fastembed bge-small cached" if bge_ok else "not cached; aliases fall back to a weaker hashing embedder",
-                      "" if bge_ok else fix.format("fastembed")))
+                      "" if bge_ok else fix.format("fastembed"), [] if bge_ok else _model_fix(env, "fastembed")))
     reid_missing = [n for n in spec["boxmot"] if not (md / "boxmot" / n).is_file()]
     rows.append(Check("m_reid", "Re-identification weights", WARN if reid_missing else OK,
                       "missing: " + ", ".join(reid_missing) if reid_missing else "present",
-                      fix.format("boxmot") if reid_missing else ""))
+                      fix.format("boxmot") if reid_missing else "", _model_fix(env, "boxmot") if reid_missing else []))
     face = md / "yunet" / "face_detection_yunet_2023mar.onnx"
     rows.append(Check("m_face", "Face model for blur", OK if face.is_file() else FAIL,
                       "present" if face.is_file() else "missing: faces cannot be blurred, so evidence cannot be exported",
-                      "" if face.is_file() else fix.format("yunet")))
+                      "" if face.is_file() else fix.format("yunet"), [] if face.is_file() else _model_fix(env, "yunet")))
     return rows
 
 
@@ -347,7 +380,8 @@ def check_ollama(env: Env) -> list[Check]:
     if missing:
         wanted = [OLLAMA_NEEDED[r][0] for r in missing]
         return [Check("ollama", "Ollama (local language and vision models)", needed_status,
-                      f"running; missing {', '.join(missing)} model", "ollama pull " + " && ollama pull ".join(wanted))]
+                      f"running; missing {', '.join(missing)} model", "ollama pull " + " && ollama pull ".join(wanted),
+                      [Fix(["ollama", "pull", tag]) for tag in wanted])]
     return [Check("ollama", "Ollama (local language and vision models)", OK, f"running; {len(have)} models")]
 
 
@@ -405,7 +439,7 @@ def check_privacy(env: Env) -> list[Check]:
 def check_tz(env: Env) -> list[Check]:
     ok = env.tz_ok()
     return [Check("tz", "Time zone data (Asia/Kolkata)", OK if ok else FAIL, "available" if ok else "tzdata is missing",
-                  "" if ok else "make setup")]
+                  "" if ok else "make setup", [] if ok else _sync_fix(env))]
 
 
 def check_ui(env: Env) -> list[Check]:
@@ -417,7 +451,8 @@ def check_ui(env: Env) -> list[Check]:
             return [Check("ui", "Web interface", WARN, "Node.js is not installed: `make up` serves the API only",
                           "Install Node 20+ (winget install OpenJS.NodeJS.LTS).")]
         if not (frontend / "node_modules").is_dir():
-            return [Check("ui", "Web interface", WARN, "dependencies are not installed", "cd frontend && npm ci")]
+            return [Check("ui", "Web interface", WARN, "dependencies are not installed", "cd frontend && npm ci",
+                          [Fix(["npm", "ci"], "frontend")])]
         return [Check("ui", "Web interface", OK if built else WARN,
                       "Next.js build is ready" if built else "not built yet: `make up` builds it on first start",
                       "" if built else "cd frontend && npm run build")]
@@ -484,6 +519,69 @@ def to_json(checks: list[Check]) -> str:
                        "checks": [asdict(c) for c in checks]}, indent=2)
 
 
+# ---- --fix ---------------------------------------------------------------------------------------------------
+
+def planned_fixes(checks: list[Check]) -> list[Fix]:
+    """The commands that would fix the rows that need it, each once, in table order."""
+    seen: set[tuple[tuple[str, ...], str]] = set()
+    out: list[Fix] = []
+    for c in checks:
+        if c.status not in (WARN, FAIL):
+            continue
+        for fix in c.fixes:
+            key = (tuple(fix.argv), fix.cwd)
+            if key not in seen:
+                seen.add(key)
+                out.append(fix)
+    return out
+
+
+def _shown(fix: Fix) -> str:
+    return (f"(in {fix.cwd}) " if fix.cwd else "") + " ".join(fix.argv)
+
+
+def apply_fixes(
+    env: Env, checks: list[Check], yes: bool = False, confirm: Callable[[str], bool] | None = None,
+    say: Callable[[str], None] = print,
+) -> bool:
+    """Run the safe local fixes for the rows that need them. Returns True when any command was started.
+
+    Every fix downloads something, so on-prem mode runs none of them. Only commands the doctor itself lists are run;
+    system software (ffmpeg, Node, MediaMTX), the .env file and other programs on a port are left to the person.
+    """
+    fixes = planned_fixes(checks)
+    if not fixes:
+        say("Nothing to fix automatically. Rows marked WARN or FAIL show what to do by hand.")
+        return False
+    say("These commands would fix what is missing:")
+    for fix in fixes:
+        say(f"  {_shown(fix)}")
+    if env.on_prem:
+        say("on-prem mode: every one of them downloads from the internet, so none was run. "
+            "Run them on a connected machine, or drop --on-prem.")
+        return False
+    if not yes:
+        ask = confirm if confirm is not None else _ask
+        if not ask(f"Run {len(fixes)} command{'s' if len(fixes) != 1 else ''}?"):
+            say("Nothing was run. Add --yes to run them without asking.")
+            return False
+    child_env = {**env.environ, "EVORA_MODELS_DIR": str(env.models_dir)}
+    for fix in fixes:
+        say(f"-> {_shown(fix)}")
+        code = env.run_fix(fix.argv, env.root / fix.cwd if fix.cwd else env.root, child_env)
+        say("   done" if code == 0 else f"   failed (exit {code}); the other fixes still run")
+    return True
+
+
+def _ask(question: str) -> bool:
+    if not sys.stdin.isatty():
+        return False  # never guess in a script: --yes is the explicit way
+    try:
+        return input(f"{question} [y/N] ").strip().lower() in ("y", "yes")
+    except EOFError:
+        return False
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
@@ -494,9 +592,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--quick", action="store_true", help="skip checks that need the network")
     p.add_argument("--on-prem", action="store_true", help="check for on-prem mode (local models required, cloud skipped)")
     p.add_argument("--skip", default="", help="comma separated groups to skip: " + ",".join(g for g, _, _ in CHECKS))
+    p.add_argument("--fix", action="store_true", help="run the commands that fix what is missing (asks first)")
+    p.add_argument("--yes", action="store_true", help="with --fix: do not ask")
     args = p.parse_args(argv)
     on_prem = args.on_prem or os.environ.get("evora_ONPREM") == "1"
     env = Env(root=REPO_ROOT, cfg=load_config(), on_prem=on_prem, quick=args.quick)
-    checks = run_checks(env, {s.strip() for s in args.skip.split(",") if s.strip()})
-    print(to_json(checks) if args.json else render(checks, color=sys.stdout.isatty()))
+    skip = {s.strip() for s in args.skip.split(",") if s.strip()}
+    checks = run_checks(env, skip)
+    show = (lambda cs: print(to_json(cs))) if args.json else (lambda cs: print(render(cs, color=sys.stdout.isatty())))
+    show(checks)
+    if args.fix and not args.json and apply_fixes(env, checks, args.yes):
+        print("\nChecking again:\n")
+        checks = run_checks(env, skip)
+        show(checks)
     return 1 if any(c.status == FAIL for c in checks) else 0

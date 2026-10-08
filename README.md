@@ -7,6 +7,7 @@ Multi-camera video intelligence with conversational queries (HNX26EPS05).
 ```
 make setup     # install backend deps (uv, Python 3.11+)
 make doctor    # is this machine ready to demo? every problem comes with the command that fixes it
+               # `make doctor ARGS="--fix"` runs those commands for you (asks first; `--yes` skips the question)
 make up        # check, start local services, serve the API and the built UI on http://127.0.0.1:8700
 make check     # ruff + pytest + generated TS types in sync
 ```

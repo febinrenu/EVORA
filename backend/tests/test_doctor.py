@@ -235,3 +235,130 @@ def test_the_web_interface_check_understands_a_next_app(tmp_path):
     (f / ".next").mkdir()
     (f / ".next" / "BUILD_ID").write_text("x")
     assert by_id(run_checks(base))["ui"].status == OK
+
+
+# ---- --fix ---------------------------------------------------------------------------------------------------------------
+
+class Runner:
+    """Records the commands instead of running them; `fails` lists programs that exit non-zero."""
+
+    def __init__(self, fails=()):
+        self.calls, self.fails = [], set(fails)
+
+    def __call__(self, argv, cwd, env):
+        self.calls.append((argv, Path(cwd), dict(env)))
+        return 1 if argv[0] in self.fails or argv[-1] in self.fails else 0
+
+
+def broken(tmp_path, runner, **over):
+    """No scipy, no face model, an Ollama without the vision model, and no frontend dependencies."""
+    tags = json.dumps({"models": [{"name": "qwen3.5:4b"}]})
+    env = healthy(
+        tmp_path, version_of=lambda n: None if n == "scipy" else "1", http_get=lambda url, t=1.0: (200, tags),
+        run_fix=runner, **over,
+    )
+    (tmp_path / "models" / "yunet" / "face_detection_yunet_2023mar.onnx").unlink()
+    (tmp_path / "frontend" / "package.json").write_text("{}")
+    return env
+
+
+def test_every_fixable_row_lists_its_command(tmp_path):
+    rows = by_id(run_checks(broken(tmp_path, Runner())))
+    assert rows["packages"].fixes[0].argv == ["/usr/bin/uv", "--directory", "backend", "sync"]
+    assert [f.argv for f in rows["ollama"].fixes] == [["ollama", "pull", "qwen3-vl:2b"]]
+    assert rows["m_face"].fixes[0].argv[-2:] == ["--only", "yunet"]
+    assert rows["ui"].fixes[0].cwd == "frontend" and rows["ui"].fixes[0].argv == ["npm", "ci"]
+    assert by_id(run_checks(healthy(tmp_path)))["packages"].fixes == [], "nothing to fix, nothing listed"
+
+
+def test_the_same_command_is_planned_once(tmp_path):
+    env = healthy(tmp_path, version_of=lambda n: None if n == "scipy" else "1", tz_ok=lambda: False)
+    fixes = doctor.planned_fixes(run_checks(env))
+    assert len(fixes) == 1 and fixes[0].argv[-1] == "sync", "packages and time zone data share one sync"
+
+
+def test_fix_with_yes_runs_everything_in_order_and_reports(tmp_path, capsys):
+    runner = Runner()
+    env = broken(tmp_path, runner)
+    assert doctor.apply_fixes(env, run_checks(env), yes=True) is True
+    assert [c[0][-1] for c in runner.calls] == ["sync", "yunet", "qwen3-vl:2b", "ci"], "in the order of the table"
+    first_env = runner.calls[0][2]
+    assert first_env["EVORA_MODELS_DIR"] == str(tmp_path / "models")
+    assert runner.calls[-1][1] == tmp_path / "frontend" and runner.calls[0][1] == tmp_path
+    out = capsys.readouterr().out
+    assert out.count("done") == 4 and "failed" not in out
+
+
+def test_one_failing_fix_does_not_stop_the_others(tmp_path, capsys):
+    runner = Runner(fails={"ollama"})
+    env = broken(tmp_path, runner)
+    doctor.apply_fixes(env, run_checks(env), yes=True)
+    assert len(runner.calls) == 4
+    out = capsys.readouterr().out
+    assert "failed (exit 1); the other fixes still run" in out and out.count("done") == 3
+
+
+def test_without_yes_it_asks_and_a_no_runs_nothing(tmp_path, capsys):
+    runner = Runner()
+    env = broken(tmp_path, runner)
+    asked = []
+    assert doctor.apply_fixes(env, run_checks(env), confirm=lambda q: asked.append(q) or False) is False
+    assert runner.calls == [] and asked == ["Run 4 commands?"]
+    assert "Add --yes" in capsys.readouterr().out
+    assert doctor.apply_fixes(env, run_checks(env), confirm=lambda q: True) is True and len(runner.calls) == 4
+
+
+def test_a_script_without_yes_never_guesses(tmp_path, monkeypatch):
+    runner = Runner()
+    env = broken(tmp_path, runner)
+    monkeypatch.setattr(doctor.sys.stdin, "isatty", lambda: False)
+    assert doctor.apply_fixes(env, run_checks(env)) is False and runner.calls == []
+
+
+def test_on_prem_refuses_every_fix_because_they_all_download(tmp_path, capsys):
+    runner = Runner()
+    env = broken(tmp_path, runner, on_prem=True)
+    assert doctor.apply_fixes(env, run_checks(env), yes=True) is False and runner.calls == []
+    out = capsys.readouterr().out
+    assert "on-prem mode" in out and "none was run" in out and "npm ci" in out, "the commands are still shown"
+
+
+def test_nothing_to_fix_says_so(tmp_path, capsys):
+    runner = Runner()
+    env = healthy(tmp_path, run_fix=runner)
+    assert doctor.apply_fixes(env, run_checks(env), yes=True) is False and runner.calls == []
+    assert "Nothing to fix automatically" in capsys.readouterr().out
+
+
+def test_fixes_are_only_planned_for_rows_that_need_them(tmp_path):
+    env = broken(tmp_path, Runner())
+    checks = run_checks(env)
+    for c in checks:
+        if c.id == "packages":
+            c.status = OK
+    assert all(f.argv[-1] != "sync" for f in doctor.planned_fixes(checks))
+
+
+def test_main_fixes_then_checks_again(tmp_path, monkeypatch, capsys):
+    state = {"fixed": False}
+    runner = Runner()
+
+    def run_fix(argv, cwd, env):
+        state["fixed"] = True
+        return runner(argv, cwd, env)
+
+    env = healthy(tmp_path, version_of=lambda n: "1" if state["fixed"] or n != "scipy" else None, run_fix=run_fix)
+    monkeypatch.setattr(doctor, "Env", lambda **kw: env)
+    code = doctor.main(["--fix", "--yes", "--quick"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert out.index("1 problem") < out.index("Checking again") < out.index("Demo-ready")
+
+
+def test_json_output_lists_the_fixes_and_never_runs_them(tmp_path, monkeypatch, capsys):
+    runner = Runner()
+    env = broken(tmp_path, runner)
+    monkeypatch.setattr(doctor, "Env", lambda **kw: env)
+    doctor.main(["--json", "--fix", "--yes"])
+    data = json.loads(capsys.readouterr().out)
+    assert runner.calls == [] and any(c["fixes"] for c in data["checks"])
