@@ -146,7 +146,12 @@ def create_app(
 
     @app.get("/api/report")
     def report():
-        return {"eval": None, "ablations": None}
+        """The saved evaluation report (eval/reports/report.json), or the empty shape before one exists."""
+        try:
+            from eval.report import load_report
+        except ImportError:  # the evaluation package is not part of this checkout
+            return {"eval": None, "ablations": None}
+        return load_report()
 
     @app.post("/api/dev/gt")
     def dev_gt(body: dict):

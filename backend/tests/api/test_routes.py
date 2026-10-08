@@ -51,7 +51,7 @@ def test_remaining_routes_respond(client):
     assert client.get("/api/standing").json()[0]["active"] is True
     assert client.post("/api/evidence/ev_001/pack").content[:2] == b"PK"
     assert client.post("/api/settings", json={"onprem": True}).json()["onprem"] is True
-    assert json.loads(client.get("/api/report").text) == {"eval": None, "ablations": None}
+    assert client.get("/api/report").status_code == 200
 
 
 def test_cors_allows_ui_origin(client):
@@ -60,3 +60,13 @@ def test_cors_allows_ui_origin(client):
         headers={"Origin": "http://localhost:5173", "Access-Control-Request-Method": "GET"},
     )
     assert r.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_report_serves_the_saved_evaluation_report(client, tmp_path, monkeypatch):
+    from eval import report as eval_report
+
+    monkeypatch.setattr(eval_report, "REPORTS_DIR", tmp_path)
+    assert client.get("/api/report").json() == {"eval": None, "ablations": None}, "before any evaluation exists"
+    saved = {"pooled": {"ours": {"object": {"hit_at_1": {"value": 0.5, "n": 18}}}}, "splits": ["dev"], "limits": ["n is small"]}
+    (tmp_path / "report.json").write_text(json.dumps(saved), encoding="utf-8")
+    assert client.get("/api/report").json() == saved
