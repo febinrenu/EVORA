@@ -49,3 +49,10 @@ def test_report_flags_unlisted_models_and_bad_keys_without_leaking():
     assert "qwen/qwen3.8-27b: HTTP 200" in text and "[NOT LISTED for this key]" in text
     assert "remaining-tokens=7900" in text
     assert "gsk_" not in text
+
+
+def test_resolve_keys_reads_numbered_variables_in_numeric_order():
+    env_file = {"GROQ_KEY-2": "b", "GROQ_KEY-10": "d", "GROQ_KEY-1": "a", "GROQ_KEY_3": "c", "UNRELATED": "z"}
+    assert check_groq.resolve_keys(None, {}, env_file) == ["a", "b", "c", "d"]
+    assert check_groq.resolve_keys(None, {"GROQ_KEYS": "x"}, {"GROQ_KEY-1": "y"}) == ["x"]
+    assert check_groq.resolve_keys("cli", {"GROQ_KEYS": "x"}, env_file) == ["cli"]

@@ -96,3 +96,11 @@ def test_from_env_value_ignores_blanks():
     pool = KeyPool.from_env_value(" k1 , ,k2,")
     assert len(pool) == 2
     assert KeyPool.from_env_value(None).pick("m") is None
+
+
+def test_from_env_accepts_comma_list_and_numbered_variables():
+    env = {"GROQ_KEYS": "k1,k2", "GROQ_KEY-2": "k4", "GROQ_KEY-1": "k3", "GROQ_KEY_10": "k5", "OTHER": "x",
+           "GROQ_KEY-3": " ", "GROQ_KEY-9": "k1"}
+    pool = KeyPool.from_env(env)
+    assert [pool.key(i) for i in range(len(pool))] == ["k1", "k2", "k3", "k4", "k5"]
+    assert len(KeyPool.from_env({})) == 0

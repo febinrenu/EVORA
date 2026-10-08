@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -46,9 +47,20 @@ def load_env_file(path: Path) -> dict[str, str]:
     return values
 
 
+NUMBERED_KEY = re.compile(r"^GROQ_KEY[-_]?(\d+)$")
+
+
 def resolve_keys(cli_value: str | None, env: dict[str, str], env_file: dict[str, str]) -> list[str]:
-    raw = cli_value or env.get("GROQ_KEYS") or env_file.get("GROQ_KEYS") or ""
-    return [k.strip() for k in raw.split(",") if k.strip()]
+    """--keys wins; otherwise GROQ_KEYS (comma list) plus GROQ_KEY-1, GROQ_KEY_2 ... in numeric order."""
+    if cli_value:
+        return [k.strip() for k in cli_value.split(",") if k.strip()]
+    for source in (env, env_file):  # the real environment wins over .env
+        keys = [k.strip() for k in (source.get("GROQ_KEYS") or "").split(",") if k.strip()]
+        numbered = sorted((int(m.group(1)), name) for name in source if (m := NUMBERED_KEY.match(name)))
+        keys += [source[name].strip() for _, name in numbered if source[name].strip()]
+        if keys:
+            return list(dict.fromkeys(keys))
+    return []
 
 
 def list_models(client: httpx.Client, key: str) -> tuple[list[str] | None, str]:

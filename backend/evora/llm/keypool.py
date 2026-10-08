@@ -16,6 +16,7 @@ DEFAULT_TOKEN_BUDGET = 8000.0
 CIRCUIT_FAILURES = 3
 CIRCUIT_OPEN_S = 60.0
 
+_NUMBERED = re.compile(r"^GROQ_KEY[-_]?(\d+)$")
 _DURATION = re.compile(r"(?:(\d+(?:\.\d+)?)(ms|h|m|s))")
 
 
@@ -53,6 +54,14 @@ class KeyPool:
         self._keys = [k.strip() for k in keys if k.strip()]
         self._clock = clock
         self._state: dict[tuple[int, str], _State] = {}
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str], clock: Callable[[], float] = time.monotonic) -> KeyPool:
+        """GROQ_KEYS (comma list) plus GROQ_KEY-1, GROQ_KEY_2 ... in numeric order, duplicates dropped."""
+        keys = [k.strip() for k in (env.get("GROQ_KEYS") or "").split(",") if k.strip()]
+        numbered = sorted((int(m.group(1)), name) for name in env if (m := _NUMBERED.match(name)))
+        keys += [env[name].strip() for _, name in numbered if env[name].strip()]
+        return cls(list(dict.fromkeys(keys)), clock)
 
     @classmethod
     def from_env_value(cls, value: str | None, clock: Callable[[], float] = time.monotonic) -> KeyPool:
