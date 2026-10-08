@@ -38,6 +38,13 @@ def _validated(schema: type[M], text: str) -> M:
     return schema.model_validate_json(_strip_fences(text))
 
 
+def _retry_after(resp: httpx.Response) -> float | None:
+    try:
+        return float(resp.headers["retry-after"])
+    except (KeyError, ValueError):
+        return None
+
+
 def _strip_fences(text: str) -> str:
     text = text.strip()
     if text.startswith("```"):
@@ -111,8 +118,7 @@ class Gateway:
             self._pool.update_from_headers(idx, model, resp.headers)
             latency_ms = round((time.monotonic() - started) * 1000)
             if resp.status_code == 429:
-                retry = resp.headers.get("retry-after")
-                self._pool.record_rate_limited(idx, model, float(retry) if retry and retry.replace(".", "").isdigit() else None)
+                self._pool.record_rate_limited(idx, model, _retry_after(resp))
                 self._log(task=task, backend="groq", model=model, key=self._pool.label(idx), ok=False,
                           status=429, latency_ms=latency_ms)
                 continue
@@ -161,7 +167,8 @@ class Gateway:
             if got is None:
                 raise _Unavailable("no key available")
             resp, idx = got
-            if resp.status_code == 400 and "response_format" in resp.text and body["response_format"]["type"] != "json_object":
+            schema_mode = body["response_format"]["type"] == "json_schema"
+            if resp.status_code == 400 and "response_format" in resp.text and schema_mode:
                 body["response_format"] = {"type": "json_object"}  # model lacks schema mode
                 got = await self._groq_post("/chat/completions", model, _approx_tokens(messages), task, json=body)
                 if got is None:
@@ -192,7 +199,7 @@ class Gateway:
         model = self._cfg.local_text_model
         json_schema = schema.model_json_schema()
         last_error = ""
-        for attempt in range(2):
+        for _ in range(2):
             started = time.monotonic()
             text = await self._ollama.chat_json(model, messages, json_schema)
             try:

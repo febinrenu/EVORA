@@ -1,4 +1,5 @@
 from contracts.models import QueryPlan
+
 from evora.llm.prompts import (
     EXAMPLE_CAMERAS,
     build_planner_messages,
