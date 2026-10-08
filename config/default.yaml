@@ -4,7 +4,7 @@ server:
   port: 8700
   serve_ui: true          # serve frontend/dist from the API when it has been built
   ui_dir: frontend/dist
-  cors_origins: ["http://localhost:5173", "http://127.0.0.1:5173"]
+  cors_origins: ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"]
 workspace:
   root: workspaces
   default: own-campus
@@ -22,8 +22,8 @@ llm:
     voice: whisper-large-v3-turbo
   onprem: false
 memory:
-  tau_hi: 0.85
-  tau_lo: 0.60
+  tau_hi: 0.92          # calibrated by M3 on 68 labelled pairs with the real bge-small: 0.85 let 5 wrong pairs through
+  tau_lo: 0.62
   margin: 0.03          # two facts this close above tau_hi make the referent ambiguous
   alias_embed: true     # false = exact aliases only (ablation C4)
 media:

@@ -221,3 +221,87 @@ def test_a_perception_function_without_a_ws_parameter_is_still_called(db, monkey
     job = runner.submit([cam.id], ["L0"])[0]
     assert wait_for(lambda: runner.get(job.id).state == "done")
     runner.shutdown()
+
+
+# ---- after the last camera of a batch ---------------------------------------------------------------------------
+
+def test_on_idle_fires_once_after_the_last_job_of_a_batch(db):
+    cameras = [add_cam(db, n) for n in "abc"]
+    calls = []
+    runner = JobRunner(db, Bus(), workers=1, ingest_fn=finishing())
+    runner.on_idle = lambda: calls.append(1)
+    jobs = runner.submit([c.id for c in cameras])
+    assert wait_for(lambda: all(runner.get(j.id).state == "done" for j in jobs))
+    assert wait_for(lambda: len(calls) >= 1)
+    assert calls == [1], "not after every camera, only after the last"
+    runner.shutdown()
+
+
+def test_on_idle_still_fires_when_the_last_job_failed(db):
+    good, bad = add_cam(db, "good"), add_cam(db, "bad")
+    calls = []
+    runner = JobRunner(db, Bus(), workers=1, ingest_fn=fake_ingest(fail_for={bad.id}))
+    runner.on_idle = lambda: calls.append(1)
+    jobs = runner.submit([good.id, bad.id])
+    assert wait_for(lambda: runner.get(jobs[1].id).state == "error" and runner.get(jobs[0].id).state == "done")
+    assert wait_for(lambda: calls == [1]), "the camera that finished is still linked"
+    runner.shutdown()
+
+
+def test_a_failing_idle_hook_does_not_fail_the_ingest(db):
+    cam = add_cam(db)
+    runner = JobRunner(db, Bus(), workers=1, ingest_fn=finishing())
+
+    def boom():
+        raise RuntimeError("linking exploded")
+
+    runner.on_idle = boom
+    job = runner.submit([cam.id])[0]
+    assert wait_for(lambda: runner.get(job.id).state == "done") and cams.get_camera(db, cam.id).status == "ready"
+    runner.shutdown()
+
+
+def test_the_app_links_identities_after_a_batch_and_says_so(tmp_path, monkeypatch, sample_mp4, sample_mp4_b):
+    import asyncio
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from evora.api.app import create_app
+    from evora.core import perception_adapter
+
+    seen = {}
+
+    def link(workspace=None):
+        seen["workspace"] = workspace
+        return 3
+
+    monkeypatch.setattr(perception_adapter, "_find", lambda name: link if name == "link_global_ids" else None)
+    monkeypatch.setenv("evora_WORKSPACE", "batch")
+    client = TestClient(create_app(workspaces_root=tmp_path / "ws", gateway=object()))
+    ctx = client.app.state.ctx
+    for path, name in ((sample_mp4, "a.mp4"), (sample_mp4_b, "b.mp4")):
+        with open(path, "rb") as fh:
+            client.post("/api/cameras", files=[("files", (name, fh))])
+
+    async def scenario():
+        sub = ctx.bus.subscribe()
+        await asyncio.to_thread(client.post, "/api/ingest", json={"camera_ids": ["cam_01", "cam_02"], "layers": ["L0"]})
+        while True:
+            note = json.loads((await asyncio.wait_for(sub.queue.get(), 10))["data"])
+            if note.get("kind") == "reid":
+                return note
+
+    assert asyncio.run(scenario()) == {"kind": "reid", "linked": 3}
+    assert seen["workspace"] is ctx.ws
+
+
+def test_the_router_is_built_with_the_gateway(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from evora.api.app import create_app
+
+    gateway = object()
+    monkeypatch.setenv("evora_WORKSPACE", "gw")
+    client = TestClient(create_app(workspaces_root=tmp_path / "ws", gateway=gateway))
+    assert client.app.state.ctx.router._gateway is gateway

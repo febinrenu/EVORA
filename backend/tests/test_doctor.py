@@ -218,3 +218,20 @@ def test_exit_code_is_one_only_for_a_failure(monkeypatch, capsys):
     monkeypatch.setattr(doctor, "run_checks", lambda env, skip=frozenset(): [doctor.Check("a", "A", FAIL, "broken")])
     assert doctor.main(["--quick", "--json"]) == 1
     assert json.loads(capsys.readouterr().out)["ok"] is False
+
+
+def test_the_web_interface_check_understands_a_next_app(tmp_path):
+    f = tmp_path / "frontend"
+    f.mkdir(parents=True, exist_ok=True)
+    (f / "package.json").write_text("{}")
+    base = healthy(tmp_path)
+    no_node = by_id(run_checks(Env(**{**base.__dict__, "which": lambda n: None})))["ui"]
+    assert no_node.status == WARN and "Node.js" in no_node.detail
+    no_deps = by_id(run_checks(base))["ui"]
+    assert no_deps.status == WARN and no_deps.fix == "cd frontend && npm ci"
+    (f / "node_modules").mkdir()
+    unbuilt = by_id(run_checks(base))["ui"]
+    assert unbuilt.status == WARN and unbuilt.fix == "cd frontend && npm run build"
+    (f / ".next").mkdir()
+    (f / ".next" / "BUILD_ID").write_text("x")
+    assert by_id(run_checks(base))["ui"].status == OK

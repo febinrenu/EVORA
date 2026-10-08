@@ -53,6 +53,14 @@ def _run(cmd: list[str], timeout: float = 10.0) -> tuple[int, str]:
     return out.returncode, (out.stdout + out.stderr)
 
 
+def _run_in(cwd: Path, cmd: list[str], env: Mapping[str, str], timeout: float) -> tuple[int, str]:
+    try:
+        out = subprocess.run(cmd, cwd=cwd, env=dict(env), capture_output=True, text=True, timeout=timeout, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return 127, f"{type(exc).__name__}"
+    return out.returncode, (out.stdout + out.stderr)
+
+
 def _http_get(url: str, timeout: float = 1.0) -> tuple[int, str] | None:
     import urllib.error
     import urllib.request
@@ -183,6 +191,7 @@ class Env:
     quick: bool = False
     which: Callable[[str], str | None] = shutil.which
     run: Callable[[list[str], float], tuple[int, str]] = _run
+    run_in: Callable[[Path, list[str], Mapping[str, str], float], tuple[int, str]] = _run_in
     http_get: Callable[[str, float], tuple[int, str] | None] = _http_get
     version_of: Callable[[str], str | None] = _version_of
     disk_free_gb: Callable[[Path], float] = lambda p: shutil.disk_usage(p).free / 1e9
@@ -400,10 +409,22 @@ def check_tz(env: Env) -> list[Check]:
 
 
 def check_ui(env: Env) -> list[Check]:
+    frontend = env.root / "frontend"
+    if (frontend / "package.json").is_file():
+        have_node = bool(env.which("node") and env.which("npm"))
+        built = (frontend / ".next" / "BUILD_ID").is_file()
+        if not have_node:
+            return [Check("ui", "Web interface", WARN, "Node.js is not installed: `make up` serves the API only",
+                          "Install Node 20+ (winget install OpenJS.NodeJS.LTS).")]
+        if not (frontend / "node_modules").is_dir():
+            return [Check("ui", "Web interface", WARN, "dependencies are not installed", "cd frontend && npm ci")]
+        return [Check("ui", "Web interface", OK if built else WARN,
+                      "Next.js build is ready" if built else "not built yet: `make up` builds it on first start",
+                      "" if built else "cd frontend && npm run build")]
     ui = env.root / env.cfg.get("server", {}).get("ui_dir", "frontend/dist") / "index.html"
-    return [Check("ui", "Built UI", OK if ui.is_file() else WARN,
-                  "frontend/dist is ready" if ui.is_file() else "not built yet: `make up` serves the API only",
-                  "" if ui.is_file() else "cd frontend && npm run build")]
+    return [Check("ui", "Web interface", OK if ui.is_file() else WARN,
+                  "static build is ready" if ui.is_file() else "no frontend yet: `make up` serves the API only",
+                  "" if ui.is_file() else "build the frontend")]
 
 
 CHECKS: list[tuple[str, Callable[[Env], list[Check]], bool]] = [  # (group, function, needs the network)

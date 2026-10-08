@@ -1,7 +1,7 @@
 UV ?= $(shell command -v uv >/dev/null 2>&1 && echo uv || echo python -m uv)
 BACKEND = $(UV) --directory backend
 
-.PHONY: setup setup-perception dev check test test-e2e eval ablate types types-check models doctor offline-test up
+.PHONY: setup setup-perception frontend-check dev check test test-e2e eval ablate types types-check models doctor offline-test up
 
 setup:
 	$(BACKEND) sync
@@ -25,6 +25,10 @@ check:
 	$(BACKEND) run ruff check .
 	$(BACKEND) run pytest -q
 	$(MAKE) types-check
+	$(MAKE) frontend-check
+
+frontend-check:
+	@if [ -f frontend/package.json ] && command -v npm >/dev/null 2>&1; then 		cd frontend && { [ -d node_modules ] || npm ci; } && npm run check; 	else echo "frontend-check skipped (no frontend/ folder or no npm)"; fi
 
 test:
 	$(BACKEND) run pytest -q

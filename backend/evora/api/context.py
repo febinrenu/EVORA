@@ -107,6 +107,14 @@ class AppContext:
             ctx.alerts.backfill(camera_id)
 
         runner.on_done = after_ingest
+
+        def after_batch() -> None:
+            linked = perception_adapter.link_identities(ws)
+            if linked is not None:
+                bus.publish("reid", {"linked": linked})
+            ctx.alerts.backfill()
+
+        runner.on_idle = after_batch
         ctx.zones.on_recomputed = lambda camera_id: ctx.alerts.backfill(camera_id)
         if not mock:
             from evora.api.query_wiring import ClarifierAdapter, build_router

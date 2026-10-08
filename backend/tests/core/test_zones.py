@@ -125,9 +125,10 @@ def test_frame_zone_never_asks_perception(db):
     assert res.events == 0 and rec.calls == []
 
 
-def test_missing_perception_means_pending_and_the_zone_is_still_saved(db):
+def test_missing_perception_means_pending_and_the_zone_is_still_saved(db, monkeypatch):
     from evora.core import perception_adapter
 
+    monkeypatch.setattr(perception_adapter, "MODULES", ())  # M2's real module exists now; simulate its absence
     assert service(db, Recorder(result=None)).save(line()).events is None
     assert perception_adapter.recompute_events("cam_01", [line()]) is None, "no perception installed"
     res = ZoneService(db, Bus(), None, perception_adapter.recompute_events).save(poly())

@@ -1,4 +1,4 @@
 profile: gpu
 device: cuda
 jobs:
-  workers: 1
+  workers: 2

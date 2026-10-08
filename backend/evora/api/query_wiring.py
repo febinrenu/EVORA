@@ -108,5 +108,6 @@ def build_router(ctx: AppContext, gateway: Any, clarifier: ClarifierAdapter, pla
     return Router(
         ctx.db, planner, retriever, ctx.memory.resolver, clarifier,
         Verifier(gateway, CropSource(ctx)), RouterConfig(), reference_override=lambda: ctx.settings["reference_now"],
+        gateway=gateway,  # `describe` answers are phrased by the grounded model instead of the plain summary
     )
 

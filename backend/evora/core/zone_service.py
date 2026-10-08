@@ -26,7 +26,7 @@ class SaveResult:
 class ZoneService:
     def __init__(self, db: Database, bus: Bus, kb: KnowledgeBase | None = None, recompute: Recompute | None = None):
         self.db, self.bus, self.kb = db, bus, kb
-        self._recompute = recompute or perception_adapter.recompute_events
+        self._recompute = recompute or (lambda camera_id, targets: perception_adapter.recompute_events(camera_id, targets, db=db))
         self.on_recomputed: Callable[[str], None] | None = None  # e.g. the alert engine re-reads this camera's events
 
     def _compute(self, camera_id: str, targets: list[Zone]) -> int | None:

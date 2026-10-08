@@ -42,6 +42,8 @@ class JobRunner:
         self._lock = threading.Lock()
         self._wanted: dict[str, set[str]] = {}
         self.on_done: Callable[[str], None] | None = None  # called when a camera finishes ingesting something
+        self.on_idle: Callable[[], None] | None = None  # called once the last job of a batch has finished
+        self._idle_lock = threading.Lock()
 
     # --- public API ---
     def submit(self, camera_ids: list[str], layers: list[str] | None = None) -> list[IngestJob]:
@@ -119,6 +121,7 @@ class JobRunner:
             cams.set_status(self.db, job.camera_id, "error")
             self.bus.publish("camera", {"camera_id": job.camera_id, "status": "error"})
             self._update(job_id, state="error", error=str(exc) or exc.__class__.__name__)
+            self._maybe_idle()  # the cameras that did finish still deserve linking when the failed one was the last
             return
         log.info("ingest %s done in %.1fs", job.camera_id, time.monotonic() - started)
         cams.set_status(self.db, job.camera_id, "ready")  # camera first, so a finished job never sees a stale camera
@@ -129,6 +132,21 @@ class JobRunner:
             except Exception:  # noqa: BLE001 - a follow-up step must never turn a finished ingest into a failed one
                 log.exception("post-ingest hook failed for %s", job.camera_id)
         self._update(job_id, state="done", progress=1.0)
+        self._maybe_idle()
+
+    def _maybe_idle(self) -> None:
+        """After the last camera of a batch: identities can now be linked across cameras."""
+        if self.on_idle is None:
+            return
+        with self._idle_lock:
+            with self.db.read() as c:
+                busy = c.execute("SELECT count(*) FROM ingest_jobs WHERE state IN ('queued','running')").fetchone()[0]
+            if busy:
+                return
+            try:
+                self.on_idle()
+            except Exception:  # noqa: BLE001 - a follow-up step must never turn a finished ingest into a failed one
+                log.exception("post-batch hook failed")
 
     def _update(self, job_id: str, **fields: object) -> None:
         cols = ", ".join(f"{k}=?" for k in fields)

@@ -193,3 +193,147 @@ def test_subprocess_is_not_used_to_start_anything_else(wired, monkeypatch):
     make_env_factory(monkeypatch)
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: pytest.fail("unexpected process start"))
     assert launcher.main([]) == 0
+
+
+# ---- the web interface (Next.js) ------------------------------------------------------------------------------------
+
+import os  # noqa: E402
+import sys  # noqa: E402
+import time  # noqa: E402
+
+
+def frontend(tmp_path, built=True, deps=True):
+    f = tmp_path / "frontend"
+    (f / "src").mkdir(parents=True)
+    (f / "package.json").write_text("{}")
+    (f / "src" / "page.tsx").write_text("x")
+    if deps:
+        (f / "node_modules").mkdir()
+    if built:
+        (f / ".next").mkdir()
+        (f / ".next" / "BUILD_ID").write_text("id")
+        later = time.time() + 5
+        os.utime(f / ".next" / "BUILD_ID", (later, later))
+    return f
+
+
+def ui_env(tmp_path, port_answers, builds=None, **over):
+    builds = builds if builds is not None else []
+
+    def run_in(cwd, cmd, env, timeout):
+        builds.append((cmd, dict(env)))
+        return 0, "built"
+
+    answers = iter(port_answers)
+    kw = dict(
+        root=tmp_path, cfg={}, environ={"PATH": "x"}, which=lambda n: f"/bin/{n}", run_in=run_in,
+        port_state=lambda port: next(answers, "busy"),
+    )
+    kw.update(over)
+    return Env(**kw), builds
+
+
+class UiChild:
+    pid = 4242
+
+
+def test_a_stale_or_missing_build_is_detected(tmp_path):
+    f = frontend(tmp_path, built=False)
+    assert launcher.ui_needs_build(f) is True
+    f = frontend(tmp_path / "b", built=True)
+    assert launcher.ui_needs_build(f) is False
+    later = time.time() + 60
+    os.utime(f / "src" / "page.tsx", (later, later))
+    assert launcher.ui_needs_build(f) is True
+
+
+def test_without_a_frontend_folder_it_is_api_only(tmp_path):
+    e, _ = ui_env(tmp_path, [])
+    assert launcher.start_ui(e, "http://127.0.0.1:8700") == ("no frontend/ folder yet: API only", None)
+
+
+def test_without_node_it_says_so(tmp_path):
+    frontend(tmp_path)
+    e, _ = ui_env(tmp_path, [], which=lambda n: None)
+    state, child = launcher.start_ui(e, "http://127.0.0.1:8700")
+    assert "Node.js is not installed" in state and child is None
+
+
+def test_without_dependencies_it_asks_for_npm_ci_instead_of_downloading(tmp_path):
+    frontend(tmp_path, deps=False)
+    e, builds = ui_env(tmp_path, [])
+    state, child = launcher.start_ui(e, "http://127.0.0.1:8700")
+    assert "npm ci" in state and child is None and builds == []
+
+
+def test_a_failed_build_leaves_the_api_running(tmp_path):
+    frontend(tmp_path, built=False)
+    e, _ = ui_env(tmp_path, [], run_in=lambda cwd, cmd, env, timeout: (1, "x\nType error in page.tsx\n"))
+    spawned = []
+    state, child = launcher.start_ui(e, "http://127.0.0.1:8700", spawn=lambda *a, **k: spawned.append(a))
+    assert "build failed" in state and "Type error" in state and child is None and spawned == []
+
+
+def test_a_fresh_build_is_not_rebuilt_and_the_ui_starts_on_loopback(tmp_path):
+    frontend(tmp_path, built=True)
+    e, builds = ui_env(tmp_path, ["free", "free", "busy"])
+    spawned = {}
+
+    def spawn(args, **kw):
+        spawned.update(args=args, **kw)
+        return UiChild()
+
+    state, child = launcher.start_ui(e, "http://127.0.0.1:8700", port=3000, spawn=spawn, sleep=lambda s: None)
+    assert state == "http://127.0.0.1:3000" and isinstance(child, UiChild) and builds == []
+    assert spawned["args"][1:] == ["run", "start", "--", "--port", "3000", "--hostname", "127.0.0.1"]
+    assert spawned["env"]["NEXT_PUBLIC_EVORA_API"] == "http://127.0.0.1:8700" and spawned["cwd"].endswith("frontend")
+
+
+def test_a_stale_build_is_rebuilt_with_the_api_address(tmp_path):
+    frontend(tmp_path, built=False)
+    e, builds = ui_env(tmp_path, ["busy"])
+    launcher.start_ui(e, "http://127.0.0.1:8700", spawn=lambda *a, **k: UiChild(), sleep=lambda s: None)
+    assert len(builds) == 1 and builds[0][0][1:] == ["run", "build"]
+    assert builds[0][1]["NEXT_PUBLIC_EVORA_API"] == "http://127.0.0.1:8700"
+
+
+def test_a_ui_that_never_answers_is_reported_and_returned_for_cleanup(tmp_path):
+    frontend(tmp_path)
+    e, _ = ui_env(tmp_path, ["free"] * 100)
+    quiet = dict(spawn=lambda *a, **k: UiChild(), sleep=lambda s: None, wait_s=1.0)
+    state, child = launcher.start_ui(e, "http://127.0.0.1:8700", **quiet)
+    assert "not answering" in state and isinstance(child, UiChild)
+
+
+def test_stopping_the_ui_takes_the_whole_process_tree_on_windows(monkeypatch):
+    calls = []
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **k: calls.append(cmd))
+    launcher.stop_tree(UiChild())
+    assert calls == [["taskkill", "/T", "/F", "/PID", "4242"]]
+
+
+def test_stopping_the_ui_elsewhere_terminates_the_child(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "linux")
+    child = Child()
+    child.pid = 5
+    launcher.stop_tree(child)
+    assert child.terminated is True
+
+
+def test_main_starts_and_stops_the_ui_and_prints_both_addresses(wired, monkeypatch, capsys):
+    make_env_factory(monkeypatch)
+    ui = UiChild()
+    stopped = []
+    monkeypatch.setattr(launcher, "start_ui", lambda env, api_url, port=3000, **k: (f"http://127.0.0.1:{port}", ui))
+    monkeypatch.setattr(launcher, "stop_tree", lambda child: stopped.append(child))
+    assert launcher.main(["--ui-port", "3100"]) == 0
+    out = capsys.readouterr().out
+    assert "http://127.0.0.1:8700" in out and "http://127.0.0.1:3100" in out and stopped == [ui]
+
+
+def test_no_ui_flag_skips_the_interface(wired, monkeypatch, capsys):
+    make_env_factory(monkeypatch)
+    monkeypatch.setattr(launcher, "start_ui", lambda *a, **k: pytest.fail("the UI must not start"))
+    assert launcher.main(["--no-ui"]) == 0
+    assert "API only (--no-ui)" in capsys.readouterr().out

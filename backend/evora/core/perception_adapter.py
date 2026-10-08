@@ -26,8 +26,14 @@ log = logging.getLogger("evora.perception_adapter")
 ProgressFn = Callable[[IngestJob], None]
 
 
+MODULES = (
+    "evora.perception", "evora.perception.clock", "evora.perception.pipeline", "evora.perception.embed",
+    "evora.perception.events", "evora.reid",
+)
+
+
 def _find(name: str) -> Callable | None:
-    for module in ("evora.perception", "evora.perception.clock", "evora.perception.pipeline", "evora.perception.embed"):
+    for module in MODULES:
         try:
             fn = getattr(importlib.import_module(module), name, None)
         except Exception as exc:  # noqa: BLE001 - a half-installed stack (missing DLL, wrong CUDA) must mean "not available"
@@ -96,13 +102,37 @@ def get_query_embedder() -> Any | None:
         return None
 
 
-def recompute_events(camera_id: str, zones: list[Zone]) -> int | None:
-    """M2's retroactive event recompute: the number of events written, or None when it is not available."""
+def _accepts(fn: Callable, name: str) -> bool:
+    try:
+        return name in inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
+
+
+def recompute_events(camera_id: str, zones: list[Zone], db: Any | None = None) -> int | None:
+    """M2's retroactive event recompute: the number of events written, or None when it is not available.
+
+    `db` is the app's database; M2's function would otherwise guess the workspace from the environment.
+    """
     real = _find("recompute_events")
     if real is None:
         return None
     try:
-        return int(real(camera_id, zones))
+        extra = {"db": db} if db is not None and _accepts(real, "db") else {}
+        return int(real(camera_id, zones, **extra))
     except Exception as exc:  # noqa: BLE001 - a failed recompute leaves the zone saved and reports "pending"
         log.warning("recompute_events failed for %s: %s", camera_id, exc)
+        return None
+
+
+def link_identities(workspace: Any | None = None) -> int | None:
+    """M2's cross-camera linking: how many identities now span two or more cameras, or None when unavailable."""
+    real = _find("link_global_ids")
+    if real is None:
+        return None
+    try:
+        extra = {"workspace": workspace} if workspace is not None and _accepts(real, "workspace") else {}
+        return int(real(**extra))
+    except Exception as exc:  # noqa: BLE001 - linking is an upgrade over per-camera tracks, never a reason to fail an ingest
+        log.warning("link_global_ids failed: %s", exc)
         return None
