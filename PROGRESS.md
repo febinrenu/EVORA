@@ -17,8 +17,8 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M1 — Platform, Memory & Integration
 - State: on track
-- Doing: P1.8 done; waiting for M3's router to start P1.9
-- Next: P1.9 wire /api/query and /api/clarify (stub router until M3 lands), P1.10 zones + recompute
+- Doing: P1.9 + P1.11 done; starting P1.10 zones + recompute
+- Next: P1.10, P1.12 corrections by text, P1.13 standing queries
 - Blockers:
 
 ### M2 — Perception & Identity
@@ -74,6 +74,9 @@ State values: not started · on track · at risk · blocked · done
 <!-- - [HH:MM] [M3] REQUEST: add optional `Answer.followups: list[str]`. Why: UI suggestions. Affects: M1, M4. → [HH:MM] [M1] APPROVED v1.1 -->
 
 ## Requests to other areas (append only)
+- [20:40] [M1] → M3: I made a ONE-LINE edit in your file `backend/evora/query/router.py` (`_run`): `resolution = self._resolver.resolve(ref)` is now awaited when it is awaitable (`inspect.isawaitable`), because memory's resolver is async. Your sync fakes still work. Everything else of the router is untouched. /api/query, /api/clarify and /api/voice now run your Router with real memory; set `evora_MOCK=1` for the fixture streams.
+- [20:40] [M1] → M2: media paths relative to `<workspace>/media/` are exactly what the media service and the verifier crop source expect (checked: they cannot escape that folder). I added your `ingest:` block to config/default.yaml and `av` + `opencv-python-headless` + `pillow` as core deps; the heavy stack (torch, ultralytics, transformers, boxmot, tzdata) is the optional extra `make setup-perception`. Retrieval is disabled (honest "still being indexed" note) until `evora.perception.embed` exposes `query_embedder()` returning an object with `embed_text(str) -> ndarray`; please add it. jobs.py now records only layers you report finished (progress 1.0) and fails a job that finishes none.
+- [20:40] [M1] → M4: mock mode for UI development is `evora_MOCK=1 make dev` (fixture streams). Without it /api/query needs `GROQ_KEYS` in `.env` or a running Ollama; the question bar can show the `error` event message as is.
 - [19:30] [M1] → M4: in Known places, mark entries listed in `inferred_aliases` as guesses (a quiet "learned" tag) with a confirm button calling `PATCH /api/memory/{id} {confirm_aliases:[alias]}` and a remove button via `aliases`.
 - [19:30] [M1] → M3: time words: call `await ctx.memory.resolve_time(phrase)` (returns `(tod_after, tod_before)` or None) before asking about a time phrase; typed answers like "8pm to 6am" are accepted by `/api/clarify` `text`.
 - [13:05] [M1] → M3 (memory contract, read before writing router.py): use `ctx.memory` (`evora.memory.service.MemoryService`). (1) `await memory.resolve(Referent)` returns `Bound(fact, via)`, `Ambiguous(facts)` or `Unknown`; NOTE it is async (PLAN §5.6 shows sync) because the grey-band equivalence check calls the gateway. For a `Bound`, `fact.binding` holds `camera_id` and optionally `zone_id` (place), `tod_after`/`tod_before` (time) or `track_id`/`global_id` (object). (2) For Unknown/Ambiguous call `memory.ask(query_id, text, plan, referent, resolution)`; it persists the pending query and returns the `ClarifyRequest` to emit as the `clarify` event, then stop. (3) Resume after `POST /api/clarify`: M1 applies the answer (`memory.apply`), then your `resume` should simply re-run `answer(pending.text)`; the referent now resolves, so nothing is asked twice. Pass `equivalence=gateway_equivalence(gateway)` from `evora.memory.service` into `create_app` once you expose a Gateway factory.
@@ -132,3 +135,5 @@ State values: not started · on track · at risk · blocked · done
 - [13:05] [M1] P1.8 memory done (a67a0ed, routes 7e5c47a): knowledge base with alias vectors, resolver (exact, embedding >= tau_hi with silent alias, LLM equivalence in the grey band, camera-name safety net), clarify state machine persisted in pending_queries, supersede/correct, DB-backed /api/memory. Restart + paraphrase test green in-process. 438 tests in make check.
 - [19:10] [M3] P3.17 done: eval/ablate.py (C1..C6 switches, deltas vs full system, skip-with-reason for switches that need re-indexing); `ours` still to be registered in eval/harness.py build_system once M1 wires memory.
 - [19:30] [M1] P1.8 improvements done (f2c43c9), approved by Adhu: guessed aliases are tracked (`inferred_aliases`), dropped on correction, confirmable; time aliases are first-class (`resolve_time`, `define_time`, typed hours). CONTRACT v1.2 (f15509a). Resolutions now expose `.status` and `.facts` as M3's router protocol expects.
+- [20:40] [M1] P1.9 done (4d6ee85): real /api/query, /api/clarify and /api/voice through M3's Router (planner, memory, clarify, composer, verifier with blur-first crops, pre-render on `answer`), shared Gateway built from `.env`, 422/410 for unusable or closed clarifications, errors become `error` then `done`. Config blocks `ingest:` and `retrieval:` added (aaf7521); jobs fix (609fed0).
+- [20:40] [M1] P1.11 done early (4d6ee85): `tests/e2e/test_clarify_once.py` over HTTP: ask, answer once, restart every object, original and two paraphrases ask nothing and the line survives; with alias embeddings off the paraphrase asks again (C4 ablation). 618 tests in make check.
