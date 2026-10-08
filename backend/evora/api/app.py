@@ -26,9 +26,10 @@ from evora.api import (
     routes_zones,
 )
 from evora.api.context import AppContext
+from evora.api.ui import mount_ui
 from evora.core import cameras as cams
 from evora.core import settings as app_settings
-from evora.core.config import load_config
+from evora.core.config import REPO_ROOT, load_config
 from evora.core.jobs import IngestFn
 from evora.core.media_service import BlurFn
 from evora.core.privacy_guard import guard
@@ -46,7 +47,7 @@ _JPEG = base64.b64decode(
 def create_app(
     workspaces_root: Path | None = None, ingest_fn: IngestFn | None = None,
     blur_provider: Callable[[], BlurFn | None] | None = None, embedder: TextEmbedder | None = None,
-    equivalence: Equivalence | None = None, gateway: Any = None, mock: bool | None = None,
+    equivalence: Equivalence | None = None, gateway: Any = None, mock: bool | None = None, ui_dir: Path | None = None,
 ) -> FastAPI:
     cfg = load_config()
     ctx = AppContext.build(cfg, workspaces_root, ingest_fn, blur_provider, embedder, equivalence, gateway, mock)
@@ -158,5 +159,7 @@ def create_app(
     def dev_gt(body: dict):
         return {"ok": True, "item": body}
 
+    if not ctx.mock and cfg["server"].get("serve_ui", True):
+        mount_ui(app, ui_dir or REPO_ROOT / cfg["server"].get("ui_dir", "frontend/dist"))  # last, so every API route wins
     return app
 

@@ -2,6 +2,8 @@
 server:
   host: 127.0.0.1
   port: 8700
+  serve_ui: true          # serve frontend/dist from the API when it has been built
+  ui_dir: frontend/dist
   cors_origins: ["http://localhost:5173", "http://127.0.0.1:5173"]
 workspace:
   root: workspaces
@@ -37,6 +39,10 @@ live:
   rtsp_port: 8554
   max_streams: 16
   default_speed: 1.0
+doctor:
+  min_free_gb: 20
+up:
+  start_ollama: false    # on-prem mode always starts Ollama if it is installed but not running
 alerts:
   default_cooldown_s: 30
 jobs:
