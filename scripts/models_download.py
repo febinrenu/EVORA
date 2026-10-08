@@ -1,6 +1,6 @@
 """Download every local model artifact into ./models (used by `make models`).
 
-Usage: python scripts/models_download.py [--only yolo siglip2 bge boxmot yunet ollama] [--gpu]
+Usage: python scripts/models_download.py [--only yolo siglip2 bge fastembed boxmot yunet ollama] [--gpu]
 
 Heavy imports happen inside each step, so one missing package only fails its own step.
 Ollama pulls are skipped with a warning when Ollama is not installed.
@@ -25,7 +25,7 @@ YUNET_URL = ("https://github.com/opencv/opencv_zoo/raw/main/models/face_detectio
 # Exact YOLO26 / YOLOE-26 checkpoint names must be confirmed against the Ultralytics docs (spike P2.3).
 YOLO_WEIGHTS = ["yolo26n.pt", "yolo26s.pt", "yoloe-26n-seg.pt", "yoloe-26n-seg-pf.pt"]
 BOXMOT_WEIGHTS = ["osnet_x0_25_msmt17.pt"]
-ALL_STEPS = ["yolo", "siglip2", "bge", "boxmot", "yunet", "ollama"]
+ALL_STEPS = ["yolo", "siglip2", "bge", "fastembed", "boxmot", "yunet", "ollama"]
 
 
 def step_yolo() -> None:
@@ -50,6 +50,17 @@ def step_hf(repo: str) -> None:
 
     path = snapshot_download(repo_id=repo)
     log.info("hf %s -> %s", repo, path)
+
+
+def step_fastembed() -> None:
+    """bge-small in fastembed's ONNX format under models/fastembed, which the memory service loads local-only."""
+    from fastembed import TextEmbedding
+
+    cache = ROOT / "fastembed"
+    cache.mkdir(parents=True, exist_ok=True)
+    model = TextEmbedding(BGE, cache_dir=str(cache))
+    dim = len(next(iter(model.embed(["warm-up"]))))
+    log.info("fastembed %s -> %s (dim %d)", BGE, cache, dim)
 
 
 def step_boxmot() -> None:
@@ -102,6 +113,7 @@ def main(argv: list[str] | None = None) -> int:
         "yolo": step_yolo,
         "siglip2": lambda: step_hf(SIGLIP2),
         "bge": lambda: step_hf(BGE),
+        "fastembed": step_fastembed,
         "boxmot": step_boxmot,
         "yunet": step_yunet,
         "ollama": lambda: step_ollama(args.gpu),
