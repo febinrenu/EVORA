@@ -40,6 +40,7 @@ from contracts.models import (
 from evora.core.db import Database
 from evora.evidence.store import EvidenceError, register
 from evora.query import fastpath
+from evora.query.actions import unsupported_action
 from evora.query.compose import (
     UNCONFIRMED_NOTE,
     Composed,
@@ -102,6 +103,7 @@ class Verifier(Protocol):
 class RouterConfig:
     accept: float = 0.40          # a match scoring below this is a near miss, not an answer (calibrated on dev)
     verify: str = "filter"        # "filter": the visual check can set candidates aside; "annotate": flags only
+    honest_actions: bool = True   # a question about an action we cannot recognise is answered with who was there
     thumb_fmt: str = "/api/media/thumb/{id}.jpg"
     clip_fmt: str = "/api/media/clip/{id}.mp4"
     same_place: float = 0.95      # cameras this alike in view are treated as one place (1.0 + switches it off)
@@ -276,6 +278,7 @@ class Router:
             yield _event("evidence", ev.model_dump(mode="json"))
 
         count = count_distinct(accepted) if plan.intent == "count" else None
+        action = unsupported_action(text) if self.cfg.honest_actions else None
         concurrent = None
         if plan.intent == "count" and plan.action == "any" and accepted:
             # "how many are there" asks how many are in view, not how many track fragments exist
@@ -284,7 +287,7 @@ class Router:
             plan, evidence, count=count, nearest_miss=miss, path=hops, cameras=_as_compose_cameras(cameras),
             source_names={c.id: c.source_name for c in cameras if c.source_name}, tz=tz, reference_now=ref_now,
             partial=_is_partial(cameras, plan, evidence), unconfirmed=_unconfirmed(plan, evidence),
-            concurrent=concurrent, appearances=count, unreadable=unreadable,
+            concurrent=concurrent, appearances=count, unreadable=unreadable, action=action,
         )
         timings["compose"] = _ms(t)
         timings["ttfa"] = _ms(started)
@@ -311,7 +314,7 @@ class Router:
             timings["verify"] = _ms(t)
             if self.cfg.verify == "filter":
                 revised = self._revise(query_id, plan, evidence, checked, cameras, camera_by_id, tz, ref_now,
-                                       all_notes, timings)
+                                       all_notes, timings, action)
                 if revised is not None:
                     answer = revised
                     yield _event("answer", answer.model_dump(mode="json"))
@@ -333,7 +336,7 @@ class Router:
 
     def _revise(self, query_id: str, plan: QueryPlan, evidence: list[Evidence], checked: dict[str, bool | None],
                 cameras: list[_Camera], camera_by_id: dict[str, _Camera], tz: tzinfo, ref_now: float,
-                notes: list[str], timings: dict[str, float]) -> Answer | None:
+                notes: list[str], timings: dict[str, float], action: str | None = None) -> Answer | None:
         """The answer after the visual check, or None when the check changed nothing.
 
         Candidates the check said no to are set aside; confirmed ones rank first, undecided ones keep their
@@ -354,7 +357,7 @@ class Router:
         composed = compose_checked(
             plan, kept, nearest_miss=miss, cameras=_as_compose_cameras(cameras),
             source_names={c.id: c.source_name for c in cameras if c.source_name}, tz=tz, reference_now=ref_now,
-            partial=_is_partial(cameras, plan, kept), unconfirmed=_unconfirmed(plan, kept),
+            partial=_is_partial(cameras, plan, kept), unconfirmed=_unconfirmed(plan, kept), action=action,
         )
         set_aside = ([f"The visual check set aside {len(failed)} of {len(evidence)} "
                       f"candidate(s) that did not clearly show {what}."] if failed else [])

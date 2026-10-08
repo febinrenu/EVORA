@@ -86,6 +86,8 @@ ingest:                 # perception pipeline (M2); keys and defaults mirror bac
   point_hz: 4.0
   image_model: google/siglip2-base-patch16-224
   embed_batch: 32
+query:
+  honest_actions: true   # actions with no recogniser (put down, get out of a car...) are answered with who was there
 retrieval:              # query side (M3); keys and defaults mirror backend/evora/query/retrieve.py
   unit: track           # track | frame (ablation C1)
   attributes: true      # ablation C2

@@ -166,12 +166,20 @@ def compose(
     concurrent: Mapping[str, Mapping[str, int]] | None = None,
     appearances: int | None = None,
     unreadable: int = 0,
+    action: str | None = None,
 ) -> Composed:
     """Build the verdict and the grounded text. `evidence` is already ordered best/first/last.
 
     `unconfirmed`: attributes were asked for but nothing (stored attributes, caption, visual check) supports
     them on any candidate, so the answer must not state them as fact.
+    `action`: the question asks about an action that cannot be recognised (see query/actions.py); the answer then
+    says so and lists who was there instead of claiming the action.
     """
+    if action and plan.intent != "path":
+        return _about_action(plan, evidence, action, count=count, nearest_miss=nearest_miss, path=path, cameras=cameras,
+                             source_names=source_names, tz=tz, reference_now=reference_now, partial=partial,
+                             unconfirmed=unconfirmed, concurrent=concurrent, appearances=appearances,
+                             unreadable=unreadable)
     sources = dict(source_names or {})
     names = {c.id: c.name for c in cameras}
     shown = list(evidence) + ([nearest_miss] if nearest_miss else [])
@@ -286,6 +294,39 @@ def compose(
         f"{_clause(plan, where, past=False)}{_when(plan)}.".replace("  ", " "), ids))
     sentences.append(Sentence(f"Best match: {at(best)}.", (best.id,)))
     return Composed("partial" if partial else "found", sentences, notes)
+
+
+ACTION_NOTE = "I recognise people and vehicles, where they go and what they wear and carry, not actions like this."
+
+
+def _about_action(plan: QueryPlan, evidence: Sequence[Evidence], action: str, **kw) -> Composed:
+    """An answer that does not claim an action it cannot see: who was there, with the evidence, verdict partial.
+
+    With nobody there at all the plain negative stands (nobody there could have done it). A count stays a count of
+    who was seen, marked partial.
+    """
+    lead = Sentence(f"I can't tell whether anyone was {action}: {ACTION_NOTE}", (), "note")
+    inner = compose(plan, evidence, **kw)
+    if not evidence or plan.intent == "count":
+        inner.sentences.insert(0, lead)
+        if plan.intent == "count":
+            inner.verdict = "partial"
+        return inner
+    tz, sources = kw.get("tz", UTC), dict(kw.get("source_names") or {})
+    names = {c.id: c.name for c in kw.get("cameras") or ()}
+    days = {datetime.fromtimestamp(e.t_peak, tz).date() for e in evidence}
+    ref = kw.get("reference_now")
+    with_date = len(days) > 1 or (ref is not None and days != {datetime.fromtimestamp(ref, tz).date()})
+    noun = plan.targets[0].noun if plan.targets else "object"
+    where = _where(plan, evidence, names)
+    best, ids = evidence[0], tuple(e.id for e in evidence)
+    who = f"This is the {noun}" if len(evidence) == 1 else f"These are the {pluralize(noun)}"
+    sentences = [lead, Sentence(
+        f"{who} {_clause(plan, where, past=False)}{_when(plan)}: {stamp(best, tz, with_date, sources.get(best.camera_id))}."
+        .replace("  ", " "), (best.id,))]
+    if len(evidence) > 1:
+        sentences.append(Sentence(f"{len(evidence) - 1} more sighting{'s' if len(evidence) > 2 else ''}.", ids[1:]))
+    return Composed("partial", sentences, inner.notes, inner.count)
 
 
 # -------------------------------------------------------------- validator
