@@ -26,6 +26,8 @@ from evora.llm.schemas import GROQ_BASE_URL, GatewayConfig, LLMError
 log = logging.getLogger("evora.llm")
 
 NTFY_TIMEOUT_S = 5.0
+# when the configured local vision model is not installed, installed models are tried in this order of name
+VISION_MODEL_PREFERENCE = ("qwen3-vl", "qwen3.5", "qwen2.5vl", "gemma3", "llama3.2-vision", "llava", "minicpm-v")
 VISION_REASONING_HEADROOM = 512  # tokens the local vision model spends reasoning before it answers
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _NTFY_TOPIC = re.compile(r"[A-Za-z0-9_-]{1,64}")
@@ -99,6 +101,8 @@ class Gateway:
         self._client = client
         self._onprem = onprem
         self._ollama = OllamaClient(config.ollama_host, client)
+        self._vision_model = config.local_vision_model  # replaced once if that model turns out not to be installed
+        self._vision_fallback_tried = False
         self._replay = (
             ReplayStore(config.replay_path, config.replay_mode)  # type: ignore[arg-type]
             if config.replay_path is not None and config.replay_mode != "off"
@@ -280,6 +284,35 @@ class Gateway:
     async def chat_json(self, task: str, messages: list[dict], schema: type[M]) -> M:
         return (await self.chat_json_ex(task, messages, schema))[0]
 
+    @staticmethod
+    def _is_missing_model(exc: LLMError) -> bool:
+        text = str(exc).lower()
+        return "404" in text or "not found" in text
+
+    async def _installed_vision_model(self) -> str | None:
+        """An installed model that can see images, preferring the usual families; None if there is none."""
+        names = await self._ollama.installed_models()
+        ranked = sorted(names, key=lambda n: next((i for i, p in enumerate(VISION_MODEL_PREFERENCE) if p in n.lower()),
+                                                  len(VISION_MODEL_PREFERENCE)))
+        for name in ranked:
+            if await self._ollama.can_see(name):
+                return name
+        return None
+
+    async def _use_installed_vision_model(self, missing: str) -> bool:
+        """After `missing` failed as not installed, switch to one that is (once). True when there is a new model."""
+        if self._vision_fallback_tried:
+            return False
+        self._vision_fallback_tried = True
+        found = await self._installed_vision_model()
+        if found is None or found == missing:
+            log.warning("no local vision model is installed (wanted %s); `ollama pull qwen3-vl:4b` enables captions "
+                        "and clock reading", missing)
+            return False
+        log.warning("local vision model %s is not installed; using %s", missing, found)
+        self._vision_model = found
+        return True
+
     async def vision_yesno(self, image_jpeg: bytes, questions: list[str]) -> list[bool | None]:
         n = len(questions)
         if n == 0:
@@ -292,7 +325,12 @@ class Gateway:
             f'Reply only with JSON: {{"answers": [...]}} containing exactly {n} items.'
         )
         try:
-            text = await self._ollama.vision_json(self._cfg.local_vision_model, image_jpeg, prompt)
+            try:
+                text = await self._ollama.vision_json(self._vision_model, image_jpeg, prompt)
+            except LLMError as exc:
+                if not (self._is_missing_model(exc) and await self._use_installed_vision_model(self._vision_model)):
+                    raise
+                text = await self._ollama.vision_json(self._vision_model, image_jpeg, prompt)
             return _parse_answers(text, n)
         except LLMError as exc:
             log.info("local vision failed (%s)", exc)
@@ -359,14 +397,19 @@ class Gateway:
         started = time.monotonic()
         budget = max_tokens + VISION_REASONING_HEADROOM
         try:
-            raw = await self._ollama.vision_text(self._cfg.local_vision_model, image_jpeg, prompt, budget)
+            try:
+                raw = await self._ollama.vision_text(self._vision_model, image_jpeg, prompt, budget)
+            except LLMError as exc:
+                if not (self._is_missing_model(exc) and await self._use_installed_vision_model(self._vision_model)):
+                    raise
+                raw = await self._ollama.vision_text(self._vision_model, image_jpeg, prompt, budget)
             text = _answer_only(raw)
-            self._log(task="vision_text", backend="ollama", model=self._cfg.local_vision_model, ok=text is not None,
+            self._log(task="vision_text", backend="ollama", model=self._vision_model, ok=text is not None,
                       latency_ms=round((time.monotonic() - started) * 1000))
             if text is not None or local_only or self._onprem():
                 return text
         except LLMError as exc:
-            self._log(task="vision_text", backend="ollama", model=self._cfg.local_vision_model, ok=False,
+            self._log(task="vision_text", backend="ollama", model=self._vision_model, ok=False,
                       error=type(exc).__name__)
             if local_only or self._onprem():
                 return None

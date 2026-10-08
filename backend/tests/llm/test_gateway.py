@@ -483,3 +483,87 @@ def test_the_local_model_names_can_be_set_from_the_environment():
     assert (cfg.local_vision_model, cfg.local_text_model) == ("qwen3-vl:4b", "qwen3.5:4b")
     default = GatewayConfig.from_env({})
     assert default.local_vision_model == "qwen3-vl:2b" and default.local_text_model == "qwen3.5:4b"
+
+
+# ------------------------------------------- the configured vision model is not installed
+class FakeOllama:
+    """A tiny Ollama: installed models with their capabilities, 404 for anything else."""
+
+    def __init__(self, installed: dict[str, list[str]], answer="a person"):
+        self.installed, self.answer, self.paths, self.chat_models = installed, answer, [], []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.paths.append(request.url.path)
+        if request.url.path == "/api/tags":
+            return httpx.Response(200, json={"models": [{"name": n} for n in self.installed]})
+        body = json.loads(request.content)
+        if request.url.path == "/api/show":
+            return httpx.Response(200, json={"capabilities": self.installed.get(body["model"], [])})
+        self.chat_models.append(body["model"])
+        if body["model"] not in self.installed:
+            return httpx.Response(404, json={"error": f"model '{body['model']}' not found"})
+        return httpx.Response(200, json={"message": {"content": self.answer}})
+
+
+def gateway_with(fake, onprem=False):
+    return make(Recorder(no_groq, fake), onprem=onprem)
+
+
+@pytest.mark.asyncio
+async def test_a_missing_vision_model_is_replaced_once_by_an_installed_one_that_can_see():
+    fake = FakeOllama({"qwen3.5:4b": ["completion", "vision"], "qwen2.5:0.5b": ["completion"]}, "A man in red.")
+    gw = gateway_with(fake)
+    assert await gw.vision_text(b"x", "Describe.") == "A man in red."  # default qwen3-vl:2b is not installed
+    assert fake.chat_models == ["qwen3-vl:2b", "qwen3.5:4b"]  # tried the configured one, then the installed one
+    before = len(fake.paths)
+    assert await gw.vision_text(b"x", "Describe again.") == "A man in red."
+    assert fake.chat_models[-1] == "qwen3.5:4b" and fake.paths[before:] == ["/api/chat"]  # no more probing
+
+
+@pytest.mark.asyncio
+async def test_the_usual_vision_families_are_preferred_when_several_are_installed():
+    fake = FakeOllama({"llava:7b": ["vision"], "qwen3-vl:4b": ["vision"], "qwen3:4b": ["completion"]})
+    gw = gateway_with(fake)
+    assert await gw.vision_text(b"x", "p") == "a person"
+    assert fake.chat_models[-1] == "qwen3-vl:4b"
+
+
+@pytest.mark.asyncio
+async def test_when_nothing_installed_can_see_the_answer_is_none_and_it_does_not_keep_probing():
+    fake = FakeOllama({"qwen2.5:0.5b": ["completion"], "qwen3:4b": ["completion"]})
+    gw = gateway_with(fake)
+    assert await gw.vision_text(b"x", "p") is None
+    probes = len([p for p in fake.paths if p != "/api/chat"])
+    assert await gw.vision_text(b"x", "p") is None
+    assert len([p for p in fake.paths if p != "/api/chat"]) == probes  # the search is done once, not on every call
+
+
+@pytest.mark.asyncio
+async def test_other_failures_do_not_trigger_a_model_search():
+    rec500 = Recorder(no_groq, lambda r: httpx.Response(500, text="out of memory"))
+    gw = make(rec500)
+    assert await gw.vision_text(b"x", "p") is None
+    assert [c.url.path for c in rec500.calls] == ["/api/chat"]  # a server error is not a missing model
+
+
+@pytest.mark.asyncio
+async def test_the_yes_no_vision_call_falls_back_the_same_way():
+    fake = FakeOllama({"qwen3.5:4b": ["vision"]}, '{"answers": [true, false]}')
+    gw = gateway_with(fake)
+    assert await gw.vision_yesno(b"x", ["a?", "b?"]) == [True, False]
+    assert fake.chat_models == ["qwen3-vl:2b", "qwen3.5:4b"]
+
+
+@pytest.mark.asyncio
+async def test_an_installed_configured_model_is_used_without_any_probing():
+    fake = FakeOllama({"qwen3-vl:2b": ["vision"], "qwen3.5:4b": ["vision"]})
+    gw = gateway_with(fake)
+    assert await gw.vision_text(b"x", "p") == "a person"
+    assert fake.paths == ["/api/chat"] and fake.chat_models == ["qwen3-vl:2b"]
+
+
+@pytest.mark.asyncio
+async def test_the_fallback_works_in_on_prem_mode_because_it_stays_on_this_machine():
+    fake = FakeOllama({"qwen3.5:4b": ["vision"]})
+    gw = gateway_with(fake, onprem=True)
+    assert await gw.vision_text(b"x", "p", local_only=False) == "a person"

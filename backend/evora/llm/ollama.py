@@ -17,6 +17,22 @@ class OllamaClient:
         self._client = client
         self._timeout = timeout_s
 
+    async def installed_models(self) -> list[str]:
+        """Names of the models installed in Ollama; an empty list when it cannot be asked."""
+        try:
+            resp = await self._client.get(f"{self._host}/api/tags", timeout=10.0)
+            return [m["name"] for m in resp.json().get("models", []) if isinstance(m, dict) and "name" in m]
+        except (httpx.HTTPError, ValueError, AttributeError, TypeError):
+            return []
+
+    async def can_see(self, model: str) -> bool:
+        """Does this model accept images? (Ollama reports a 'vision' capability.)"""
+        try:
+            resp = await self._client.post(f"{self._host}/api/show", json={"model": model}, timeout=10.0)
+            return "vision" in (resp.json().get("capabilities") or [])
+        except (httpx.HTTPError, ValueError, AttributeError, TypeError):
+            return False
+
     async def _chat(self, payload: dict[str, Any]) -> str:
         try:
             resp = await self._client.post(f"{self._host}/api/chat", json=payload, timeout=self._timeout)
