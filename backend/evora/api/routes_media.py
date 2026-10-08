@@ -74,7 +74,7 @@ def make_router(ctx: AppContext) -> APIRouter:
         reason = str(body.get("reason", "")).strip()
         if not reason or len(reason) > 200:
             raise HTTPException(422, "a reason of 1 to 200 characters is required")
-        token, expires = ctx.unblur.issue()
+        token, expires = ctx.unblur.issue(reason)
         audit.record(ctx.db, "unblur_token", {"reason": reason, "evidence_id": body.get("evidence_id")})
         return {"token": token, "expires_at": expires}
 

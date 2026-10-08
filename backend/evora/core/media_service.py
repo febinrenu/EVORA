@@ -48,21 +48,28 @@ class UnblurTokens:
 
     def __init__(self, ttl_s: int = UNBLUR_TTL_S, clock: Callable[[], float] = time.time):
         self._ttl, self._clock = ttl_s, clock
-        self._tokens: dict[str, float] = {}
+        self._tokens: dict[str, tuple[float, str]] = {}  # token -> (expires, stated reason)
         self._lock = threading.Lock()
 
-    def issue(self) -> tuple[str, float]:
+    def issue(self, reason: str = "") -> tuple[str, float]:
         token, expires = secrets.token_urlsafe(16), self._clock() + self._ttl
         with self._lock:
-            self._tokens = {t: e for t, e in self._tokens.items() if e > self._clock()}
-            self._tokens[token] = expires
+            self._tokens = {t: v for t, v in self._tokens.items() if v[0] > self._clock()}
+            self._tokens[token] = (expires, reason)
         return token, expires
 
     def valid(self, token: str | None) -> bool:
         if not token:
             return False
         with self._lock:
-            return self._tokens.get(token, 0) > self._clock()
+            return self._tokens.get(token, (0.0, ""))[0] > self._clock()
+
+    def reason_of(self, token: str | None) -> str | None:
+        """The reason given when the token was issued, while it is still valid."""
+        if not self.valid(token):
+            return None
+        with self._lock:
+            return self._tokens[token][1]  # type: ignore[index]
 
 
 class MediaService:

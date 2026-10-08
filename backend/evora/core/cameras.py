@@ -37,6 +37,13 @@ def get_camera(db: Database, camera_id: str) -> CameraInfo:
     return _to_info(row)
 
 
+def source_sha256(db: Database, camera_id: str) -> str | None:
+    """SHA-256 of the file as it was uploaded (the contract's CameraInfo does not carry it)."""
+    with db.read() as c:
+        row = c.execute("SELECT source_sha256 FROM cameras WHERE id=?", (camera_id,)).fetchone()
+    return row["source_sha256"] if row else None
+
+
 def find_by_sha(db: Database, sha256: str) -> CameraInfo | None:
     """The camera already registered from a byte-identical upload, if any."""
     with db.read() as c:

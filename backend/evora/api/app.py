@@ -11,13 +11,13 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
 
 from evora import __version__
 from evora.api import (
     fixtures,
     routes_alerts,
     routes_cameras,
+    routes_evidence,
     routes_ingest,
     routes_media,
     routes_memory,
@@ -68,6 +68,7 @@ def create_app(
     app.include_router(routes_query.make_router(ctx))
     app.include_router(routes_zones.make_router(ctx))
     app.include_router(routes_alerts.make_router(ctx))
+    app.include_router(routes_evidence.make_router(ctx))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cfg["server"]["cors_origins"],
@@ -128,11 +129,6 @@ def create_app(
     @app.get("/api/globals/{gid}/path")
     def path(gid: str):
         return fixtures.load("path")
-
-    # --- evidence ---
-    @app.post("/api/evidence/{evidence_id}/pack")
-    def pack(evidence_id: str):
-        return Response(b"PK\x05\x06" + b"\x00" * 18, media_type="application/zip")
 
     # --- settings, voice, report, dev ---
     @app.post("/api/settings")

@@ -88,6 +88,11 @@ def _scan(db: Database, evidence_id: str) -> Evidence | None:
     return None
 
 
+def find_evidence(db: Database, evidence_id: str) -> Evidence | None:
+    """The full Evidence (score, why, names) from a stored answer or alert, if any."""
+    return _scan(db, evidence_id)
+
+
 def get(db: Database, evidence_id: str) -> EvidenceRecord:
     if not valid_id(evidence_id):
         raise EvidenceError(f"invalid evidence id: {evidence_id!r}")
