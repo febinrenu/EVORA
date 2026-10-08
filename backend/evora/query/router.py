@@ -17,7 +17,7 @@ import logging
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, tzinfo
 from pathlib import Path
 from typing import Any, Literal, Protocol
@@ -40,8 +40,10 @@ from contracts.models import (
 from evora.core.db import Database
 from evora.evidence.store import EvidenceError, register
 from evora.query import fastpath
-from evora.query.actions import unsupported_action
+from evora.query.action_cues import find_cues
+from evora.query.actions import classify_action, unsupported_action
 from evora.query.compose import (
+    ESTIMATE_PREFIX,
     UNCONFIRMED_NOTE,
     Composed,
     Sentence,
@@ -106,6 +108,7 @@ class RouterConfig:
     accept: float = 0.40          # a match scoring below this is a near miss, not an answer (calibrated on dev)
     verify: str = "filter"        # "filter": the visual check can set candidates aside; "annotate": flags only
     honest_actions: bool = True   # a question about an action we cannot recognise is answered with who was there
+    action_cues: bool = True      # ... with the most likely person and moment first, estimated from how things moved
     thumb_fmt: str = "/api/media/thumb/{id}.jpg"
     clip_fmt: str = "/api/media/clip/{id}.mp4"
     same_place: float = 0.95      # cameras this alike in view are treated as one place (1.0 + switches it off)
@@ -279,7 +282,7 @@ class Router:
         if plan.intent == "path" and accepted:
             evidence, hops = self._path_evidence(query_id, max(accepted, key=lambda m: m.score), camera_by_id, notes)
         else:
-            shown = self._select(plan, accepted)
+            shown = self._select_with_cues(plan, accepted, text, tz)
             evidence = [self._evidence(m, camera_by_id, f"{query_id}_{i}") for i, m in enumerate(shown, start=1)]
         miss = None
         if not accepted and near:
@@ -724,6 +727,27 @@ class Router:
                 if result is not None:
                     out[camera] = result
         return out or None
+
+    def _select_with_cues(self, plan: QueryPlan, accepted: list[Match], text: str, tz: tzinfo) -> list[Match]:
+        """For an action we cannot recognise, matches whose movement fits it come first, shown at that moment."""
+        found = classify_action(text) if self.cfg.honest_actions and self.cfg.action_cues else None
+        if found is None or plan.intent in ("count", "path"):
+            return self._select(plan, accepted)
+        real = [m for m in accepted if not m.track_id.startswith("scene:")]
+        cues = find_cues(self._db, found[0], {(m.track_id, m.camera_id) for m in real})
+        cues = {tid: c for tid, c in cues.items() if instant_in_window(c.t, plan.time, tz)}
+        if not cues:
+            return self._select(plan, accepted)
+        cued: dict[str, Match] = {}
+        for m in real:
+            cue = cues.get(m.track_id)
+            if cue is not None and (m.track_id not in cued or m.score > cued[m.track_id].score):
+                cued[m.track_id] = replace(m, t_peak=cue.t, why=(*m.why, f"{ESTIMATE_PREFIX}{cue.why}"))
+        first = sorted(cued.values(), key=lambda m: (-cues[m.track_id].score, -m.score))
+        if plan.intent in ("first", "last"):
+            return first[:1]
+        rest = self._select(plan, [m for m in accepted if m.track_id not in cued])
+        return (first + rest)[: max(1, plan.limit)]
 
     def _select(self, plan: QueryPlan, accepted: list[Match]) -> list[Match]:
         if plan.intent in ("first", "last"):

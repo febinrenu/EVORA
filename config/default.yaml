@@ -88,6 +88,7 @@ ingest:                 # perception pipeline (M2); keys and defaults mirror bac
   embed_batch: 32
 query:
   honest_actions: true   # actions with no recogniser (put down, get out of a car...) are answered with who was there
+  action_cues: true      # ... with the likeliest person and moment first, estimated from how bags, people and vehicles moved
 retrieval:              # query side (M3); keys and defaults mirror backend/evora/query/retrieve.py
   unit: track           # track | frame (ablation C1)
   attributes: true      # ablation C2

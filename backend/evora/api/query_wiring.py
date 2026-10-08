@@ -110,7 +110,8 @@ def build_router(ctx: AppContext, gateway: Any, clarifier: ClarifierAdapter, pla
     return Router(
         ctx.db, planner, retriever, ctx.memory.resolver, clarifier,
         Verifier(gateway, CropSource(ctx)),
-        RouterConfig(honest_actions=bool(ctx.cfg.get("query", {}).get("honest_actions", True))),
+        RouterConfig(honest_actions=bool(ctx.cfg.get("query", {}).get("honest_actions", True)),
+                     action_cues=bool(ctx.cfg.get("query", {}).get("action_cues", True))),
         reference_override=lambda: ctx.settings["reference_now"],
         gateway=gateway,  # `describe` answers are phrased by the grounded model instead of the plain summary
         objects=OpenObjectSurveyor(ctx.ws.media_dir),  # chairs, carpets, "red objects": found in the stored frames

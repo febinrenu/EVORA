@@ -13,13 +13,13 @@ UNSUPPORTED = [
     ("Did a person put something down on 9 March between 10:10 and 10:15?", "putting something down"),
     ("did someone pick the bag up", "picking something up"),
     ("did a person drop a bag", "dropping something"),
-    ("did anyone get out of a car", "getting into or out of a vehicle"),
-    ("did a person get into the van", "getting into or out of a vehicle"),
-    ("did a person exit the car", "getting into or out of a vehicle"),
+    ("did anyone get out of a car", "getting out of a vehicle"),
+    ("did a person get into the van", "getting into a vehicle"),
+    ("did a person exit the car", "getting out of a vehicle"),
     ("did a man open the car door", "opening or closing something"),
     ("a person closed the gate", "opening or closing something"),
-    ("did a car turn left", "turning"),
-    ("was there a u-turn", "turning"),
+    ("did a car turn left", "turning left"),
+    ("was there a u-turn", "turning around"),
     ("were boxes loaded", "loading or unloading"),
     ("did someone hand over a package", "handing something over"),
     ("did someone give a bag to another person", "handing something over"),
@@ -126,7 +126,7 @@ async def test_the_router_answers_an_action_question_honestly(ws):  # noqa: F811
     router = make_router(ws, gateway=FakeGateway(plan=CAR_PLAN))
     events = await collect(router.answer("did a red car turn left at the main gate", "s1"))
     ans = of(events, "answer")[0]
-    assert ans["verdict"] == "partial" and ans["text"].startswith("I can't tell whether anyone was turning")
+    assert ans["verdict"] == "partial" and ans["text"].startswith("I can't tell whether anyone was turning left")
     assert ans["evidence"], "who was there is still shown, with its evidence"
 
 

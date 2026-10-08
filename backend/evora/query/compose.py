@@ -297,6 +297,8 @@ def compose(
 
 
 ACTION_NOTE = "I recognise people and vehicles, where they go and what they wear and carry, not actions like this."
+ESTIMATE_PREFIX = "action estimate: "  # a `why` entry the router adds when movement points at the likely moment
+ESTIMATE_NOTE = "an estimate from how people, bags and vehicles moved, not a recognised action"
 
 
 def _about_action(plan: QueryPlan, evidence: Sequence[Evidence], action: str, **kw) -> Composed:
@@ -320,6 +322,19 @@ def _about_action(plan: QueryPlan, evidence: Sequence[Evidence], action: str, **
     noun = plan.targets[0].noun if plan.targets else "object"
     where = _where(plan, evidence, names)
     best, ids = evidence[0], tuple(e.id for e in evidence)
+    estimate = next((w[len(ESTIMATE_PREFIX):] for w in best.why if w.startswith(ESTIMATE_PREFIX)), None)
+    if estimate is not None:  # movement points at a likely moment: show it first, labelled as an estimate
+        others = len(evidence) - 1
+        sentences = [
+            Sentence(f"I can't recognise {action} directly; this is {ESTIMATE_NOTE}.", (), "note"),
+            Sentence(f"Most likely: {stamp(best, tz, with_date, sources.get(best.camera_id))}, where this {noun} {estimate}.",
+                     (best.id,)),
+        ]
+        if others:
+            sentences.append(Sentence(
+                f"{others} other {noun if others == 1 else pluralize(noun)} {_clause(plan, where, past=False)}{_when(plan)}."
+                .replace("  ", " "), ids[1:]))
+        return Composed("partial", sentences, inner.notes, inner.count)
     who = f"This is the {noun}" if len(evidence) == 1 else f"These are the {pluralize(noun)}"
     sentences = [lead, Sentence(
         f"{who} {_clause(plan, where, past=False)}{_when(plan)}: {stamp(best, tz, with_date, sources.get(best.camera_id))}."
