@@ -35,9 +35,9 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M4 — Experience
 - State: on track
-- Doing: performance pass on the `/` story (twin acts under CPU throttle), then phone layout and reduced motion
-- Next: P4.4+ in `/app`: ask bar + SSE client, case log, evidence sheet, against `evora_MOCK=1 make dev`
-- Blockers: none. Note: `make check` does not cover `frontend/` yet (request below)
+- Doing: /app polish against real footage (needs the perception stack on this machine)
+- Next: P4.8 region drawing on the clarify frame, P4.9 ledger edit/rename/delete and alias confirm, P4.10 timeline scrub and J/K/L, P4.14 watch panel + alerts
+- Blockers: none. Tested on `evora_MOCK=1` fixtures; real media routes need indexed footage
 
 State values: not started · on track · at risk · blocked · done
 
@@ -87,6 +87,7 @@ State values: not started · on track · at risk · blocked · done
 - [19:30] [M1] REQUEST (self-approved, additive): `MemoryFact.inferred_aliases: list[str] = []` and table `memory_inferred`; `PATCH /api/memory/{id}` takes `confirm_aliases`. Why: the Known places ledger should show which aliases are guesses, and a correction must drop wrong guesses. Affects: M4 (types regenerated). → [19:30] [M1] APPROVED v1.2 (f15509a)
 - [11:40] [M1] REQUEST (self-approved, additive): table `evidence` in schema.sql and `POST /api/media/unblur`; media routes accept `?unblur=<token>` and answer with header `X-Evora-Blur`. Why: media routes must resolve an evidence id; unblur must be audited. Affects: M3 (register evidence), M4 (blur header). → [11:40] [M1] APPROVED v1.1 (07c7e79)
 <!-- - [HH:MM] [M3] REQUEST: add optional `Answer.followups: list[str]`. Why: UI suggestions. Affects: M1, M4. → [HH:MM] [M1] APPROVED v1.1 -->
+- [21:11] [M4] REQUEST (additive): `GET /api/health` gains `tz` (the workspace's `meta.tz`, IANA name). Why: the UI must show clock times in the site's zone so they match the composed answer text; today it falls back to the browser's zone. Affects: M1. The UI already reads it when present (9f97190).
 
 ## Requests to other areas (append only)
 - [03:40] [M1] → ALL: `make doctor` (try `make doctor ARGS="--quick"`) prints what is missing on your machine with the command that fixes it; `make up` checks, starts what is needed and serves the API and the built UI on 127.0.0.1:8700. `make models`, `make eval` and `make ablate` are wired too (`ARGS="..."` passes options). Run `make setup` after pulling (new dependencies: scipy, tzdata).
@@ -238,3 +239,4 @@ State values: not started · on track · at risk · blocked · done
 - [HH:MM] [M1] P1.17 done (0217526): live runner and live tiles. `LiveRunner` runs M2's `live_ingest` per camera on a transient RTSP copy of the same camera id, feeds every event to the alert engine (live, so a phone may be told; a failing event never stops the stream), reports `starting/running/retrying/stopped/error`, sets the camera status, never auto-starts. Replay sessions are recorded (`live_sessions`), so the position in the file is ((t - started_at) x speed) mod duration: thumbnails, clips and alert evidence of replayed-live footage play, and a clip that crosses the loop seam is cut at the loop end. Tiles are MJPEG, 1 to 5 fps, every frame face-blurred before it is sent (a frame that cannot be blurred is dropped, never sent raw), max 8 at once, the decoder is killed when the viewer leaves, on-prem checks the stream host against the same loopback/allow-list policy as the privacy guard. Checked for real with MediaMTX: a replayed file became a blurred tile over a real RTSP stream. CONTRACT v1.8. 1130 tests in make check.
 - [HH:MM] [M1] Build (e2984b9): the perception extra now includes the clip package (git dependency, uv.lock updated); platform tests treat the heavy perception functions as absent unless marked `real_perception`.
 - [HH:MM] [M1] Done for M2's 19:56 request (ea8b4a7): at server start the app registers `vision.LoopVisionClient(gateway.vision_text, loop)` with perception (and removes it at shutdown). It only registers when the gateway has a `vision_text` call; M3 has not added it to `llm/gateway.py` yet, so until then perception keeps its fallbacks (file time, no L3). 1212 tests pass.
+- [21:11] [M4] P4.4–P4.7 done (first pass) in `/app`: ask bar with voice, POST-SSE client, case log, evidence sheet with circle + film strip + clip overlay + pack export, clarify card, camera rail with upload/rename/ingest progress, site plan path, Known places, timeline ticks. Verified on mock: answer, clarify then resume, keyboard sheet; no page errors (9f97190)
