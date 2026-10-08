@@ -1,0 +1,181 @@
+# Blank skeleton for the judge simulation (see docs/JUDGE_SIM.md).
+# Copy this file to data/judge_sim/queries.yaml (git-ignored) and fill it in AFTER the hold-out footage is recorded.
+# Never commit the filled-in file. Format: eval/queries/_example.yaml. Times need a UTC offset, e.g. 2026-10-09T09:14:00+05:30.
+# Quote the bare word "no" (YAML reads it as a boolean).
+
+- id: js_01
+  purpose: negative
+  text: "TODO a question whose honest answer is no"
+  workspace: judge-sim
+  intent: exists
+  expected: {verdict: "no", hits: []}
+  split: judge_sim
+- id: js_02
+  purpose: negative
+  text: "TODO"
+  workspace: judge-sim
+  intent: exists
+  expected: {verdict: "no", hits: []}
+  split: judge_sim
+- id: js_03
+  purpose: negative
+  text: "TODO"
+  workspace: judge-sim
+  intent: exists
+  expected: {verdict: "no", hits: []}
+  split: judge_sim
+- id: js_04
+  purpose: negative
+  text: "TODO"
+  workspace: judge-sim
+  intent: exists
+  expected: {verdict: "no", hits: []}
+  split: judge_sim
+- id: js_05
+  purpose: first_time_place
+  text: "TODO names place A"
+  workspace: judge-sim
+  intent: exists
+  first_time_requires_clarify: ["TODO place A"]
+  expected:
+    verdict: yes
+    hits: [{camera_id: TODO, start: "TODO", end: "TODO"}]
+  split: judge_sim
+- id: js_06
+  purpose: first_time_place
+  text: "TODO names place B"
+  workspace: judge-sim
+  intent: exists
+  first_time_requires_clarify: ["TODO place B"]
+  expected:
+    verdict: yes
+    hits: [{camera_id: TODO, start: "TODO", end: "TODO"}]
+  split: judge_sim
+- id: js_07
+  purpose: first_time_place
+  text: "TODO names place C"
+  workspace: judge-sim
+  intent: exists
+  first_time_requires_clarify: ["TODO place C"]
+  expected:
+    verdict: yes
+    hits: [{camera_id: TODO, start: "TODO", end: "TODO"}]
+  split: judge_sim
+- id: js_08
+  purpose: first_time_place
+  text: "TODO names place D"
+  workspace: judge-sim
+  intent: exists
+  first_time_requires_clarify: ["TODO place D"]
+  expected:
+    verdict: yes
+    hits: [{camera_id: TODO, start: "TODO", end: "TODO"}]
+  split: judge_sim
+- id: js_09
+  purpose: paraphrase_of_earlier_place
+  text: "TODO the same place as js_05, said differently"
+  workspace: judge-sim
+  intent: exists
+  expected:
+    verdict: yes
+    hits: [{camera_id: TODO, start: "TODO", end: "TODO"}]
+  split: judge_sim
+- id: js_10
+  purpose: after_restart
+  text: "TODO an earlier place again, asked after a server restart"
+  workspace: judge-sim
+  intent: exists
+  expected:
+    verdict: yes
+    hits: [{camera_id: TODO, start: "TODO", end: "TODO"}]
+  split: judge_sim
+- id: js_11
+  purpose: path
+  text: "TODO where did <person> go?"
+  workspace: judge-sim
+  intent: path
+  expected:
+    verdict: found
+    path:
+      - {camera_id: TODO, start: "TODO", end: "TODO"}
+      - {camera_id: TODO, start: "TODO", end: "TODO"}
+  split: judge_sim
+- id: js_12
+  purpose: path
+  text: "TODO"
+  workspace: judge-sim
+  intent: path
+  expected:
+    verdict: found
+    path:
+      - {camera_id: TODO, start: "TODO", end: "TODO"}
+      - {camera_id: TODO, start: "TODO", end: "TODO"}
+  split: judge_sim
+- id: js_13
+  purpose: path
+  text: "TODO"
+  workspace: judge-sim
+  intent: path
+  expected:
+    verdict: found
+    path:
+      - {camera_id: TODO, start: "TODO", end: "TODO"}
+      - {camera_id: TODO, start: "TODO", end: "TODO"}
+  split: judge_sim
+- id: js_14
+  purpose: count
+  text: "TODO how many people ..."
+  workspace: judge-sim
+  intent: count
+  expected: {verdict: count, count: 0, hits: []}
+  split: judge_sim
+- id: js_15
+  purpose: count
+  text: "TODO"
+  workspace: judge-sim
+  intent: count
+  expected: {verdict: count, count: 0, hits: []}
+  split: judge_sim
+- id: js_16
+  purpose: attribute
+  text: "TODO colour or carried object"
+  workspace: judge-sim
+  intent: exists
+  expected:
+    verdict: yes
+    hits: [{camera_id: TODO, start: "TODO", end: "TODO"}]
+  split: judge_sim
+- id: js_17
+  purpose: attribute
+  text: "TODO"
+  workspace: judge-sim
+  intent: exists
+  expected:
+    verdict: yes
+    hits: [{camera_id: TODO, start: "TODO", end: "TODO"}]
+  split: judge_sim
+- id: js_18
+  purpose: time_of_day
+  text: "TODO after 8 pm or in the last ten minutes"
+  workspace: judge-sim
+  intent: exists
+  expected:
+    verdict: yes
+    hits: [{camera_id: TODO, start: "TODO", end: "TODO"}]
+  split: judge_sim
+- id: js_19
+  purpose: standing
+  text: "TODO tell me when someone enters ..."
+  workspace: judge-sim
+  intent: standing
+  expected: {verdict: found, hits: []}   # an alert should appear for the planted event; list it under hits when known
+  split: judge_sim
+- id: js_20
+  purpose: describe
+  text: "TODO what happened near ..."
+  workspace: judge-sim
+  intent: describe
+  expected:
+    verdict: found
+    hits: [{camera_id: TODO, start: "TODO", end: "TODO"}]
+  split: judge_sim

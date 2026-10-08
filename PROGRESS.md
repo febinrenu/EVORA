@@ -17,8 +17,8 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M1 — Platform, Memory & Integration
 - State: on track
-- Doing: P1.18 and P1.19 done; P1.17 live runner waits for M2's live_ingest
-- Next: P1.17 once live_ingest exists; docs/DEMO.md and the judge-sim query set; write-up assembly
+- Doing: docs done; P1.17 live runner waits for M2's live_ingest
+- Next: P1.17 once live_ingest exists; write-up assembly (docs/WRITEUP.md) once M3's numbers exist; judge-sim run at T+12:00
 - Blockers:
 
 ### M2 — Perception & Identity
@@ -220,3 +220,4 @@ State values: not started · on track · at risk · blocked · done
 - [19:31] [M2] Closed the last open item from M1: `recompute_events` re-exported from evora.perception so zone events no longer stay pending; dwell payload.seconds added; 102 perception tests.
 - [05:55] [M1] Routes wired to M2's re-id (13cb48f): `GET /api/tracks/{id}` (class, span, attrs, direction, global id, points for the overlay), `GET /api/tracks/{id}/similar?k=` (query by example: evidence with the cosine as `score` and a `why` line) and `GET /api/globals/{gid}/path` (hops in time order, same-camera runs merged). Every returned evidence and every hop is registered, so thumbnails, clips and evidence packs work for them (M2's `path_for` ids were not registered before, they would have 404'd). When re-id is not installed or has no vectors the lists are empty with header `X-Evora-Reid: pending`. 1054 tests in make check.
 - [05:55] [M1] → M4 (site plan and "find this person elsewhere"): use the three routes above; `evidence_id` of a hop plays at `/api/media/clip/{evidence_id}.mp4`. → M2: the adapter calls `similar_tracks(track_id, k, workspace, store=...)` and `path_for(gid, workspace, db=...)`; keep those keyword names.
+- [06:20] [M1] Docs (f7fe9f0): `docs/DEMO.md` (runbook: pre-flight, the six-minute script with the exact call per beat and a status for each, drills, cut list, judge-day sequence), `docs/JUDGE_SIM.md` (protocol, quotas, scoring sheet; the real queries stay out of git in `data/judge_sim/`, only `docs/judge_sim_skeleton.yaml` is committed) and `docs/ARCHITECTURE.md` (map of the running system). `tests/test_docs.py` fails if a doc mentions a `make` target, an `/api` route or a file that does not exist. → M3: please do not open `data/judge_sim/` when it appears on a shared drive; it is the unseen set.
