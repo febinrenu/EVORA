@@ -82,12 +82,13 @@ def _shift_rows(db: Database, camera_id: str, delta: float) -> dict[str, int]:
 
 def set_camera_clock(
     db: Database, vectors_dir: Path, camera_id: str, t0: float, source: str = "manual", actor: str = "local",
+    check_busy: bool = True,
 ) -> dict[str, Any]:
     """Set a camera's start time and move everything already stored for it by the same amount."""
     if not _CAMERA_ID.match(camera_id):
         raise ValueError(f"invalid camera id: {camera_id!r}")
     cam = cams.get_camera(db, camera_id)  # raises CameraNotFound
-    if indexing(db, camera_id):
+    if check_busy and indexing(db, camera_id):
         raise ClockBusy(f"{cam.name} is being indexed; set its clock when indexing has finished")
     delta = float(t0) - cam.t0
     moved: dict[str, int] = {}

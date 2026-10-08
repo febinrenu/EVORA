@@ -19,6 +19,7 @@ from evora.core import cameras, live_sessions, perception_adapter
 from evora.core import settings as app_settings
 from evora.core import workspace as wsmod
 from evora.core.bus import Bus
+from evora.core.clock_reader import ClockReader
 from evora.core.config import load_env_file
 from evora.core.db import Database, open_db
 from evora.core.jobs import IngestFn, JobRunner
@@ -65,6 +66,7 @@ class AppContext:
     live: Any = None
     live_runner: Any = None
     recorder: Any = None
+    clock: Any = None
     recordings: Any = None
     tiles: Any = None
 
@@ -174,6 +176,8 @@ class AppContext:
             ctx.alerts.backfill()
 
         runner.on_idle = after_batch
+        ctx.clock = ClockReader(db, ws.vectors_dir, bus, perception_adapter.detect_clock)
+        runner.before_run = lambda camera_id: ctx.clock.wait(camera_id)
         ctx.zones.on_recomputed = lambda camera_id: ctx.alerts.backfill(camera_id)
         if not mock:
             from evora.api.query_wiring import ClarifierAdapter, build_router

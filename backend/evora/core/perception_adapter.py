@@ -44,9 +44,12 @@ def _find(name: str) -> Callable | None:
     return None
 
 
-def detect_clock(path: Path, probed: ProbeResult | None = None) -> tuple[float, str]:
+def detect_clock(path: Path, probed: ProbeResult | None = None, *, quick: bool = False) -> tuple[float, str]:
+    """`(t0, source)`. `quick` skips the slow on-screen and slate readings (they need the vision model)."""
     real = _find("detect_clock")
     if real is not None:
+        if quick and _accepts(real, "osd_reader"):
+            return real(str(path), osd_reader=lambda _p: None)  # a reader that finds nothing: no vision call is made
         return real(str(path))
     if probed is not None and probed.creation_time:
         try:

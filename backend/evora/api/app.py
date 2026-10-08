@@ -63,6 +63,7 @@ def create_app(
         ctx.runner.shutdown(wait=False)
         ctx.live_runner.shutdown()
         ctx.recorder.shutdown()
+        ctx.clock.shutdown()
         ctx.live.shutdown()
         ctx.prerender.shutdown()
         if ctx.http is not None:

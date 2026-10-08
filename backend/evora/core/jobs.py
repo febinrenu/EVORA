@@ -48,6 +48,7 @@ class JobRunner:
         self._wanted: dict[str, set[str]] = {}
         self.on_done: Callable[[str], None] | None = None  # called when a camera finishes ingesting something
         self.on_idle: Callable[[], None] | None = None  # called once the last job of a batch has finished
+        self.before_run: Callable[[str], None] | None = None  # e.g. wait for the camera's clock reading
         self._idle_lock = threading.Lock()
 
     # --- public API ---
@@ -121,7 +122,9 @@ class JobRunner:
                 cams.add_layers(self.db, job.camera_id, [p.layer])
 
         try:
-            cam = cams.get_camera(self.db, job.camera_id)
+            if self.before_run is not None:
+                self.before_run(job.camera_id)
+            cam = cams.get_camera(self.db, job.camera_id)  # read after the hook: the clock may just have been set
             self._ingest(cam, self.profile, todo, on_progress)
             if not cams.get_camera(self.db, job.camera_id).layers:
                 raise RuntimeError("ingest finished without completing any layer")

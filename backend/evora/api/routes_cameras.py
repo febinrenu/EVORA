@@ -35,19 +35,22 @@ def _register_file(ctx: AppContext, sink: media.UploadSink, sha: str) -> CameraI
             media.transcode_to_h264(sink.path, path, up["transcode_timeout_s"])
             converted = media.probe(path)
             audit.record(ctx.db, "transcode", {"file": sink.name, "from": probed.codec, "original_sha256": sha})
-            t0, source = perception_adapter.detect_clock(sink.path, probed)  # metadata lives on the original
+            t0, source = perception_adapter.detect_clock(sink.path, probed, quick=True)  # metadata lives on the original
             sink.path.unlink(missing_ok=True)
             probed = converted
         else:
-            t0, source = perception_adapter.detect_clock(path, probed)
+            t0, source = perception_adapter.detect_clock(path, probed, quick=True)
     except media.UploadError:
         sink.discard()
         raise
-    return cams.insert_camera(
+    cam = cams.insert_camera(
         ctx.db, name=sink.name.rsplit(".", 1)[0], kind="file", source_uri=str(path),
         t0=t0, t0_source=source, sha256=sha, fps=probed.fps, width=probed.width, height=probed.height,
         rotation=probed.rotation, duration_s=probed.duration_s,
     )
+    if source == "manual" and ctx.clock is not None:  # only the file time: read the on-screen clock in the background
+        ctx.clock.submit(cam.id, path)
+    return cam
 
 
 async def _save_one(ctx: AppContext, upload: UploadFile) -> tuple[CameraInfo, bool]:
