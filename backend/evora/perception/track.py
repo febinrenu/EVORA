@@ -27,6 +27,9 @@ class TrackedBox:
 
 def build_tracker(tracker_cfg: str):
     """A fresh Ultralytics tracker (ByteTrack by default) from a tracker yaml name."""
+    from evora.perception.lap_shim import install_if_missing
+
+    install_if_missing()          # before Ultralytics imports `lap` (it would try to pip install it)
     from ultralytics.trackers.track import TRACKER_MAP
     from ultralytics.utils import YAML, IterableSimpleNamespace
     from ultralytics.utils.checks import check_yaml
