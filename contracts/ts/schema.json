@@ -543,6 +543,17 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "unsupported_action": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [

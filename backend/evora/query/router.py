@@ -311,7 +311,7 @@ class Router:
         answer = Answer(
             query_id=query_id, text=composed.text, verdict=composed.verdict, count=composed.count,
             evidence=evidence, path=hops, nearest_miss=miss, confidence=_confidence(evidence, miss),
-            plan=plan, timings_ms=timings, notes=all_notes,
+            plan=plan, timings_ms=timings, notes=all_notes, unsupported_action=action,
         )
         yield _event("answer", answer.model_dump(mode="json"))
 
@@ -381,7 +381,7 @@ class Router:
                                             *set_aside]))
         return Answer(query_id=query_id, text=composed.text, verdict=composed.verdict, count=composed.count,
                       evidence=kept, nearest_miss=miss, confidence=_confidence(kept, miss), plan=plan,
-                      timings_ms=timings, notes=revised_notes)
+                      timings_ms=timings, notes=revised_notes, unsupported_action=action)
 
     def _clock(self) -> tuple[float, tzinfo]:
         override = self._reference_override()

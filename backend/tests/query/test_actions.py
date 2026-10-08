@@ -140,3 +140,13 @@ async def test_the_switch_restores_the_old_answer(ws):  # noqa: F811
     events = await collect(router.answer("did a red car turn left at the main gate", "s1"))
     assert of(events, "answer")[0]["verdict"] == "yes"
 
+
+
+@pytest.mark.asyncio
+async def test_the_answer_carries_the_action_as_a_field_for_the_interface(ws):  # noqa: F811
+    red_car_crossing(ws)
+    router = make_router(ws, gateway=FakeGateway(plan=CAR_PLAN))
+    ans = of(await collect(router.answer("did a red car turn left at the main gate", "s1")), "answer")[0]
+    assert ans["unsupported_action"] == "turning left"
+    plain = of(await collect(make_router(ws).answer("did a red car pass through the main gate", "s1")), "answer")[0]
+    assert plain["unsupported_action"] is None

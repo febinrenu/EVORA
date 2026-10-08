@@ -107,6 +107,7 @@ export interface Answer {
     [k: string]: number;
   };
   notes?: string[];
+  unsupported_action?: string | null;
   [k: string]: unknown;
 }
 export interface CameraInfo {

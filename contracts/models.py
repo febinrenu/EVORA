@@ -77,6 +77,7 @@ class Answer(BaseModel):
     plan: QueryPlan
     timings_ms: dict[str, float] = {}
     notes: list[str] = []
+    unsupported_action: str | None = None  # v1.14: the action asked about that cannot be recognised ("putting something down")
 
 class CameraOption(BaseModel):
     camera_id: str; camera_name: str; thumb_url: str
