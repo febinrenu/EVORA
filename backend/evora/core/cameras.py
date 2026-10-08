@@ -37,6 +37,13 @@ def get_camera(db: Database, camera_id: str) -> CameraInfo:
     return _to_info(row)
 
 
+def find_by_sha(db: Database, sha256: str) -> CameraInfo | None:
+    """The camera already registered from a byte-identical upload, if any."""
+    with db.read() as c:
+        row = c.execute("SELECT * FROM cameras WHERE source_sha256=? ORDER BY id LIMIT 1", (sha256,)).fetchone()
+    return _to_info(row) if row else None
+
+
 def insert_camera(
     db: Database, *, name: str, kind: str, source_uri: str, t0: float, t0_source: str,
     sha256: str | None = None, fps: float | None = None, width: int | None = None,

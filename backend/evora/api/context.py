@@ -14,6 +14,7 @@ from evora.core.db import Database, open_db
 from evora.core.jobs import IngestFn, JobRunner
 from evora.core.media_service import BlurFn, MediaService, UnblurTokens
 from evora.core.workspace import Workspace
+from evora.evidence.prerender import Prerenderer
 
 
 @dataclass
@@ -25,6 +26,7 @@ class AppContext:
     runner: JobRunner
     media: MediaService
     unblur: UnblurTokens
+    prerender: Prerenderer
     settings: dict[str, Any]
 
     @classmethod
@@ -44,4 +46,5 @@ class AppContext:
         runner.recover()
         settings = {"onprem": bool(cfg["llm"]["onprem"]), "blur_faces": bool(cfg["media"]["blur_faces"]), "reference_now": None}
         media = MediaService(ws, cfg, blur_provider or perception_adapter.get_blur_faces)
-        return cls(cfg, ws, db, bus, runner, media, UnblurTokens(), settings)
+        prerender = Prerenderer(db, media, lambda: bool(settings["blur_faces"]), top=int(cfg["media"]["prerender_top"]))
+        return cls(cfg, ws, db, bus, runner, media, UnblurTokens(), prerender, settings)

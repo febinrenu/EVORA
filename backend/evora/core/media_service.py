@@ -63,6 +63,7 @@ class MediaService:
         self.pre_roll = float(cfg["media"]["pre_roll_s"])
         self.post_roll = float(cfg["media"]["post_roll_s"])
         self._blur_provider = blur_provider
+        self.cache_max_bytes = int(cfg["media"].get("cache_max_bytes", 0))
         self._locks: dict[Path, threading.Lock] = {}
         self._guard = threading.Lock()
         self.ffmpeg_calls = 0
@@ -136,9 +137,12 @@ class MediaService:
         key = "blur" if fn else "raw"
         path = self.ws.media_dir / "thumbs" / f"{rec.id}_{key}.jpg"
         with self._lock_for(path):
-            if not path.is_file():
+            if path.is_file():
+                os.utime(path)
+            else:
                 data, _ = self.frame(cam, rec.t_peak, want_blur, rec.bbox)
                 self._atomic_write(path, data)
+                self.trim_cache(keep=path)
         return path, status
 
     # --- clips ---
@@ -146,14 +150,20 @@ class MediaService:
         fn, status = self.blur_state(want_blur)
         raw = self.ws.clips_dir / f"{rec.id}_raw.mp4"
         with self._lock_for(raw):
-            if not raw.is_file():
+            if raw.is_file():
+                os.utime(raw)
+            else:
                 self._render_clip(cam, rec, raw)
+                self.trim_cache(keep=raw)
         if fn is None:
             return raw, status
         blurred = self.ws.clips_dir / f"{rec.id}_blur.mp4"
         with self._lock_for(blurred):
-            if not blurred.is_file():
+            if blurred.is_file():
+                os.utime(blurred)
+            else:
                 self._blur_clip(cam, raw, blurred, fn)
+                self.trim_cache(keep=blurred, also_keep=raw)
         return blurred, status
 
     def _render_clip(self, cam: CameraInfo, rec: EvidenceRecord, out: Path) -> None:
@@ -192,6 +202,30 @@ class MediaService:
                 os.replace(tmp_out, out)
             finally:
                 tmp_out.unlink(missing_ok=True)
+
+    def trim_cache(self, keep: Path | None = None, also_keep: Path | None = None) -> int:
+        """Delete least recently used cached files until the cache fits its cap. Returns files removed."""
+        if self.cache_max_bytes <= 0:
+            return 0
+        files = [
+            p for d in (self.ws.media_dir / "thumbs", self.ws.clips_dir) for p in d.glob("*")
+            if p.is_file() and ".tmp" not in p.name
+        ]
+        stats = {p: p.stat() for p in files}
+        total = sum(st.st_size for st in stats.values())
+        removed = 0
+        for p in sorted(files, key=lambda f: stats[f].st_mtime):
+            if total <= self.cache_max_bytes:
+                break
+            if p in (keep, also_keep):
+                continue
+            try:
+                p.unlink()
+            except OSError:  # still being served (Windows) or already gone: try again next time
+                continue
+            total -= stats[p].st_size
+            removed += 1
+        return removed
 
     @staticmethod
     def _atomic_write(path: Path, data: bytes) -> None:

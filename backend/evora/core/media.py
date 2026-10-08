@@ -129,6 +129,27 @@ def probe(path: Path) -> ProbeResult:
     return ProbeResult(video["codec_name"], width, height, fps, rotation % 360, duration, created)
 
 
+def transcode_to_h264(src: Path, dst: Path, timeout_s: int) -> None:
+    """Convert an unusual codec (Indeo, MPEG-2, ...) to H.264 so every later stage can read it."""
+    exe = shutil.which("ffmpeg")
+    if exe is None:
+        raise UploadError(500, "ffmpeg is not installed")
+    tmp = dst.with_name(f"{dst.stem}.tmp{dst.suffix}")
+    try:
+        out = subprocess.run(
+            [exe, "-v", "error", "-nostdin", "-i", str(src), "-an", "-c:v", "libx264", "-preset", "veryfast",
+             "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-y", str(tmp)],
+            capture_output=True, timeout=timeout_s, check=False,
+        )
+        if out.returncode != 0:
+            raise UploadError(422, "this video's codec could not be converted")
+        tmp.replace(dst)
+    except subprocess.TimeoutExpired as exc:
+        raise UploadError(422, "converting this video took too long") from exc
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def validate_rtsp_uri(uri: str) -> str:
     uri = uri.strip()
     parsed = urlparse(uri)

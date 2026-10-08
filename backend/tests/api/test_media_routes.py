@@ -173,3 +173,51 @@ def test_frame_route_clamps_out_of_range_times(env):
         assert r.status_code == 200 and dims(r.content) == (320, 240)
     assert env.client.get("/api/cameras/cam_99/frame", params={"t": 1}).status_code == 404
     assert cams.get_camera(env.ctx.db, env.cam_id).t0 == pytest.approx(T0, abs=1)
+
+
+def _age(path, seconds_ago):
+    import os
+
+    t = time.time() - seconds_ago
+    os.utime(path, (t, t))
+
+
+def test_cache_removes_least_recently_used_first(env):
+    env.client.post("/api/settings", json={"blur_faces": False})
+    thumbs = env.ctx.ws.media_dir / "thumbs"
+    ids = [env.evidence(f"ev_{n}") for n in "abcd"]
+    env.client.get(f"/api/media/thumb/{ids[0]}.jpg")
+    size = next(thumbs.glob("ev_a_*")).stat().st_size
+    env.ctx.media.cache_max_bytes = 2 * size + 10
+    _age(next(thumbs.glob("ev_a_*")), 300)
+    env.client.get(f"/api/media/thumb/{ids[1]}.jpg")
+    _age(next(thumbs.glob("ev_b_*")), 200)
+    env.client.get(f"/api/media/thumb/{ids[2]}.jpg")  # over the cap: the oldest (a) goes
+    assert sorted(p.name.split("_raw")[0] for p in thumbs.glob("*.jpg")) == ["ev_b", "ev_c"]
+    env.client.get(f"/api/media/thumb/{ids[1]}.jpg")  # a hit on b makes it recent
+    env.client.get(f"/api/media/thumb/{ids[3]}.jpg")  # now c is the oldest
+    assert sorted(p.name.split("_raw")[0] for p in thumbs.glob("*.jpg")) == ["ev_b", "ev_d"]
+
+
+def test_cache_never_removes_the_file_just_rendered(env):
+    env.client.post("/api/settings", json={"blur_faces": False})
+    env.ctx.media.cache_max_bytes = 1
+    r = env.client.get(f"/api/media/clip/{env.evidence()}.mp4")
+    assert r.status_code == 200 and len(list(env.ctx.ws.clips_dir.glob("*.mp4"))) == 1
+
+
+def test_prerender_warms_the_top_three_only(env):
+    env.client.post("/api/settings", json={"blur_faces": False})
+    ids = [env.evidence(f"ev_{n}") for n in "abcd"]
+    futures = env.ctx.prerender.schedule(ids)
+    assert len(futures) == 3 and [f.result(timeout=60) for f in futures] == [True] * 3
+    calls = env.ctx.media.ffmpeg_calls
+    for eid in ids[:3]:
+        assert env.client.get(f"/api/media/thumb/{eid}.jpg").status_code == 200
+        assert env.client.get(f"/api/media/clip/{eid}.mp4").status_code == 200
+    assert env.ctx.media.ffmpeg_calls == calls, "served from the pre-rendered cache"
+
+
+def test_prerender_failure_is_contained(env):
+    futures = env.ctx.prerender.schedule(["ev_missing"])
+    assert futures[0].result(timeout=30) is False

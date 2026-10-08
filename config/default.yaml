@@ -10,6 +10,8 @@ workspace:
 uploads:
   max_bytes: 4294967296
   extensions: [".mp4", ".mov", ".mkv", ".avi", ".m4v"]
+  native_codecs: [h264, hevc, vp8, vp9, av1]   # anything else is converted to H.264 on upload
+  transcode_timeout_s: 1800
 llm:
   models:
     planner: openai/gpt-oss-20b
@@ -24,6 +26,8 @@ media:
   pre_roll_s: 3
   post_roll_s: 3
   blur_faces: true
+  cache_max_bytes: 2147483648   # clips and thumbnails; oldest are removed first
+  prerender_top: 3
 alerts:
   default_cooldown_s: 30
 jobs:

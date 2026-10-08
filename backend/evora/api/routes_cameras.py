@@ -14,6 +14,7 @@ from starlette.datastructures import UploadFile
 from evora.api.context import AppContext
 from evora.core import cameras as cams
 from evora.core import media, perception_adapter
+from evora.evidence import audit
 
 CHUNK = 1024 * 1024
 
@@ -25,20 +26,33 @@ PLACEHOLDER_JPEG = base64.b64decode(
 
 
 def _register_file(ctx: AppContext, sink: media.UploadSink, sha: str) -> CameraInfo:
+    up = ctx.cfg["uploads"]
     try:
         probed = media.probe(sink.path)
+        path = sink.path
+        if probed.codec not in up["native_codecs"]:
+            ctx.bus.publish("note", {"message": f"converting {sink.name} ({probed.codec}) to H.264"})
+            path = sink.path.with_suffix(".h264.mp4")
+            media.transcode_to_h264(sink.path, path, up["transcode_timeout_s"])
+            converted = media.probe(path)
+            audit.record(ctx.db, "transcode", {"file": sink.name, "from": probed.codec, "original_sha256": sha})
+            t0, source = perception_adapter.detect_clock(sink.path, probed)  # metadata lives on the original
+            sink.path.unlink(missing_ok=True)
+            probed = converted
+        else:
+            t0, source = perception_adapter.detect_clock(path, probed)
     except media.UploadError:
         sink.discard()
         raise
-    t0, source = perception_adapter.detect_clock(sink.path, probed)
     return cams.insert_camera(
-        ctx.db, name=sink.path.stem.split("_", 1)[-1], kind="file", source_uri=str(sink.path),
+        ctx.db, name=sink.name.rsplit(".", 1)[0], kind="file", source_uri=str(path),
         t0=t0, t0_source=source, sha256=sha, fps=probed.fps, width=probed.width, height=probed.height,
         rotation=probed.rotation, duration_s=probed.duration_s,
     )
 
 
-async def _save_one(ctx: AppContext, upload: UploadFile) -> CameraInfo:
+async def _save_one(ctx: AppContext, upload: UploadFile) -> tuple[CameraInfo, bool]:
+    """Returns (camera, was_duplicate). A byte-identical upload reuses the camera it already created."""
     up = ctx.cfg["uploads"]
     sink = media.UploadSink(ctx.ws.uploads_dir, upload.filename or "", up["max_bytes"], up["extensions"])
     try:
@@ -48,7 +62,11 @@ async def _save_one(ctx: AppContext, upload: UploadFile) -> CameraInfo:
     except media.UploadError:
         sink.discard()
         raise
-    return await run_in_threadpool(_register_file, ctx, sink, sha)
+    existing = await run_in_threadpool(cams.find_by_sha, ctx.db, sha)
+    if existing is not None:
+        sink.discard()
+        return existing, True
+    return await run_in_threadpool(_register_file, ctx, sink, sha), False
 
 
 def make_router(ctx: AppContext) -> APIRouter:
@@ -82,10 +100,14 @@ def make_router(ctx: AppContext) -> APIRouter:
         if not uploads:
             raise HTTPException(422, "send one or more files, or a JSON body with a uri")
         ok: list[CameraInfo] = []
+        duplicates: list[str] = []
         rejected: list[dict[str, str]] = []
         for upload in uploads:
             try:
-                ok.append(await _save_one(ctx, upload))
+                cam, was_duplicate = await _save_one(ctx, upload)
+                ok.append(cam)
+                if was_duplicate:
+                    duplicates.append(cam.id)
             except media.UploadError as exc:
                 rejected.append({"filename": upload.filename or "", "error": exc.message, "status": str(exc.status)})
         if not ok:
@@ -93,7 +115,11 @@ def make_router(ctx: AppContext) -> APIRouter:
             raise HTTPException(int(first["status"]), "; ".join(f"{r['filename']}: {r['error']}" for r in rejected))
         for cam in ok:
             ctx.bus.publish("camera", {"camera_id": cam.id, "status": cam.status})
-        headers = {"X-Evora-Rejected": json.dumps(rejected)} if rejected else None
+        headers = {}
+        if rejected:
+            headers["X-Evora-Rejected"] = json.dumps(rejected)
+        if duplicates:
+            headers["X-Evora-Duplicate"] = json.dumps(duplicates)
         return JSONResponse([c.model_dump(mode="json") for c in ok], headers=headers)
 
     @router.patch("/{cid}")

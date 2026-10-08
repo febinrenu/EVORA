@@ -38,6 +38,7 @@ def create_app(
     async def lifespan(_: FastAPI):
         yield
         ctx.runner.shutdown(wait=False)
+        ctx.prerender.shutdown()
 
     app = FastAPI(title="evora", version="0.1.0", lifespan=lifespan)
     app.state.ctx = ctx
