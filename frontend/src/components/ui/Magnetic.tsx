@@ -2,7 +2,6 @@
 
 // Magnetic hover: the control leans toward the pointer inside a radius. Uses
 // gsap.quickTo (one tween per axis, reused) so pointermove never allocates.
-import Link from "next/link";
 import { useEffect, useRef, type ReactNode } from "react";
 import { gsap } from "gsap";
 import { DOM } from "@/lib/config/animation";
@@ -43,9 +42,10 @@ function useMagnet<T extends HTMLElement>(strength: number = DOM.magnetStrength)
 export function MagneticLink({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
   const ref = useMagnet<HTMLAnchorElement>();
   return (
-    <Link ref={ref} href={href} className={className} data-cursor="Enter">
+    // a full page load on purpose: leaving the story tears the WebGL context down cleanly
+    <a ref={ref} href={href} className={className} data-cursor="Enter">
       {children}
-    </Link>
+    </a>
   );
 }
 

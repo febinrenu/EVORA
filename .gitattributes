@@ -3,3 +3,4 @@ PROGRESS.md merge=union
 *.avi binary
 *.jpg binary
 *.png binary
+*.bat text eol=crlf

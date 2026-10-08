@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import "./app.css";
 
 export const metadata: Metadata = {
@@ -12,9 +11,11 @@ export default function AppShell() {
   return (
     <div className="lt">
       <header className="lt-top">
-        <Link href="/" className="lt-mark">
+        {/* full page load into the story: it boots its own renderer and scroll */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+        <a href="/" className="lt-mark">
           EVORA
-        </Link>
+        </a>
         <span className="lt-site">Own campus</span>
         <span className="lt-clock">Footage clock 09:14:23</span>
         <span className="lt-onprem">On this machine only</span>

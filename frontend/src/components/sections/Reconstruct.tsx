@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Split } from "@/components/ui/Split";
 import { HOPS, MATCH, RECON_CAMS } from "@/lib/data/story";
 import { MagneticLink } from "@/components/ui/Magnetic";
@@ -99,7 +98,7 @@ export function Finale() {
           Search the memory of a place.
         </p>
         <div className="cta-wrap" data-el="cta">
-          <MagneticLink href="/app" className="cta">
+          <MagneticLink href="/app/" className="cta">
             <span>Enter EVORA</span>
             <span aria-hidden="true" className="cta-arrow">
               →
@@ -114,7 +113,7 @@ export function Finale() {
         <span>HNX26EPS05</span>
         <span>Runs on your own machine</span>
         <span>No face recognition</span>
-        <Link href="/app">Open the product</Link>
+        <a href="/app/">Open the product</a>
       </p>
     </section>
   );

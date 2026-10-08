@@ -5,12 +5,14 @@ Next.js (App Router) app with two routes:
 - `/` — the cinematic story of the system (scroll experience, WebGL).
 - `/app` — the operator product on the light table (PLAN §10). Shell only for now.
 
+From the repo root on Windows, `start.bat` does everything (installs uv and packages, builds this UI into `dist/` when sources changed, starts the API that serves it on http://127.0.0.1:8700). `start.bat dev` runs the API on fixtures plus `npm run dev` on :5173; `start.bat setup` adds the perception stack and model weights.
+
 ```
 npm install
 npm run footage   # optional: builds public/footage/ from EPFL sequences (needs ffmpeg); procedural feeds otherwise
-npm run dev       # http://localhost:3000
+npm run dev       # http://localhost:5173 (the API allows this origin)
 npm run check     # tsc --noEmit + eslint
-npm run build
+npm run build     # static export into dist/, served by the API
 ```
 
 ## How the experience is put together
