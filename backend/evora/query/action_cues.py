@@ -11,6 +11,7 @@ perspective can flip them, and the answer says so.
 """
 from __future__ import annotations
 
+import json
 import math
 from collections import defaultdict
 from collections.abc import Iterable
@@ -21,7 +22,17 @@ from evora.core.db import Database
 
 BAGS = ("backpack", "handbag", "suitcase", "umbrella")
 VEHICLES = ("car", "truck", "bus", "motorcycle", "bicycle")
-CUE_KEYS = {"put_down", "drop", "pick_up", "vehicle_out", "vehicle_in", "turn_left", "turn_right", "u_turn", "run"}
+CUE_KEYS = {"put_down", "drop", "pick_up", "vehicle_out", "vehicle_in", "turn_left", "turn_right", "u_turn", "run",
+            "talk", "greet", "hand_over"}
+# actions perception already stores as events (perception/actions.py): read them first, they are computed at indexing
+# time with the driver's left and right; older indexes without them fall back to the geometry below
+EVENT_KINDS = {
+    "vehicle_out": ("person_exits_vehicle",), "vehicle_in": ("person_enters_vehicle",),
+    "turn_left": ("vehicle_turn_left",), "turn_right": ("vehicle_turn_right",), "u_turn": ("vehicle_u_turn",),
+    "talk": ("people_close",), "greet": ("people_close",), "hand_over": ("people_close",),
+}
+STORED_ACTIONS = ("vehicle_start", "vehicle_stop", "vehicle_turn_left", "vehicle_turn_right", "vehicle_u_turn",
+                  "vehicle_reverse", "person_exits_vehicle", "person_enters_vehicle", "people_close")
 
 
 class Box(NamedTuple):
@@ -79,6 +90,11 @@ def find_cues(db: Database, key: str, tracks: Iterable[tuple[str, str]], cfg: Cu
     tracks = list(tracks)
     if key not in CUE_KEYS or not tracks:
         return {}
+    stored = _from_events(db, key, tracks)
+    if stored is not None:
+        return stored
+    if key in ("talk", "greet", "hand_over"):
+        return {}  # only perception's people_close events can point at these
     points = _points(db, [tid for tid, _ in tracks])
     if key in ("put_down", "drop", "pick_up"):
         return _bag_cues(db, key, tracks, points, cfg)
@@ -87,6 +103,48 @@ def find_cues(db: Database, key: str, tracks: Iterable[tuple[str, str]], cfg: Cu
     if key in ("turn_left", "turn_right", "u_turn"):
         return {tid: c for tid, _ in tracks if (c := _turn(tid, points.get(tid, []), key, cfg)) is not None}
     return {tid: c for tid, _ in tracks if (c := _run(tid, points.get(tid, []), cfg)) is not None}
+
+
+# ------------------------------------------------------------------ stored action events
+def _from_events(db: Database, key: str, tracks: list[tuple[str, str]]) -> dict[str, Cue] | None:
+    """Cues from perception's action events, or None when these cameras were indexed before such events existed."""
+    kinds = EVENT_KINDS.get(key)
+    if not kinds:
+        return None
+    ids, cams = {tid for tid, _ in tracks}, sorted({cam for _, cam in tracks})
+    cam_marks = ",".join("?" * len(cams))
+    with db.read() as c:
+        indexed = c.execute(f"SELECT 1 FROM events WHERE camera_id IN ({cam_marks}) AND kind IN "  # noqa: S608
+                            f"({','.join('?' * len(STORED_ACTIONS))}) LIMIT 1", [*cams, *STORED_ACTIONS]).fetchone()
+        if indexed is None:
+            return None
+        rows = c.execute(f"SELECT track_id, kind, t, payload FROM events WHERE camera_id IN ({cam_marks}) AND kind IN "  # noqa: S608
+                         f"({','.join('?' * len(kinds))}) ORDER BY t", [*cams, *kinds]).fetchall()
+    out: dict[str, Cue] = {}
+    for r in rows:
+        try:
+            payload = json.loads(r["payload"] or "{}")
+        except ValueError:
+            payload = {}
+        cue_why, score = _event_words(r["kind"], payload)
+        for tid in (r["track_id"], payload.get("with_track")):
+            if tid in ids and tid not in out:
+                out[tid] = Cue(tid, float(r["t"]), score, cue_why)
+    return out
+
+
+def _event_words(kind: str, payload: dict) -> tuple[str, float]:
+    deg = payload.get("turn_deg")
+    about = f" (about {abs(deg):.0f} degrees)" if isinstance(deg, int | float) else ""
+    words = {
+        "person_exits_vehicle": ("appeared right next to a stopped vehicle", 0.8),
+        "person_enters_vehicle": ("disappeared right next to a stopped vehicle", 0.8),
+        "vehicle_turn_left": (f"turned left{about}", 0.8),
+        "vehicle_turn_right": (f"turned right{about}", 0.8),
+        "vehicle_u_turn": (f"turned around{about}", 0.8),
+        "people_close": (f"stood within a body height of another person for {payload.get('seconds', 'a few')} seconds", 0.6),
+    }
+    return words.get(kind, ("moved in a way that fits", 0.5))
 
 
 # ------------------------------------------------------------------ data

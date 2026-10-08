@@ -237,3 +237,45 @@ async def test_no_movement_fits_so_the_plain_honest_answer_stays(ws):
     router = make_router(ws, gateway=FakeGateway(plan=PERSON_PLAN))
     ans = of(await collect(router.answer("did a person put something down", "s1")), "answer")[0]
     assert "Most likely" not in ans["text"] and ans["text"].startswith("I can't tell whether anyone was putting")
+
+
+# ---- perception's stored action events come first -----------------------------------------------------------------------
+
+def stored_event(ws, tid, kind, t, **payload):
+    ws.event(f"{tid}:{kind}:-:0", "cam_01", tid, kind, t, zone=None, **payload)
+
+
+def test_a_stored_vehicle_event_is_used_instead_of_recomputing(ws):
+    move(ws, "p1", "person", 1005, 1015, (0.1, 0.2), (0.2, 0.2))  # far from any car: geometry alone would say nothing
+    stored_event(ws, "p1", "person_exits_vehicle", 1005.5, with_track="c9")
+    got = cues(ws, "vehicle_out", "p1")
+    assert got["p1"].t == pytest.approx(1005.5) and "appeared right next to a stopped vehicle" in got["p1"].why
+
+
+def test_stored_turns_use_the_drivers_left_and_right(ws):
+    path(ws, "c1", "car", [(1000, 0.2, 0.5), (1005, 0.6, 0.5), (1010, 0.6, 0.8)])  # a right turn on screen ...
+    stored_event(ws, "c1", "vehicle_turn_left", 1005.0, turn_deg=-85)            # ... which perception read as left
+    assert set(cues(ws, "turn_left", "c1")) == {"c1"} and cues(ws, "turn_right", "c1") == {}
+    assert "about 85 degrees" in cues(ws, "turn_left", "c1")["c1"].why
+
+
+def test_people_standing_together_back_up_talking_for_both_people(ws):
+    move(ws, "p1", "person", 1000, 1010, (0.4, 0.5), (0.41, 0.5))
+    move(ws, "p2", "person", 1000, 1010, (0.45, 0.5), (0.46, 0.5))
+    stored_event(ws, "p1", "people_close", 1002.0, with_track="p2", seconds=6.0)
+    got = cues(ws, "talk", "p1", "p2")
+    assert set(got) == {"p1", "p2"} and "for 6.0 seconds" in got["p1"].why and got["p1"].score < 0.7
+    assert set(cues(ws, "hand_over", "p1", "p2")) == {"p1", "p2"}
+
+
+def test_an_index_with_action_events_but_none_of_this_kind_finds_nothing(ws):
+    stopped_car(ws)
+    move(ws, "p1", "person", 1005, 1015, (0.64, 0.5), (0.9, 0.5))  # geometry would call this getting out
+    stored_event(ws, "c1", "vehicle_stop", 1000.0, seconds=30.0)  # perception ran its action pass on this camera
+    assert cues(ws, "vehicle_out", "p1") == {}, "perception looked and found no exit: trust it"
+
+
+def test_talking_without_stored_events_has_no_estimate(ws):
+    move(ws, "p1", "person", 1000, 1010, (0.4, 0.5), (0.41, 0.5))
+    move(ws, "p2", "person", 1000, 1010, (0.45, 0.5), (0.46, 0.5))
+    assert cues(ws, "talk", "p1", "p2") == {}
