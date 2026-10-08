@@ -16,7 +16,7 @@ from typing import Any, Literal, Protocol
 
 import lancedb
 import numpy as np
-from contracts.models import QueryPlan, TimeWindow
+from contracts.models import QueryPlan, Target, TimeWindow
 
 from evora.baseline.b0_frames import merge_hits
 from evora.core.db import Database
@@ -24,12 +24,15 @@ from evora.query.expand import Gateway as ExpandGateway
 from evora.query.expand import expand
 from evora.query.fuse import (
     BM25,
+    COLOUR_TERMS,
     DEFAULT_WEIGHTS,
     Calibration,
     TrackSignals,
     aggregate_crops,
+    asked_garments,
     attribute_score,
     blend,
+    caption_supports_colour,
     explain_attributes,
     scene_support,
     squash_bm25,
@@ -147,6 +150,12 @@ class Retriever:
         with self._db.read() as conn:
             return [(r["id"], r["name"]) for r in conn.execute("SELECT id, name FROM cameras ORDER BY id")]
 
+    def _camera_layers(self, cameras: list[str]) -> dict[str, set[str]]:
+        with self._db.read() as conn:
+            marks = ",".join("?" * len(cameras))
+            rows = conn.execute(f"SELECT id, layers FROM cameras WHERE id IN ({marks})", cameras)
+            return {r["id"]: set(json.loads(r["layers"] or "[]")) for r in rows}
+
     def _cameras_with_tracks(self, cameras: list[str]) -> set[str]:
         with self._db.read() as conn:
             marks = ",".join("?" * len(cameras))
@@ -169,7 +178,13 @@ class Retriever:
         target = plan.targets[0]
 
         track_cams = set() if self.cfg.unit == "frame" else self._cameras_with_tracks(cams)
-        scene_only = [c for c in cams if c not in track_cams]
+        # a camera whose detection layer finished and found nothing is empty, not unfinished
+        layers = self._camera_layers(cams) if self.cfg.unit != "frame" else {}
+        empty = [c for c in cams if c not in track_cams and "L1" in layers.get(c, set())]
+        scene_only = [c for c in cams if c not in track_cams and c not in empty]
+        if empty:
+            names = dict(self._all_cameras())
+            out.notes.append("Nothing was detected on " + ", ".join(names.get(c, c) for c in empty) + ".")
 
         if track_cams and "crops" in tables:
             self._track_candidates(plan, scope, sorted(track_cams), variants, tables, out)
@@ -186,7 +201,7 @@ class Retriever:
                     + ": only coarse scene search is available there."
                 )
 
-        if not out.candidates and not track_cams and self._scene_rows(scene_only, tables) == 0:
+        if not out.candidates and not track_cams and scene_only and self._scene_rows(scene_only, tables) == 0:
             out.notes.append("Nothing has been indexed for the selected cameras yet.")
 
         out.candidates.sort(key=lambda c: (-c.score, c.track.t_start))
@@ -249,6 +264,14 @@ class Retriever:
                 if instant_in_window(key[1], scope.window, scope.tz) and cos > best.get(key, -1.0):
                     best[key] = cos
         return [(cam, t, cos) for (cam, t), cos in best.items()]
+
+    @staticmethod
+    def _caption_agrees(bm25: BM25 | None, tid: str, target: Target) -> bool:
+        """Words matching is not agreement: when a colour is asked for, the caption must attach it to the garment."""
+        colours = [a for a in target.attributes if a in COLOUR_TERMS]
+        if not colours or bm25 is None:
+            return True
+        return caption_supports_colour(bm25.docs.get(tid, ""), colours, asked_garments(target.embed_text))
 
     def _captions(self, cams: list[str], tables: set[str]) -> BM25 | None:
         if "captions" not in tables:
@@ -322,7 +345,7 @@ class Retriever:
                 if sig.attributes is not None:
                     sig.why += explain_attributes(target.attributes, attrs)
                     used.add("attributes")
-            if tid in caption_scores:
+            if tid in caption_scores and self._caption_agrees(bm25, tid, target):
                 sig.caption = squash_bm25(caption_scores[tid])
                 sig.why.append("caption match")
                 used.add("captions")

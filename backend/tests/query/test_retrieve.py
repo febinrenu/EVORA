@@ -38,10 +38,12 @@ class SimpleWorkspace:
     def __init__(self, db, store):
         self.db, self.store = db, store
 
-    def camera(self, cid, name=None):
+    def camera(self, cid, name=None, layers=None):
         with self.db.write() as c:
             c.execute("INSERT INTO cameras(id,name,kind,source_uri,t0,t0_source,created_at) "
                       "VALUES(?,?, 'file','x.mp4',0,'manual',0)", (cid, name or cid))
+            if layers is not None:
+                c.execute("UPDATE cameras SET layers=? WHERE id=?", (json.dumps(list(layers)), cid))
 
     def track(self, tid, cam, cls="car", t0=100.0, t1=110.0, attrs=None, gid=None, crops=(E[0],), best_t=None,
               points=None):
@@ -296,3 +298,28 @@ async def test_a_single_flicker_inside_the_window_is_not_presence(ws):
     ws.track("flicker", "cam_01", t0=0.0, t1=200.0, points=spaced(0, 50) + [100.0] + spaced(150, 200), crops=[E[0]])
     res = await ws.retriever().search(plan(attrs=()), SearchScope(window=TimeWindow(start=90.0, end=110.0)))
     assert ids(res) == []
+
+
+@pytest.mark.asyncio
+async def test_a_camera_that_finished_detection_and_saw_nothing_is_empty_not_still_indexing(ws):
+    ws.camera("yard", "Bus yard", layers=("L0", "L1", "L2", "L3"))
+    ws.scene("yard", 50.0, E[0])  # coarse tiles exist, but detection ran to the end and found no object
+    res = await ws.retriever().search(plan(attrs=()))
+    assert res.candidates == []
+    assert any("Nothing was detected on Bus yard" in n for n in res.notes)
+    assert not any("Still indexing" in n or "Nothing has been indexed" in n for n in res.notes)
+
+
+@pytest.mark.asyncio
+async def test_a_colour_next_to_a_bag_does_not_count_as_that_colour_on_a_jacket(ws):
+    ws.camera("cam_01")
+    ws.track("bag", "cam_01", cls="person", crops=[E[2]], t0=100.0)
+    ws.track("jacket", "cam_01", cls="person", crops=[E[2]], t0=200.0, t1=210.0)
+    ws.caption("bag", "cam_01", "a person in a light pink top and dark blue trousers carrying a red bag")
+    ws.caption("jacket", "cam_01", "a person in a red long sleeved jacket and black trousers")
+    p = plan(attrs=("red",), cls=("person",), noun="person", embed="a photo of a person wearing a red jacket")
+    res = await ws.retriever().search(p)
+    why = {c.track.id: c.why for c in res.candidates}
+    assert "caption match" in why["jacket"]
+    assert "caption match" not in why["bag"]
+    assert ids(res)[0] == "jacket"

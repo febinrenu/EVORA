@@ -610,3 +610,46 @@ async def test_a_failing_offset_hook_never_breaks_the_answer(ws):
 
     events = await collect(make_router(ws, file_offset=broken).answer(GATE_Q, "s1"))
     assert of(events, "answer")[0]["verdict"] == "yes" and of(events, "evidence")[0]["offset_s"] == 105.0
+
+
+# ------------------------------------------------- attributes nobody can vouch for are not stated as fact
+def unlabelled_car_crossing(ws, tid="t_plain", t=1105.0):
+    ws.track(tid, "cam_01", attrs={}, crops=[E[0]], bbox=(0.3, 0.2, 0.45, 0.7), t0=t - 5, t1=t + 5)
+    ws.event(f"e_{tid}", "cam_01", tid, "cross_line", t, direction="a_to_b")
+
+
+@pytest.mark.asyncio
+async def test_a_colour_nothing_supports_is_not_stated_as_fact(ws):
+    unlabelled_car_crossing(ws)
+    events = await collect(make_router(ws).answer(GATE_Q, "s1"))
+    ans = of(events, "answer")[0]
+    assert ans["verdict"] == "partial"
+    assert ans["text"].startswith("I can't confirm a red car.") and "red could not be established" in ans["text"]
+    assert any(n.startswith("Nothing stored or checked shows red") for n in ans["notes"])
+    assert len(ans["evidence"]) == 1  # the candidate is still shown, just not vouched for
+
+
+@pytest.mark.asyncio
+async def test_a_stored_colour_still_gives_a_plain_yes(ws):
+    red_car_crossing(ws)
+    ans = of(await collect(make_router(ws).answer(GATE_Q, "s1")), "answer")[0]
+    assert ans["verdict"] == "yes" and not any(n.startswith("Nothing stored") for n in ans["notes"])
+
+
+@pytest.mark.asyncio
+async def test_a_visual_check_that_says_yes_turns_cannot_confirm_into_yes(ws):
+    unlabelled_car_crossing(ws)
+    events = await collect(make_router(ws, verifier=FakeVerifier(default=True)).answer(GATE_Q, "s1"))
+    first, final = of(events, "answer")
+    assert first["verdict"] == "partial" and final["verdict"] == "yes"
+    assert final["text"].startswith("Yes. A red car passed through the main gate:")
+    assert not any(n.startswith("Nothing stored") for n in final["notes"])
+    assert not any("set aside" in n for n in final["notes"])  # nothing was set aside
+
+
+@pytest.mark.asyncio
+async def test_an_undecided_check_leaves_the_answer_unconfirmed(ws):
+    unlabelled_car_crossing(ws)
+    events = await collect(make_router(ws, verifier=FakeVerifier(default=None)).answer(GATE_Q, "s1"))
+    answers = of(events, "answer")
+    assert len(answers) == 1 and answers[0]["verdict"] == "partial"

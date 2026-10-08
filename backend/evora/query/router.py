@@ -39,7 +39,7 @@ from contracts.models import (
 
 from evora.core.db import Database
 from evora.evidence.store import EvidenceError, register
-from evora.query.compose import Sentence, compose_checked, make_notes, stamp, validate
+from evora.query.compose import UNCONFIRMED_NOTE, Sentence, compose_checked, make_notes, stamp, validate
 from evora.query.describe import deterministic_sentences, gather_facts, narrate
 from evora.query.logic import (
     Candidate,
@@ -246,7 +246,7 @@ class Router:
         composed = compose_checked(
             plan, evidence, count=count, nearest_miss=miss, path=hops, cameras=_as_compose_cameras(cameras),
             source_names={c.id: c.source_name for c in cameras if c.source_name}, tz=tz, reference_now=ref_now,
-            partial=_is_partial(cameras, plan, evidence),
+            partial=_is_partial(cameras, plan, evidence), unconfirmed=_unconfirmed(plan, evidence),
         )
         timings["compose"] = _ms(t)
         timings["ttfa"] = _ms(started)
@@ -303,11 +303,11 @@ class Router:
         candidate as the nearest miss.
         """
         failed = [e for e in evidence if checked.get(e.id) is False]
-        if not failed:
-            return None
         kept = [e for e in evidence if checked.get(e.id) is not False]
         kept.sort(key=lambda e: 0 if checked.get(e.id) else 1)  # stable: confirmed before undecided
         kept = [e.model_copy(update={"verified": checked.get(e.id)}) for e in kept]
+        if not failed and _unconfirmed(plan, evidence) == _unconfirmed(plan, kept):
+            return None  # nothing set aside and the first answer's claim about the attributes still stands
         miss = None
         if not kept:
             best = max(failed, key=lambda e: e.score)
@@ -316,11 +316,12 @@ class Router:
         composed = compose_checked(
             plan, kept, nearest_miss=miss, cameras=_as_compose_cameras(cameras),
             source_names={c.id: c.source_name for c in cameras if c.source_name}, tz=tz, reference_now=ref_now,
-            partial=_is_partial(cameras, plan, kept),
+            partial=_is_partial(cameras, plan, kept), unconfirmed=_unconfirmed(plan, kept),
         )
-        revised_notes = list(dict.fromkeys([*notes, *composed.notes,
-                                            f"The visual check set aside {len(failed)} of {len(evidence)} "
-                                            f"candidate(s) that did not clearly show {what}."]))
+        set_aside = ([f"The visual check set aside {len(failed)} of {len(evidence)} "
+                      f"candidate(s) that did not clearly show {what}."] if failed else [])
+        revised_notes = list(dict.fromkeys([*(n for n in notes if not n.startswith(UNCONFIRMED_NOTE)), *composed.notes,
+                                            *set_aside]))
         return Answer(query_id=query_id, text=composed.text, verdict=composed.verdict, count=composed.count,
                       evidence=kept, nearest_miss=miss, confidence=_confidence(kept, miss), plan=plan,
                       timings_ms=timings, notes=revised_notes)
@@ -567,6 +568,19 @@ def _confidence(evidence: Sequence[Evidence], miss: Evidence | None) -> float:
     if evidence:
         return round(max(e.score for e in evidence), 4)
     return round(1.0 - miss.score, 4) if miss else 0.5  # a confident "no" is one with no close miss
+
+
+_SUPPORT_WHY = ("colour ", "carrying ", "vehicle type ", "caption match")
+
+
+def _unconfirmed(plan: QueryPlan, evidence: Sequence[Evidence]) -> bool:
+    """Attributes were asked for and no candidate has anything behind them: a stored attribute, a caption that
+    ties the colour to the garment, or a visual check that said yes."""
+    if plan.intent not in ("exists", "list", "first", "last") or not plan.targets or not plan.targets[0].attributes:
+        return False
+    if not evidence:
+        return False
+    return not any(e.verified is True or any(w.startswith(_SUPPORT_WHY) for w in e.why) for e in evidence)
 
 
 def _is_partial(cameras: list[_Camera], plan: QueryPlan, evidence: Sequence[Evidence]) -> bool:

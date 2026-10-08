@@ -141,6 +141,7 @@ class BM25:
 
     def __init__(self, docs: Mapping[str, str], k1: float = 1.5, b: float = 0.75) -> None:
         self._k1, self._b = k1, b
+        self.docs = dict(docs)
         self._tf: dict[str, Counter[str]] = {d: Counter(tokenize(t)) for d, t in docs.items()}
         self._len = {d: sum(c.values()) for d, c in self._tf.items()}
         self._avg = (sum(self._len.values()) / len(self._len)) if self._len else 0.0
@@ -163,6 +164,40 @@ class BM25:
             if s > 0:
                 out[doc] = s
         return out
+
+
+GARMENTS = {"jacket", "coat", "shirt", "top", "hoodie", "sweater", "jumper", "blouse", "tshirt", "vest", "dress",
+            "trousers", "pants", "jeans", "shorts", "skirt", "leggings", "hat", "cap", "beanie", "scarf"}
+CARRIED = {"bag", "backpack", "handbag", "suitcase", "umbrella", "luggage", "box", "bottle"}
+COLOUR_GAP = 3  # words allowed between a colour and the garment it describes ("red long-sleeved jacket")
+
+
+def asked_garments(text: str) -> set[str]:
+    """Garment words in the planner's description of the target ('a person wearing a red jacket')."""
+    return {w for w in tokenize(text) if w in GARMENTS}
+
+
+def caption_supports_colour(caption: str, colours: Iterable[str], garments: set[str]) -> bool:
+    """Does the caption say that a wanted colour belongs to the wanted garment?
+
+    The word 'red' next to 'bag' does not describe a red jacket. With a garment asked for, the colour must be
+    followed by that garment within a few words; with none, the colour must not be describing something carried.
+    """
+    words = tokenize(caption)
+    wanted = set(colours)
+    for i, w in enumerate(words):
+        if w not in wanted:
+            continue
+        ahead = words[i + 1:i + 1 + COLOUR_GAP]
+        for nxt in ahead:
+            if nxt in garments or (not garments and nxt in GARMENTS):
+                return True
+            if nxt in CARRIED or nxt in COLOUR_TERMS:
+                break  # the colour belongs to the bag, or a new colour starts
+        else:
+            if not garments and not any(n in CARRIED for n in ahead):
+                return True
+    return False
 
 
 def squash_bm25(score: float, half: float = 3.0) -> float:

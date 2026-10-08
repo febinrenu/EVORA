@@ -5,8 +5,10 @@ from evora.query.fuse import (
     Calibration,
     TrackSignals,
     aggregate_crops,
+    asked_garments,
     attribute_score,
     blend,
+    caption_supports_colour,
     explain_attributes,
     scene_support,
     squash_bm25,
@@ -108,3 +110,15 @@ def test_attribute_score_reads_each_colour_slot_and_treats_unknown_slots_as_no_e
     unknown = {"upper_color_conf": 0.2, "lower_color_conf": 0.2, "colour_unsure": ["upper", "lower"], "carrying": []}
     assert attribute_score(["red"], unknown) is None
     assert explain_attributes(["blue"], attrs) == ["colour blue 0.70"]
+
+
+def test_caption_colour_must_belong_to_the_garment_asked_for():
+    jacket = asked_garments("a photo of a person wearing a red jacket")
+    assert jacket == {"jacket"}
+    assert caption_supports_colour("a person in a red long sleeved jacket", ["red"], jacket)
+    assert not caption_supports_colour("a person in a pink top and dark blue trousers carrying a red bag", ["red"], jacket)
+    assert not caption_supports_colour("a person in a red top", ["red"], jacket)       # red, but not the jacket asked for
+    assert not caption_supports_colour("a person in a blue jacket and red hat", ["red"], jacket)
+    # no garment asked: a colour on something carried is still not the person's colour
+    assert caption_supports_colour("a person in a red coat", ["red"], set())
+    assert not caption_supports_colour("a person carrying a red bag", ["red"], set())

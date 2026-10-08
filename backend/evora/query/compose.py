@@ -147,6 +147,9 @@ def make_notes(plan: QueryPlan, cameras: Sequence[CameraLike], evidence: Sequenc
 
 
 # ---------------------------------------------------------------- compose
+UNCONFIRMED_NOTE = "Nothing stored or checked shows"
+
+
 def compose(
     plan: QueryPlan,
     evidence: Sequence[Evidence],
@@ -159,8 +162,13 @@ def compose(
     tz: tzinfo = UTC,
     reference_now: float | None = None,
     partial: bool = False,
+    unconfirmed: bool = False,
 ) -> Composed:
-    """Build the verdict and the grounded text. `evidence` is already ordered best/first/last."""
+    """Build the verdict and the grounded text. `evidence` is already ordered best/first/last.
+
+    `unconfirmed`: attributes were asked for but nothing (stored attributes, caption, visual check) supports
+    them on any candidate, so the answer must not state them as fact.
+    """
     sources = dict(source_names or {})
     names = {c.id: c.name for c in cameras}
     shown = list(evidence) + ([nearest_miss] if nearest_miss else [])
@@ -205,6 +213,18 @@ def compose(
         return Composed(verdict, sentences, notes)
 
     best = evidence[0]
+    if unconfirmed:
+        partial = True
+        wanted = ", ".join(plan.targets[0].attributes)
+        notes.append(f"{UNCONFIRMED_NOTE} {wanted} on these candidates; they are the closest "
+                     f"{plan.targets[0].noun} matches.")
+    if intent == "exists" and unconfirmed:
+        sentences.append(Sentence(
+            f"I can't confirm {subject(plan)}. A {plan.targets[0].noun} {_clause(plan, where, past=True)}{_when(plan)}, "
+            f"but {wanted} could not be established: {at(best)}.", (best.id,)))
+        if len(evidence) > 1:
+            sentences.append(Sentence(f"{len(evidence) - 1} more candidate{'s' if len(evidence) > 2 else ''}.", ids[1:]))
+        return Composed("partial", sentences, notes)
     if intent == "exists":
         sentences.append(Sentence(
             f"Yes. {_sentence_case(subject(plan))} {_clause(plan, where, past=True)}{_when(plan)}: {at(best)}.",
