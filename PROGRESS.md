@@ -17,8 +17,8 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M1 — Platform, Memory & Integration
 - State: on track
-- Doing: the approved extras are done (admin routes, push cap, signed packs, doctor --fix, rolling recorder); idle until the judge-sim run
-- Next: write-up assembly (docs/WRITEUP.md) once M3's numbers exist; judge-sim run at T+12:00
+- Doing: all of P1.1-P1.19 and every request to M1 done; the write-up is assembled and waits for M3's rerun on M2's re-indexed workspace (v6)
+- Next: put the v6 numbers and the conversation rerun into docs/WRITEUP.md; judge-sim run with held-out footage; take the two local planning files out of git before the tag
 - Blockers:
 
 ### M2 — Perception & Identity
