@@ -56,6 +56,8 @@ interface State {
   alerts: Alert[];
   toasts: Toast[];
   playhead: Playhead | null;
+  /** replay-as-live stream state per camera: starting | running | retrying | failed | stopped */
+  live: Record<string, string>;
   drawer: boolean;
   /** text to prefill in the watch form ("Watch for this" on an answer) */
   draft: string;
@@ -76,6 +78,7 @@ interface State {
   ackAlert: (id: string) => Promise<void>;
   setPlayhead: (p: Playhead | null) => void;
   setDrawer: (open: boolean, draft?: string) => void;
+  setLive: (cameraId: string, state: string) => void;
   /** show an alert's evidence as an entry in the case log */
   openAlert: (a: Alert, watchText: string) => void;
 }
@@ -159,6 +162,7 @@ export const useEvora = create<State>()((set, get) => {
     alerts: [],
     toasts: [],
     playhead: null,
+    live: {},
     drawer: false,
     draft: "",
 
@@ -238,6 +242,7 @@ export const useEvora = create<State>()((set, get) => {
       }
     },
     setPlayhead: (playhead) => set({ playhead }),
+    setLive: (cameraId, state) => set((s) => ({ live: { ...s.live, [cameraId]: state } })),
     setDrawer: (drawer, draft) => set((s) => ({ drawer, draft: draft ?? s.draft })),
     openAlert: (a, watchText) => {
       const id = `alert-${a.id}`;

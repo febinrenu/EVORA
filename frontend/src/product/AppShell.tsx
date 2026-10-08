@@ -5,7 +5,7 @@
 // the right, timeline lanes across the bottom.
 import { useEffect, useState } from "react";
 import { subscribeEvents } from "@/lib/api/stream";
-import type { Alert, IngestJob } from "@/lib/api/client";
+import { endpoints, type Alert, type IngestJob } from "@/lib/api/client";
 import { useEvora } from "./store";
 import { TopBar } from "./TopBar";
 import { CameraRail } from "./CameraRail";
@@ -27,6 +27,10 @@ export function AppShell() {
     void s.refreshCameras();
     void s.refreshMemory();
     void s.refreshWatches();
+    endpoints
+      .live()
+      .then((l) => l.streams.forEach((st) => useEvora.getState().setLive(st.camera_id, st.state)))
+      .catch(() => undefined);
     const health = window.setInterval(() => void useEvora.getState().refreshHealth(), 15000);
     const off = subscribeEvents(
       (n) => {
@@ -36,6 +40,7 @@ export function AppShell() {
           st.setCameraStatus(n.camera_id, n.status as never);
           if (n.status === "ready") void st.refreshCameras();
         } else if (n.kind === "privacy") void st.refreshHealth();
+        else if (n.kind === "live" && typeof n.camera_id === "string" && typeof n.state === "string") st.setLive(n.camera_id, n.state);
         else if (n.kind === "alert" && n.alert && typeof n.alert === "object") st.pushAlert(n.alert as Alert, n.historical === true);
       },
       (connected) => useEvora.getState().setConnected(connected),

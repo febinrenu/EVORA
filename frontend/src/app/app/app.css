@@ -241,6 +241,9 @@
 .lt-entry {
   max-width: 54rem;
   margin: 0 0 2rem;
+  /* long case logs stay fast: entries off screen skip layout and paint */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 42rem;
 }
 .lt-question {
   margin: 0 0 0.6rem;
@@ -1261,4 +1264,13 @@
 }
 .lt-results {
   color: var(--cyanotype);
+}
+
+.lt-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  margin-top: 0.2rem;
+  color: var(--cyanotype);
+  font-size: 0.8125rem;
 }

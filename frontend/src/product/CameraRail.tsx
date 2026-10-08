@@ -4,7 +4,7 @@
 // clock and where it came from, name the cameras, start indexing, and watch
 // per-layer progress with throughput.
 import { useCallback, useState } from "react";
-import { ApiError, endpoints, frameUrl, type CameraInfo } from "@/lib/api/client";
+import { ApiError, endpoints, frameUrl, liveUrl, type CameraInfo } from "@/lib/api/client";
 import { clock, day } from "./format";
 import { useEvora } from "./store";
 import { Frame } from "./Frame";
@@ -106,6 +106,23 @@ async function startIngest(ids: string[], onError: (m: string) => void) {
 
 function CameraRow({ cam }: { cam: CameraInfo }) {
   const job = useEvora((s) => s.jobs[cam.id]);
+  const live = useEvora((s) => s.live[cam.id]);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const streaming = cam.status === "live" || live === "running" || live === "retrying" || live === "starting";
+  const toggleLive = async () => {
+    setLiveError(null);
+    try {
+      if (streaming) {
+        await endpoints.stopReplay([cam.id]);
+        useEvora.getState().setLive(cam.id, "stopped");
+      } else {
+        await endpoints.replay([cam.id]);
+        useEvora.getState().setLive(cam.id, "starting");
+      }
+    } catch (e) {
+      setLiveError(e instanceof ApiError ? e.message : "Replay could not start.");
+    }
+  };
   const [name, setName] = useState(cam.name);
   const [prevName, setPrevName] = useState(cam.name);
   if (cam.name !== prevName) {
@@ -125,7 +142,12 @@ function CameraRow({ cam }: { cam: CameraInfo }) {
 
   return (
     <li className={`lt-cam is-${cam.status}`}>
-      <Frame src={frameUrl(cam.id, mid)} alt={`${cam.name}, frame from the middle of the recording`} />
+      {streaming ? (
+        // MJPEG: the browser keeps the multipart stream open; frames are face-blurred server side
+        <Frame src={liveUrl(cam.id)} alt={`${cam.name}, live`} osd={live === "retrying" ? "RECONNECTING" : "● LIVE"} className="lt-live" />
+      ) : (
+        <Frame src={frameUrl(cam.id, mid)} alt={`${cam.name}, frame from the middle of the recording`} />
+      )}
       <div className="lt-cam-body">
         <input
           className="lt-cam-name"
@@ -139,6 +161,12 @@ function CameraRow({ cam }: { cam: CameraInfo }) {
           {day(cam.t0)} {clock(cam.t0)}, {CLOCK_SOURCE[cam.t0_source]}
         </p>
         <p className="lt-cam-state">{stateLine(cam, job)}</p>
+        {cam.kind === "file" && cam.status === "ready" ? (
+          <button type="button" className="lt-link" onClick={() => void toggleLive()}>
+            {streaming ? "Stop the live replay" : "Replay as live"}
+          </button>
+        ) : null}
+        {liveError ? <p className="lt-error">{liveError}</p> : null}
         {cam.status === "ingesting" && job ? (
           <span className="lt-progress" style={{ ["--p" as string]: String(job.progress ?? 0) }} aria-hidden="true">
             <i />
