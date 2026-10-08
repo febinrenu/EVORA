@@ -55,7 +55,11 @@ export function AnswerSheet({ c }: { c: Case }) {
   const activeId = focus?.caseId === c.id ? focus.evidenceId : evidence[0]?.id;
   const active = evidence.find((e) => e.id === activeId) ?? evidence[0];
   const verifiedCount = Object.values(c.verified).filter((v) => v === true).length;
-  const watch = watchSentence(a.plan ?? c.plan, cameras);
+  // an action EVORA cannot recognise ("put something down") is not watchable: a watch built
+  // from the plan would silently drop the action. The answer has no field for this yet, so
+  // it is read from the sentence the API documents for it (PROGRESS, M1 03:43).
+  const unrecognisedAction = a.verdict === "partial" && /^I can.t tell whether/i.test(a.text ?? "");
+  const watch = unrecognisedAction ? null : watchSentence(a.plan ?? c.plan, cameras);
   const notes = [...(a.notes ?? []), ...c.notes];
   const partial = a.verdict === "partial";
 
@@ -72,7 +76,10 @@ export function AnswerSheet({ c }: { c: Case }) {
           </button>
         </p>
       ) : null}
-      {partial ? <p className="lt-partial">Some of this could not be checked. The notes below say what.</p> : null}
+      {partial ? (
+        // the reason is in the notes, or (questions about actions EVORA cannot recognise) in the answer's first sentence
+        <p className="lt-partial">{notes.length ? "Some of this could not be checked. The notes below say what." : "Some of this could not be checked. The answer below says what."}</p>
+      ) : null}
       {a.verdict !== "count" && evidence.length > 1 ? <p className="lt-shown">{evidence.length} shown</p> : null}
       <p className="lt-answer">{a.text}</p>
       {c.resolved.length ? <p className="lt-learned">Learned {c.resolved.join(", ")}. This will not be asked again.</p> : null}
