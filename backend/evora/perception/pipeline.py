@@ -3,7 +3,7 @@
 L0  scene embeddings (full frame + 2x2 tiles every `scene_every_s`)  -> LanceDB `scenes`
 L1  detect + track + best-K crops + crop embeddings                    -> SQLite `tracks`, `track_points`, LanceDB `crops`
 L2  attributes (colour, vehicle type, carrying, infrared) and events from the stored tracks; ReID is added later
-L3  captions (not implemented yet; skipped with a warning)
+L3  one-sentence captions from the local vision model (only when a vision client is registered; otherwise skipped)
 
 Paths stored in the database are relative to the workspace `media/` directory.
 Times are epoch seconds UTC: `cam.t0 + seconds into the file`.
@@ -27,6 +27,7 @@ from evora.core.db import Database, open_db
 from evora.core.vectors import dims_from_meta, ensure_tables, open_store
 from evora.core.workspace import Workspace
 from evora.core.workspace import create as create_workspace
+from evora.perception.captions import run_l3
 from evora.perception.clock import default_tz_offset
 from evora.perception.crops import FinishedTrack, TrackBook, save_jpeg
 from evora.perception.decode import DecodeError, probe_video, read_frames
@@ -37,12 +38,13 @@ from evora.perception.locks import STORE_SETUP
 from evora.perception.motion import AdaptiveSampler
 from evora.perception.settings import IngestSettings, load_settings
 from evora.perception.track import FrameTracker
+from evora.perception.vision import get_vision_client
 
 log = logging.getLogger("evora.perception.pipeline")
 
 ProgressFn = Callable[[IngestJob], None]
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_\-]+$")
-_IMPLEMENTED = ("L0", "L1", "L2")
+_IMPLEMENTED = ("L0", "L1", "L2", "L3")
 
 
 def resolve_workspace(slug: str | None = None) -> Workspace:
@@ -245,7 +247,7 @@ def ingest(
 ) -> None:
     """Entry point called by the job runner (PLAN.md section 5.6).
 
-    Finished layers are reported with `progress == 1.0`. Layers that are not implemented yet are
+    Finished layers are reported with `progress == 1.0`. Layers that cannot run (L3 without a vision model) are
     skipped with a warning and never reported as finished.
     """
     if cam.kind != "file":
@@ -282,4 +284,8 @@ def ingest(
     if "L2" in todo:
         stats = run_l2(cam, ws, db, store, st, embedder, on_progress)
         log.info("%s L2: %s", cam.id, stats)
+    if "L3" in todo:
+        n_captions = run_l3(cam, ws, db, store, st, get_vision_client(), None, on_progress)
+        if n_captions is not None:
+            log.info("%s L3: %d captions", cam.id, n_captions)
     log.info("%s ingest took %.1fs for %.1fs of video", cam.id, time.monotonic() - started, duration or 0.0)

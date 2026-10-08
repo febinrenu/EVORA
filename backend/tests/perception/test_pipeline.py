@@ -156,7 +156,7 @@ def test_l3_is_skipped_and_never_reported_finished(env, caplog):
     with caplog.at_level("WARNING"):
         pipeline.ingest(cam, "cpu", {"L3"}, events.append, ws=ws, settings=_settings())
     assert events == []
-    assert "not implemented" in caplog.text
+    assert "L3 skipped" in caplog.text
 
 
 def test_missing_source_file_raises(env, tmp_path):

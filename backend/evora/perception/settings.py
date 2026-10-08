@@ -41,6 +41,10 @@ class IngestSettings(BaseModel):
     crop_jpeg_quality: int = 88
     crop_max_side: int = 256
     point_hz: float = 4.0             # track_points downsample rate
+    # L3 captions
+    l3_max_tracks: int = 60           # best tracks per camera to caption
+    l3_budget_s: float = 300.0        # time limit per camera; the layer stops and keeps what it has
+    l3_max_tokens: int = 512          # reasoning vision models spend tokens thinking before they answer
     # events
     dwell_s: float = 20.0             # continuous presence in a zone that counts as dwelling
     line_hysteresis: float = 0.01     # normalised distance beyond a line before a crossing counts
