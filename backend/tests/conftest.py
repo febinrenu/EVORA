@@ -39,3 +39,17 @@ def mpeg2_avi(tmp_path_factory) -> Path:
         check=True,
     )
     return out
+
+
+@pytest.fixture(scope="session")
+def sample_mp4_b(tmp_path_factory) -> Path:
+    """A second, different clip (so two uploads are not de-duplicated)."""
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not installed")
+    out = tmp_path_factory.mktemp("clips_b") / "sample_b.mp4"
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=10:duration=3",
+         "-pix_fmt", "yuv420p", "-metadata", "creation_time=2026-10-08T09:00:00Z", str(out)],
+        check=True,
+    )
+    return out

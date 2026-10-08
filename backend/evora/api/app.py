@@ -1,4 +1,4 @@
-"""FastAPI app for contract v1. Every route returns fixtures until its owner wires the real service."""
+"""FastAPI app for contract v1. Routes whose owner has not wired a service yet still return fixtures."""
 from __future__ import annotations
 
 import base64
@@ -7,14 +7,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from contracts.models import ClarifyResponse, Zone
-from fastapi import FastAPI, HTTPException, Request
+from contracts.models import Zone
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from evora.api import fixtures, routes_cameras, routes_ingest, routes_media, routes_memory
+from evora.api import fixtures, routes_cameras, routes_ingest, routes_media, routes_memory, routes_query
 from evora.api.context import AppContext
-from evora.api.sse import stream_events
 from evora.core.config import load_config
 from evora.core.jobs import IngestFn
 from evora.core.media_service import BlurFn
@@ -32,16 +31,18 @@ _JPEG = base64.b64decode(
 def create_app(
     workspaces_root: Path | None = None, ingest_fn: IngestFn | None = None,
     blur_provider: Callable[[], BlurFn | None] | None = None, embedder: TextEmbedder | None = None,
-    equivalence: Equivalence | None = None,
+    equivalence: Equivalence | None = None, gateway: Any = None, mock: bool | None = None,
 ) -> FastAPI:
     cfg = load_config()
-    ctx = AppContext.build(cfg, workspaces_root, ingest_fn, blur_provider, embedder, equivalence)
+    ctx = AppContext.build(cfg, workspaces_root, ingest_fn, blur_provider, embedder, equivalence, gateway, mock)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         yield
         ctx.runner.shutdown(wait=False)
         ctx.prerender.shutdown()
+        if ctx.http is not None:
+            await ctx.http.aclose()
 
     app = FastAPI(title="evora", version="0.1.0", lifespan=lifespan)
     app.state.ctx = ctx
@@ -49,6 +50,7 @@ def create_app(
     app.include_router(routes_ingest.make_router(ctx))
     app.include_router(routes_media.make_router(ctx))
     app.include_router(routes_memory.make_router(ctx))
+    app.include_router(routes_query.make_router(ctx))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cfg["server"]["cors_origins"],
@@ -85,18 +87,6 @@ def create_app(
         for w in state["workspaces"]:
             w["active"] = w["slug"] == slug
         return state["workspaces"]
-
-    # --- query, clarify ---
-    @app.post("/api/query")
-    def query(body: dict):
-        if not str(body.get("text", "")).strip():
-            raise HTTPException(422, "text required")
-        name = "stream_clarify" if "back entrance" in body["text"].lower() else "stream_query"
-        return stream_events(fixtures.load(name))
-
-    @app.post("/api/clarify")
-    def clarify(resp: ClarifyResponse):
-        return stream_events(fixtures.load("stream_query"))
 
     # --- zones, tracks, globals ---
     @app.get("/api/zones")
@@ -159,11 +149,6 @@ def create_app(
             audit.record(ctx.db, "blur_setting", {"blur_faces": bool(changes["blur_faces"])})
         state["settings"].update(changes)
         return state["settings"]
-
-    @app.post("/api/voice")
-    async def voice(request: Request):
-        await request.body()
-        return {"text": "person in red at the main gate"}
 
     @app.get("/api/report")
     def report():

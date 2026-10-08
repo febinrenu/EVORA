@@ -23,6 +23,8 @@ CONCEPTS: dict[str, list[tuple[int, float]]] = {
     "after hours": [(20, 1.0)],
     "night shift": [(20, 0.9), (21, 0.4)],
     "gate": [(0, 1.0)],
+    "gate at the entrance": [(0, 0.75), (2, 0.66)],  # grey band against "main gate"
+    "gate at entrance": [(0, 0.75), (2, 0.66)],      # what the planner leaves after dropping "the"
     "gate east": [(0, 1.0), (1, 0.2)],
     "gate west": [(0, 1.0), (1, -0.2)],
 }

@@ -101,6 +101,10 @@ class MediaService:
             raise MediaError(404, "source video is missing")
         return path
 
+    def blur_function(self) -> BlurFn | None:
+        """The face-blur function if the model is installed (no logging; callers decide what to do without it)."""
+        return self._blur_provider()
+
     def blur_state(self, want_blur: bool) -> tuple[BlurFn | None, str]:
         """(function to apply or None, header value)."""
         if not want_blur:

@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator, Iterable
+import logging
+from collections.abc import AsyncIterator, Callable, Iterable
 
 from contracts.models import StreamEvent
 from sse_starlette.sse import EventSourceResponse
@@ -32,3 +33,28 @@ async def heartbeat(interval_s: float, limit: int | None = None) -> AsyncIterato
         yield {"event": "note", "data": json.dumps({"heartbeat": n})}
         n += 1
         await asyncio.sleep(interval_s)
+
+
+log = logging.getLogger("evora.sse")
+
+
+async def relay(
+    events: AsyncIterator[StreamEvent], on_event: Callable[[StreamEvent], None] | None = None,
+) -> AsyncIterator[dict]:
+    """Forward a StreamEvent iterator as SSE messages. A failure inside becomes `error` then `done`, never a dead stream."""
+    try:
+        async for ev in events:
+            if on_event is not None:
+                try:
+                    on_event(ev)
+                except Exception:  # noqa: BLE001 - a side effect (pre-render, audit) must never break the answer
+                    log.exception("stream side effect failed")
+            yield encode(ev)
+    except Exception:  # noqa: BLE001 - last line of defence for the open connection; details stay in the log
+        log.exception("query stream failed")
+        yield encode(StreamEvent(type="error", data={"message": "Something went wrong while answering. Please try again."}))
+        yield encode(StreamEvent(type="done", data={}))
+
+
+def stream_async(events: AsyncIterator[dict]) -> EventSourceResponse:
+    return EventSourceResponse(events)

@@ -14,6 +14,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from contracts.models import CameraInfo, IngestJob
 
@@ -25,7 +26,7 @@ ProgressFn = Callable[[IngestJob], None]
 
 
 def _find(name: str) -> Callable | None:
-    for module in ("evora.perception", "evora.perception.clock", "evora.perception.pipeline"):
+    for module in ("evora.perception", "evora.perception.clock", "evora.perception.pipeline", "evora.perception.embed"):
         try:
             fn = getattr(importlib.import_module(module), name, None)
         except ImportError:
@@ -77,3 +78,15 @@ def ingest(
 def get_blur_faces() -> Callable[[bytes], bytes] | None:
     """M2's `blur_faces(jpeg) -> jpeg`, or None when the face model is not installed."""
     return _find("blur_faces")
+
+
+def get_query_embedder() -> Any | None:
+    """M2's image-text query embedder (object with `embed_text(str) -> ndarray`), or None when not installed."""
+    factory = _find("query_embedder")
+    if factory is None:
+        return None
+    try:
+        return factory()
+    except Exception as exc:  # noqa: BLE001 - a model that fails to load means "retrieval not ready", not a crash
+        log.warning("query embedder could not be loaded: %s", exc)
+        return None

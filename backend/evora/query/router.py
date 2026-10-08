@@ -11,6 +11,7 @@ steps and nothing else:
 """
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 import time
@@ -167,6 +168,8 @@ class Router:
         bound = _Bound()
         for ref in plan.unresolved:
             resolution = self._resolver.resolve(ref)
+            if inspect.isawaitable(resolution):  # M1's resolver is async (its equivalence step calls the gateway)
+                resolution = await resolution
             if resolution.status == "bound":
                 self._apply_fact(resolution.facts[0], ref, bound)
                 continue

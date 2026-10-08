@@ -24,6 +24,10 @@ class ClarifyError(ValueError):
     """The answer could not be used. The pending question stays open so the UI can ask again."""
 
 
+class QuestionClosed(ClarifyError):
+    """The question was already answered, or never existed."""
+
+
 @dataclass(frozen=True)
 class Pending:
     query_id: str
@@ -106,7 +110,7 @@ class Clarifier:
         with self.db.read() as c:
             row = c.execute("SELECT * FROM pending_queries WHERE query_id=?", (query_id,)).fetchone()
         if row is None:
-            raise ClarifyError("that question is no longer open")
+            raise QuestionClosed("that question is no longer open")
         return Pending(row["query_id"], row["text"], json.loads(row["plan"]), ClarifyRequest.model_validate_json(row["clarify"]))
 
     # --- answer ---

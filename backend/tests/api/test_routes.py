@@ -9,7 +9,7 @@ from evora.api.app import create_app
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("evora_WORKSPACE", "routes")
-    return TestClient(create_app(workspaces_root=tmp_path / "ws"))
+    return TestClient(create_app(workspaces_root=tmp_path / "ws", mock=True))  # fixture streams, as the UI uses in mock mode
 
 
 def sse_types(resp) -> list[str]:
