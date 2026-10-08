@@ -19,7 +19,7 @@ Equivalence = Callable[[str, str, str], Awaitable[bool]]
 @dataclass(frozen=True)
 class Bound:
     fact: MemoryFact
-    via: str  # exact | embedding | equivalence | camera
+    via: str  # exact | variant | embedding | equivalence | camera
     persisted: bool = True
     status: ClassVar[str] = "bound"
 
@@ -67,6 +67,13 @@ class Resolver:
             return self._bound(exact[0], "exact")
         if len(exact) > 1:
             return Ambiguous(exact)
+
+        if ref.role == "place":  # "the loading bay area" after "the loading bay" was learned: the same place
+            variants = self.kb.find_place_variant(phrase)
+            if len(variants) == 1:
+                return self._bound(variants[0], "variant", ref.text)
+            if len(variants) > 1:
+                return Ambiguous(variants)
 
         if self.alias_embed:
             hits = self.kb.search(phrase, ref.role)

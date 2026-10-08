@@ -135,3 +135,47 @@ async def test_time_aliases_resolve_like_places(make_env, role, phrase, partner)
     f = env.kb.create("time", partner, {"tod_after": "20:00", "tod_before": "06:00"})
     r = await env.resolver.resolve(Referent(text=phrase, role=role))
     assert isinstance(r, Bound) and r.fact.id == f.id
+
+
+# ---- a place name with a generic word added is the same place ------------------------------------------------------------
+
+@pytest.mark.parametrize("asked", ["the loading bay area", "Loading Bay zone", "at the loading bay side", "loading bay area"])
+async def test_a_generic_word_after_a_known_place_does_not_ask_again(make_env, asked):
+    env = make_env()
+    f = env.kb.create("place", "the loading bay", {"camera_id": "cam_03"}, source="clarification")
+    r = await env.resolver.resolve(place(asked))
+    assert isinstance(r, Bound) and r.fact.id == f.id and r.via == "variant"
+    again = await env.resolver.resolve(place(asked))
+    assert isinstance(again, Bound) and again.via == "exact", "the wording is remembered after the first time"
+
+
+async def test_it_works_the_other_way_round(make_env):
+    env = make_env()
+    f = env.kb.create("place", "parking zone", {"camera_id": "cam_04", "zone_id": "z1"}, source="clarification")
+    r = await env.resolver.resolve(place("the parking"))
+    assert isinstance(r, Bound) and r.fact.id == f.id
+
+
+async def test_two_places_that_differ_only_by_the_generic_word_are_ambiguous(make_env):
+    env = make_env()
+    a = env.kb.create("place", "east", {"camera_id": "cam_01"})
+    b = env.kb.create("place", "east side", {"camera_id": "cam_02"})
+    r = await env.resolver.resolve(place("east area"))
+    assert isinstance(r, Ambiguous) and {f.id for f in r.facts} == {a.id, b.id}
+
+
+async def test_a_bare_generic_word_or_another_kind_is_not_stretched(make_env):
+    env = make_env()
+    env.kb.create("place", "loading bay", {"camera_id": "cam_03"})
+    env.kb.create("object", "my car", {})
+    assert not isinstance(await env.resolver.resolve(place("area")), Bound)
+    assert isinstance(await env.resolver.resolve(Referent(text="my car area", role="object")), Unknown)
+
+
+def test_place_core():
+    from evora.memory.kb import place_core
+
+    assert place_core("The Loading Bay Area") == "loading bay"
+    assert place_core("north side area") == "north"
+    assert place_core("area") == "area" and place_core("zone") == "zone", "never emptied"
+    assert place_core("main gate") == "main gate"

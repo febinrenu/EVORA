@@ -39,6 +39,20 @@ def normalize(text: str) -> str:
     return _LEADING.sub("", t).strip()
 
 
+# words that name a kind of place rather than the place itself: "the loading bay area" is "the loading bay"
+_PLACE_SUFFIX = re.compile(r"\s+(?:area|zone|region|section|spot|space|side|part|place|location|bit)$")
+
+
+def place_core(phrase: str) -> str:
+    """A normalized place name without a trailing generic word, never emptied: 'loading bay area' -> 'loading bay'."""
+    t = normalize(phrase)
+    while True:
+        shorter = _PLACE_SUFFIX.sub("", t).strip()
+        if not shorter or shorter == t:
+            return t
+        t = shorter
+
+
 @dataclass(frozen=True)
 class AliasHit:
     fact: MemoryFact
@@ -141,6 +155,13 @@ class KnowledgeBase:
     def find_exact(self, kind: str, phrase: str) -> list[MemoryFact]:
         target = normalize(phrase)
         return [f for f in self.list(kind) if target and target in self._phrases(f)]
+
+    def find_place_variant(self, phrase: str) -> list[MemoryFact]:
+        """Places whose name matches once a generic word ('area', 'zone', 'side' ...) is dropped from either side."""
+        core = place_core(phrase)
+        if not core:
+            return []
+        return [f for f in self.list("place") if any(place_core(p) == core for p in self._phrases(f))]
 
     def create(
         self, kind: str, canonical: str, binding: dict[str, Any], source: str = "statement",
