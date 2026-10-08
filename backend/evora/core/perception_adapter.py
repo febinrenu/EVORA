@@ -136,3 +136,39 @@ def link_identities(workspace: Any | None = None) -> int | None:
     except Exception as exc:  # noqa: BLE001 - linking is an upgrade over per-camera tracks, never a reason to fail an ingest
         log.warning("link_global_ids failed: %s", exc)
         return None
+
+
+def similar_tracks(
+    track_id: str, k: int, workspace: Any | None = None, store: Any | None = None,
+) -> list[tuple[str, float]] | None:
+    """M2's query by example: (track id, similarity) best first, or None when re-identification is unavailable."""
+    real = _find("similar_tracks")
+    if real is None:
+        return None
+    try:
+        extra: dict[str, Any] = {}
+        if workspace is not None and _accepts(real, "workspace"):
+            extra["workspace"] = workspace
+        if store is not None and _accepts(real, "store"):
+            extra["store"] = store
+        return [(str(t), float(sc)) for t, sc in real(track_id, k, **extra)]
+    except Exception as exc:  # noqa: BLE001 - a missing index is "pending", not a server error
+        log.warning("similar_tracks failed for %s: %s", track_id, exc)
+        return None
+
+
+def path_for(global_id: str, workspace: Any | None = None, db: Any | None = None) -> list[Any] | None:
+    """M2's hops for one identity, or None when re-identification is unavailable."""
+    real = _find("path_for")
+    if real is None:
+        return None
+    try:
+        extra: dict[str, Any] = {}
+        if workspace is not None and _accepts(real, "workspace"):
+            extra["workspace"] = workspace
+        if db is not None and _accepts(real, "db"):
+            extra["db"] = db
+        return list(real(global_id, **extra))
+    except Exception as exc:  # noqa: BLE001
+        log.warning("path_for failed for %s: %s", global_id, exc)
+        return None

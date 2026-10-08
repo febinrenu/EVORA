@@ -14,7 +14,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from evora import __version__
 from evora.api import (
-    fixtures,
     routes_alerts,
     routes_cameras,
     routes_evidence,
@@ -23,6 +22,7 @@ from evora.api import (
     routes_media,
     routes_memory,
     routes_query,
+    routes_tracks,
     routes_zones,
 )
 from evora.api.context import AppContext
@@ -73,6 +73,7 @@ def create_app(
     app.include_router(routes_alerts.make_router(ctx))
     app.include_router(routes_evidence.make_router(ctx))
     app.include_router(routes_live.make_router(ctx))
+    app.include_router(routes_tracks.make_router(ctx))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cfg["server"]["cors_origins"],
@@ -117,23 +118,6 @@ def create_app(
         return state["workspaces"]
 
     # --- zones, tracks, globals ---
-    @app.get("/api/tracks/{track_id}")
-    def track(track_id: str):
-        ev = fixtures.load("answer")["evidence"][0]
-        return {
-            "id": track_id, "camera_id": ev["camera_id"], "cls": "person",
-            "t_start": ev["t_start"], "t_end": ev["t_end"],
-            "attrs": {"color": "red", "carrying": ["backpack"]}, "points": [],
-        }
-
-    @app.get("/api/tracks/{track_id}/similar")
-    def similar(track_id: str, k: int = 20):
-        return fixtures.load("answer")["evidence"][:k]
-
-    @app.get("/api/globals/{gid}/path")
-    def path(gid: str):
-        return fixtures.load("path")
-
     # --- settings, voice, report, dev ---
     @app.post("/api/settings")
     def settings(body: dict):
