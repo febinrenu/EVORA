@@ -124,6 +124,16 @@ def _compute() -> tuple[str, str]:
     return "cpu", "no GPU found"
 
 
+def _nvidia_gpu() -> str | None:
+    """The first NVIDIA GPU's name from nvidia-smi (comes with the driver), or None."""
+    exe = shutil.which("nvidia-smi")
+    if exe is None:
+        return None
+    code, out = _run([exe, "--query-gpu=name", "--format=csv,noheader"], 5.0)
+    name = out.strip().splitlines()[0].strip() if code == 0 and out.strip() else ""
+    return name or None
+
+
 def _blur_check() -> tuple[bool, str]:
     try:
         from evora.perception import blur_faces
@@ -215,6 +225,7 @@ class Env:
     disk_free_gb: Callable[[Path], float] = lambda p: shutil.disk_usage(p).free / 1e9
     port_state: Callable[[int], str] = _port_state
     compute: Callable[[], tuple[str, str]] = _compute
+    nvidia_gpu: Callable[[], str | None] = _nvidia_gpu
     blur_check: Callable[[], tuple[bool, str]] = _blur_check
     workspace_check: Callable[[Path], tuple[bool, str]] = _workspace_check
     tz_ok: Callable[[], bool] = _tz_ok
@@ -296,6 +307,14 @@ def check_compute(env: Env) -> list[Check]:
     kind, name = env.compute()
     if kind in ("cuda", "mps"):
         return [Check("compute", "Compute", OK, f"{kind}: {name}")]
+    gpu = env.nvidia_gpu()
+    if gpu and kind == "cpu":  # torch is installed but cannot use the card: a CPU build (PyPI's Windows torch is one)
+        return [Check(
+            "compute", "Compute", WARN,
+            f"{gpu} found, but the installed PyTorch is a CPU build, so indexing runs on the processor",
+            "Stop the app, then run `start.bat setup` (or make setup-perception): it installs the CUDA build of torch",
+            [Fix([*_uv(env), "--directory", "backend", "sync", "--extra", "perception", "--extra", "embed"])],
+        )]
     return [Check("compute", "Compute", WARN, f"CPU only ({name}). Indexing runs slower; use the cpu profile.",
                   "Set evora_PROFILE=cpu; expect L0 to finish first and L1 progressively.")]
 

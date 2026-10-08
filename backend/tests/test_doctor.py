@@ -36,7 +36,8 @@ def healthy(tmp_path, **over) -> Env:
         cfg={"server": {"port": 8700, "ui_dir": "frontend/dist"}, "live": {"rtsp_port": 8554}, "workspace": {"root": "ws"}},
         environ={"HF_HOME": str(md / "hf")}, which=lambda n: f"/usr/bin/{n}", run=run,
         http_get=lambda url, t=1.0: (200, tags), version_of=lambda n: versions.get(n), disk_free_gb=lambda p: 500.0,
-        port_state=lambda port: "free", compute=lambda: ("cuda", "RTX 4060"), blur_check=lambda: (True, "ok"),
+        port_state=lambda port: "free", compute=lambda: ("cuda", "RTX 4060"), nvidia_gpu=lambda: None,
+        blur_check=lambda: (True, "ok"),
         workspace_check=lambda p: (True, str(p)), tz_ok=lambda: True, mediamtx=lambda: Path("mediamtx.exe"),
         groq_probe=lambda: [{"key": mask(KEY), "ok": True, "note": "ok", "remaining_requests": "900", "models": 5}],
         python_version=(3, 12), models_dir=None,
@@ -385,3 +386,22 @@ def test_a_running_ollama_without_the_one_model_setting_gets_a_hint(tmp_path):
     env = healthy(tmp_path)
     env.environ["OLLAMA_MAX_LOADED_MODELS"] = "1"
     assert "OLLAMA_MAX_LOADED_MODELS" not in by_id(run_checks(env))["ollama"].detail
+
+
+# ---- an NVIDIA card that PyTorch cannot use ---------------------------------------------------------------------------
+
+def test_a_gpu_ignored_by_a_cpu_build_of_torch_says_how_to_fix_it(tmp_path):
+    env = healthy(tmp_path, compute=lambda: ("cpu", "no GPU found"), nvidia_gpu=lambda: "NVIDIA GeForce RTX 4050 Laptop GPU")
+    row = by_id(run_checks(env))["compute"]
+    assert row.status == WARN and "RTX 4050" in row.detail and "CPU build" in row.detail
+    assert "start.bat setup" in row.fix and row.fixes[0].argv[-5:] == ["sync", "--extra", "perception", "--extra", "embed"]
+
+
+def test_without_a_gpu_the_plain_cpu_advice_stays(tmp_path):
+    row = by_id(run_checks(healthy(tmp_path, compute=lambda: ("cpu", "no GPU found"), nvidia_gpu=lambda: None)))["compute"]
+    assert row.status == WARN and "cpu profile" in row.detail and row.fixes == []
+
+
+def test_no_torch_at_all_is_the_perception_rows_job(tmp_path):
+    env = healthy(tmp_path, compute=lambda: ("none", "torch is not installed"), nvidia_gpu=lambda: "NVIDIA RTX 4060")
+    assert "CPU build" not in by_id(run_checks(env))["compute"].detail
