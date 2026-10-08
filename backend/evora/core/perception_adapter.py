@@ -177,3 +177,28 @@ def path_for(global_id: str, workspace: Any | None = None, db: Any | None = None
 def get_live_ingest() -> Callable[..., None] | None:
     """M2's live RTSP ingestion, or None when the perception stack is not installed."""
     return _find("live_ingest")
+
+
+def register_vision(gateway: Any, loop: Any) -> bool:
+    """Give perception its local vision model: the gateway's local-only call, run on the app's own event loop.
+
+    Returns False (and leaves perception on its fallbacks) when the gateway has no vision call yet or perception
+    does not provide the hook.
+    """
+    call = getattr(gateway, "vision_text", None)
+    if call is None:
+        return False
+    try:
+        from evora.perception import vision
+    except ImportError:
+        return False
+    vision.register(vision.LoopVisionClient(call, loop))
+    return True
+
+
+def unregister_vision() -> None:
+    try:
+        from evora.perception import vision
+    except ImportError:
+        return
+    vision.register(None)

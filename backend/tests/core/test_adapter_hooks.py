@@ -101,3 +101,32 @@ def test_profiles_and_origins():
 
     assert load_config("gpu")["jobs"]["workers"] == 2 and load_config("cpu")["jobs"]["workers"] == 0
     assert {"http://localhost:3000", "http://127.0.0.1:3000"} <= set(load_config()["server"]["cors_origins"])
+
+
+def test_the_vision_client_is_registered_with_the_gateways_local_call(monkeypatch):
+    import asyncio
+
+    from evora.perception import vision
+
+    class Gateway:
+        async def vision_text(self, image_jpeg, prompt, *, local_only=True, max_tokens=64):
+            return "a person"
+
+    loop = asyncio.new_event_loop()
+    try:
+        vision.register(None)
+        assert adapter.register_vision(Gateway(), loop) is True
+        assert isinstance(vision.get_vision_client(), vision.LoopVisionClient)
+        adapter.unregister_vision()
+        assert vision.get_vision_client() is None
+    finally:
+        vision.register(None)
+        loop.close()
+
+
+def test_without_a_gateway_vision_call_perception_keeps_its_fallbacks():
+    from evora.perception import vision
+
+    vision.register(None)
+    assert adapter.register_vision(object(), None) is False and adapter.register_vision(None, None) is False
+    assert vision.get_vision_client() is None

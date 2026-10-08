@@ -28,6 +28,7 @@ from evora.api import (
 from evora.api.context import AppContext
 from evora.api.ui import mount_ui
 from evora.core import cameras as cams
+from evora.core import perception_adapter
 from evora.core import settings as app_settings
 from evora.core.config import REPO_ROOT, load_config
 from evora.core.jobs import IngestFn
@@ -55,7 +56,9 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         ctx.notifier.loop = asyncio.get_running_loop()
+        perception_adapter.register_vision(ctx.gateway, ctx.notifier.loop)
         yield
+        perception_adapter.unregister_vision()
         ctx.runner.shutdown(wait=False)
         ctx.live_runner.shutdown()
         ctx.live.shutdown()
