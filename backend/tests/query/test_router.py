@@ -784,3 +784,53 @@ async def test_a_people_count_over_two_cameras_passes_the_grounding_check(ws):
     assert ans["verdict"] == "count" and ans["count"] == 3
     assert "Per camera: Gate 3, Hall 3." in ans["text"]
     assert any("may show the same place" in n for n in ans["notes"])
+
+
+# ------------------------------------------------- a remembered place that is a whole view covers the same room
+def two_angles_of_one_room(ws):
+    ws.camera("cam_02", "Hall", source="/data/hall.mp4")
+    ws.camera("cam_03", "Garden", source="/data/garden.mp4")
+    for t in (1100.0, 1101.0):
+        ws.scene("cam_01", t, E[0])
+        ws.scene("cam_02", t, E[0])
+        ws.scene("cam_03", t, E[1])
+    for cam in ("cam_01", "cam_02", "cam_03"):
+        for i in range(2):
+            box = (0.1 * i, 0.2, 0.1 * i + 0.1, 0.6)
+            ws.track(f"{cam}_p{i}", cam, cls="person", crops=[E[2]], t0=1100.0, t1=1110.0, bbox=box)
+
+
+def room_router(ws, **cfg):
+    resolver = FakeResolver({"room": place_fact(cam="cam_01", zone=None)})
+    router = make_router(ws, resolver=resolver)
+    router.cfg = RouterConfig(accept=0.4, **cfg)
+    return router
+
+
+@pytest.mark.asyncio
+async def test_a_whole_view_place_also_covers_the_camera_that_shows_the_same_room(ws):
+    two_angles_of_one_room(ws)
+    events = await collect(room_router(ws).answer("how many people are in the room", "s1"))
+    ans = of(events, "answer")[0]
+    assert {e["camera_id"] for e in ans["evidence"]} == {"cam_01", "cam_02"}          # not the garden
+    assert any("Hall (100% alike) shows the same place as Gate, so it is included in the room." in n for n in ans["notes"])
+    assert "Per camera: Gate 2, Hall 2." in ans["text"] and ans["count"] == 2           # the largest, not the sum
+
+
+@pytest.mark.asyncio
+async def test_a_named_camera_or_a_drawn_line_is_never_widened(ws):
+    two_angles_of_one_room(ws)
+    named = of(await collect(room_router(ws).answer("how many people are on Gate", "s1")), "answer")[0]
+    assert {e["camera_id"] for e in named["evidence"]} == {"cam_01"}
+    resolver = FakeResolver({"main gate": place_fact(cam="cam_01", zone="z1")})
+    gate = make_router(ws, resolver=resolver)
+    ans = of(await collect(gate.answer("did a red car pass through the main gate", "s2")), "answer")[0]
+    assert not any("shows the same place" in n for n in ans["notes"])
+
+
+@pytest.mark.asyncio
+async def test_the_widening_can_be_switched_off(ws):
+    two_angles_of_one_room(ws)
+    ans = of(await collect(room_router(ws, same_place=1.01).answer("how many people are in the room", "s1")), "answer")[0]
+    assert {e["camera_id"] for e in ans["evidence"]} == {"cam_01"}
+    assert not any("shows the same place" in n for n in ans["notes"])

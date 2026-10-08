@@ -104,6 +104,7 @@ class RouterConfig:
     verify: str = "filter"        # "filter": the visual check can set candidates aside; "annotate": flags only
     thumb_fmt: str = "/api/media/thumb/{id}.jpg"
     clip_fmt: str = "/api/media/clip/{id}.mp4"
+    same_place: float = 0.95      # cameras this alike in view are treated as one place (1.0 + switches it off)
 
 
 @dataclass
@@ -211,6 +212,7 @@ class Router:
             yield _event("clarify", request.model_dump(mode="json"))
             return
         notes += bound.notes
+        self._widen_to_same_place(plan, bound, cameras, notes)
 
         if plan.intent == "standing":
             yield _event("note", {"text": "Watch requests are created from the Watch panel, not the question bar."})
@@ -399,6 +401,25 @@ class Router:
                 bound.global_ids.add(gid)
             else:
                 bound.notes.append(f'"{ref.text}" is remembered but has no identity to match against yet.')
+
+    def _widen_to_same_place(self, plan: QueryPlan, bound: _Bound, cameras: list[_Camera], notes: list[str]) -> None:
+        """A remembered place that is a whole camera view also covers other cameras that show the same room."""
+        finder = getattr(self._retriever, "same_place_cameras", None)
+        whole = {c for c in bound.camera_ids if bound.zones.get(c) is None or bound.zones[c].kind == "frame"}
+        if finder is None or plan.camera_ids or not whole or self.cfg.same_place > 1.0:
+            return
+        names = {c.id: c.name for c in cameras}
+        extra = {c: s for c, s in finder(sorted(whole), self.cfg.same_place).items()
+                 if c in names and c not in bound.camera_ids}
+        if not extra:
+            return
+        for cam in extra:
+            bound.camera_ids.add(cam)
+            bound.zones[cam] = self._zone(None, cam)
+        anchors = " and ".join(names[c] for c in sorted(whole))
+        added = ", ".join(f"{names[c]} ({round(s * 100)}% alike)" for c, s in sorted(extra.items()))
+        place = f"the {plan.place.text}" if plan.place else "this place"
+        notes.append(f"{added} shows the same place as {anchors}, so it is included in {place}.")
 
     def _zone(self, zone_id: str | None, camera_id: str) -> Zone:
         if zone_id:

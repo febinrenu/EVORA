@@ -4,7 +4,7 @@ System: ours
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | object | 9 | 0.33 | 0.33 | 0.56 | 0.56 | 0.44 | 0.78 | 11.7 | n/a | n/a | n/a | n/a |
 | negative | 8 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 1.00 | n/a | n/a | n/a |
-| activity (diagnostic) | 11 | 0.44 | 0.22 | 0.44 | 0.44 | 0.44 | 0.67 | 12.7 | 0.00 | n/a | n/a | n/a |
+| activity (diagnostic) | 11 | 0.44 | 0.22 | 0.44 | 0.44 | 0.44 | 0.67 | 12.7 | 0.50 | n/a | n/a | n/a |
 
 Not evaluated (no reliable ground truth in the available data):
 - count: MEVA labels only actors in annotated activities (parked cars and bystanders are unlabelled), so annotated counts are lower bounds and exact counts cannot be scored

@@ -417,3 +417,22 @@ async def test_colours_are_estimated_only_for_people_and_only_when_a_colour_was_
     assert not any("estimated" in w for c in plain.candidates for w in c.why)
     off = await ws.retriever(attributes=False).search(plan(attrs=("red",), cls=("person",), noun="person"))
     assert not any("estimated" in w for c in off.candidates for w in c.why)
+
+
+# ------------------------------------------------------- two cameras that show the same place
+@pytest.mark.asyncio
+async def test_cameras_whose_views_look_alike_are_the_same_place(ws):
+    for cam in ("cam_01", "cam_02", "cam_03"):
+        ws.camera(cam)
+    for t in (10.0, 20.0):
+        ws.scene("cam_01", t, E[0])
+        ws.scene("cam_02", t, E[0])        # the same room from another angle: nearly the same embedding
+        ws.scene("cam_03", t, E[1])        # somewhere else
+    retriever = ws.retriever()
+    assert retriever.same_place_cameras(["cam_01"]) == {"cam_02": 1.0}
+    assert retriever.same_place_cameras(["cam_03"]) == {}
+    assert retriever.same_place_cameras(["cam_01", "cam_02"]) == {}          # already both in
+    assert retriever.same_place_cameras(["cam_01"], threshold=1.5) == {}      # switched off
+    assert retriever.same_place_cameras([]) == {}
+    ws.scene("cam_03", 30.0, E[0])                                            # new footage changes the picture
+    assert set(retriever.same_place_cameras(["cam_01"], threshold=0.6)) >= {"cam_02"}

@@ -80,19 +80,19 @@
         "n": 0
       },
       "ttfa_p50_ms": {
-        "value": 214.7912,
+        "value": 117.1847,
         "n": 10
       },
       "ttfa_p95_ms": {
-        "value": 1170.3413,
+        "value": 799.8594,
         "n": 10
       },
       "ttva_p50_ms": {
-        "value": 216.6704,
+        "value": 118.8821,
         "n": 10
       },
       "ttva_p95_ms": {
-        "value": 1172.5,
+        "value": 801.6497,
         "n": 10
       },
       "no_model_share": {

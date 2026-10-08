@@ -50,6 +50,7 @@ OTHER_COLOUR_CAP = 0.35     # below the router's accept line, so a person seen i
 ESTIMATE_PROMPT = "a photo of a person wearing {}"
 ESTIMATE_TEMPERATURE = 1.5
 ESTIMATE_MIN_P = 0.35
+SAME_PLACE_MIN = 0.95    # similarity of two cameras' mean whole-frame embeddings above which they are treated as one place
 VECTOR_CACHE = 128        # distinct query texts whose embeddings are kept
 MIN_POINTS_IN_WINDOW = 2   # track points (about 4 per second) a track needs inside the window to count as present
 MIN_PRESENCE_S = 0.5        # and they must span at least this long
@@ -136,6 +137,7 @@ class Retriever:
         self._gateway = gateway
         self._bm25_cache: tuple[int, BM25] | None = None
         self._vectors: dict[str, np.ndarray] = {}
+        self._scene_means: tuple[int, dict[str, np.ndarray]] | None = None
 
     # ------------------------------------------------------------------ public
     async def search(self, plan: QueryPlan, scope: SearchScope | None = None) -> RetrievalResult:
@@ -196,6 +198,34 @@ class Retriever:
             best = int(np.argmax(p))
             out[tid] = (terms[best], float(p[best]))
         return out
+
+    def same_place_cameras(self, camera_ids: Sequence[str], threshold: float = SAME_PLACE_MIN) -> dict[str, float]:
+        """Other cameras whose view looks like the same place as one of `camera_ids`: camera -> similarity.
+
+        Two angles of one room share carpet, chairs, walls and light, so their mean whole-frame embeddings are close
+        (0.98 in a two-camera room, against 0.63 to 0.86 between different cameras of a school). The threshold is a
+        guard against joining places that merely look alike; it is reported with every use.
+        """
+        if not camera_ids or threshold > 1.0 or "scenes" not in self._tables():
+            return {}
+        table = self._store.open_table("scenes")
+        count = table.count_rows()
+        if self._scene_means is None or self._scene_means[0] != count:
+            sums: dict[str, np.ndarray] = {}
+            scan = table.search().where("tile = 'full'", prefilter=True).select(["camera_id", "vector"]).limit(500000)
+            for row in scan.to_list():
+                sums[row["camera_id"]] = sums.get(row["camera_id"], 0.0) + _unit(np.asarray(row["vector"], dtype=np.float32))
+            self._scene_means = (count, {c: _unit(v) for c, v in sums.items()})
+        means = self._scene_means[1]
+        found: dict[str, float] = {}
+        for anchor in camera_ids:
+            if anchor not in means:
+                continue
+            for other, vec in means.items():
+                similarity = float(means[anchor] @ vec)
+                if other not in camera_ids and similarity >= threshold:
+                    found[other] = max(found.get(other, 0.0), round(similarity, 3))
+        return found
 
     def _text_vector(self, text: str) -> np.ndarray:
         """The unit text embedding, computed once per distinct text: crops and scenes share the same query."""

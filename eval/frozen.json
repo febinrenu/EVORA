@@ -1,19 +1,66 @@
 {
   "code_commit": "9325b7e",
-  "frozen_before": ["test", "judge_sim"],
+  "frozen_before": [
+    "test",
+    "judge_sim"
+  ],
   "note": "Thresholds and weights were fixed at this commit before the test and judge_sim splits were run. No query in dev has a colour or carrying attribute, so attribute weights and verification could not be tuned and keep their defaults.",
-  "calibration": {"midpoint": 0.09, "scale": 0.015, "fitted_on": "real SigLIP2 text-to-crop cosines, class separation, not on queries"},
-  "accept_threshold": 0.40,
-  "fusion_weights": {"image": 0.55, "attributes": 0.25, "caption": 0.10, "scene": 0.10},
+  "calibration": {
+    "midpoint": 0.09,
+    "scale": 0.015,
+    "fitted_on": "real SigLIP2 text-to-crop cosines, class separation, not on queries"
+  },
+  "accept_threshold": 0.4,
+  "fusion_weights": {
+    "image": 0.55,
+    "attributes": 0.25,
+    "caption": 0.1,
+    "scene": 0.1
+  },
   "presence_rule": "at least 2 track points spanning at least 0.5 s inside the query window",
   "planner_prompt": "v2 (compact plan shape, object referents only for possessives and demonstratives)",
   "query_expansion": "off",
   "verification": "filter mode, only for queries with colour, carrying or vehicle-type attributes",
   "post_freeze_fixes": [
-    {"what": "time-of-day ranges ended at the end of the stated minute instead of at the stated time ('between 10:12 and 10:13' covered two minutes)",
-     "kind": "boundary bug, no threshold or weight changed",
-     "effect": "our results are unchanged on the object and negative rows; the frame baseline's timestamp error fell (it had been returning frames from the extra minute)",
-     "original_results": "eval/reports/frozen_v1"}
+    {
+      "what": "time-of-day ranges ended at the end of the stated minute instead of at the stated time ('between 10:12 and 10:13' covered two minutes)",
+      "kind": "boundary bug, no threshold or weight changed",
+      "effect": "our results are unchanged on the object and negative rows; the frame baseline's timestamp error fell (it had been returning frames from the extra minute)",
+      "original_results": "eval/reports/frozen_v1"
+    },
+    {
+      "what": "counts of things 'in the room' report the typical number in view at the same time (with the peak and the separate appearances as context) instead of the number of track fragments",
+      "kind": "answer wording and count rule for action 'any'; no threshold or weight changed",
+      "effect": "no evaluated query is a count, so no reported number moves"
+    },
+    {
+      "what": "objects the tracker does not follow (chairs, carpets, 'red objects') are found by an open-vocabulary detector in the stored frames; the planner prompt now keeps such targets (prompt v3) and the plan cache is keyed by the prompt",
+      "kind": "new capability and a prompt change; no threshold or weight changed",
+      "effect": "object and negative rows unchanged on every split (0 differences in 205 metrics); the free-phrased activity diagnostics were re-planned under the new prompt and moved slightly; their no-model share is 0.0 with a cold plan cache (it read 1.0 only because earlier runs had cached those plans)"
+    },
+    {
+      "what": "colour read from the crops when no stored colour exists, for people, labelled as an estimate (about 70% right on the upper body against 50% for the commonest colour; trousers no better than guessing)",
+      "kind": "support for answers and counts only; ranking and scores unchanged",
+      "effect": "colour retrieval ranking identical with and without it; colour counts now say 'estimated'"
+    },
+    {
+      "what": "a remembered place that is a whole camera view also covers cameras whose views are at least 95% alike (mean whole-frame embedding)",
+      "kind": "scope widening, always stated in the answer; switch RouterConfig.same_place = 1.01 turns it off",
+      "effect": "no change on the evaluation sets (they name cameras, or bind places to cameras that no other camera resembles)"
+    }
   ],
-  "splits_by_camera": {"dev": ["G328", "G419", "G423"], "test": ["G300", "G421"], "judge_sim": ["G299"]}
+  "splits_by_camera": {
+    "dev": [
+      "G328",
+      "G419",
+      "G423"
+    ],
+    "test": [
+      "G300",
+      "G421"
+    ],
+    "judge_sim": [
+      "G299"
+    ]
+  }
 }

@@ -80,23 +80,23 @@
         "n": 0
       },
       "ttfa_p50_ms": {
-        "value": 177.6218,
+        "value": 125.5258,
         "n": 19
       },
       "ttfa_p95_ms": {
-        "value": 447.51,
+        "value": 1444.4507,
         "n": 19
       },
       "ttva_p50_ms": {
-        "value": 179.4498,
+        "value": 127.3521,
         "n": 19
       },
       "ttva_p95_ms": {
-        "value": 450.1709,
+        "value": 1446.2965,
         "n": 19
       },
       "no_model_share": {
-        "value": 1.0,
+        "value": 0.6316,
         "n": 19
       },
       "errors": {
@@ -186,19 +186,19 @@
         "n": 0
       },
       "ttfa_p50_ms": {
-        "value": 72.6675,
+        "value": 43.1734,
         "n": 19
       },
       "ttfa_p95_ms": {
-        "value": 91.6333,
+        "value": 48.1695,
         "n": 19
       },
       "ttva_p50_ms": {
-        "value": 72.6675,
+        "value": 43.1734,
         "n": 19
       },
       "ttva_p95_ms": {
-        "value": 91.6333,
+        "value": 48.1695,
         "n": 19
       },
       "no_model_share": {
@@ -292,19 +292,19 @@
         "n": 0
       },
       "ttfa_p50_ms": {
-        "value": 2.0382,
+        "value": 1.089,
         "n": 19
       },
       "ttfa_p95_ms": {
-        "value": 3.3197,
+        "value": 1.5701,
         "n": 19
       },
       "ttva_p50_ms": {
-        "value": 2.0382,
+        "value": 1.089,
         "n": 19
       },
       "ttva_p95_ms": {
-        "value": 3.3197,
+        "value": 1.5701,
         "n": 19
       },
       "no_model_share": {
