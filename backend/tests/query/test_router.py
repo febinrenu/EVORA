@@ -680,3 +680,107 @@ async def test_how_many_people_are_in_the_room_counts_who_is_in_view_not_the_tra
     assert ans["verdict"] == "count"
     assert ans["count"] == 4 and "About 4 people" in ans["text"]
     assert any("12 separate appearances" in n for n in ans["notes"])
+
+
+# ------------------------------------------------- things the tracker does not follow, and several cameras
+class StubPlanner:
+    def __init__(self, plan):
+        self._plan = plan
+
+    async def plan(self, text, cameras, reference, tz):
+        from evora.query.planner import PlanResult
+        return PlanResult(plan=self._plan)
+
+
+def detector_returning(boxes_per_call):
+    from types import SimpleNamespace
+    calls = iter(boxes_per_call)
+
+    def detect(image, labels, conf):
+        return [SimpleNamespace(label=labels[0], conf=c, xyxy=box) for c, box in next(calls)]
+    return detect
+
+
+def write_frames(tmp_path, cam, times):
+    import cv2
+    import numpy as np
+    media = tmp_path / "media"
+    media.mkdir(exist_ok=True)
+    img = np.full((240, 320, 3), 90, np.uint8)
+    img[60:180, 100:220] = (0, 0, 200)           # a red patch in the middle
+    for t in times:
+        cv2.imwrite(str(media / f"{cam}_{t}.jpg"), img)
+
+
+def objects_router(ws, tmp_path, plan, detect):
+    from evora.query.objects import OpenObjectSurveyor
+    router = make_router(ws)
+    router._planner = StubPlanner(plan)
+    router._objects = OpenObjectSurveyor(tmp_path / "media", detect=detect)
+    return router
+
+
+BOX = (100 / 320, 60 / 240, 220 / 320, 180 / 240)
+
+
+@pytest.mark.asyncio
+async def test_a_question_about_chairs_is_answered_from_the_stored_frames_with_boxes_as_evidence(ws, tmp_path):
+    times = [1100.0, 1101.0, 1102.0]
+    for t in times:
+        ws.scene("cam_01", t, E[0])
+    write_frames(tmp_path, "cam_01", times)
+    plan = QueryPlan(intent="count", targets=[Target(noun="chair", cls=[], embed_text="a photo of a chair")], action="any")
+    detect = detector_returning([[(0.9, BOX)], [(0.8, BOX), (0.7, (0.6, 0.1, 0.8, 0.4))], [(0.9, BOX)]])
+    events = await collect(objects_router(ws, tmp_path, plan, detect).answer("how many chairs are there", "s1"))
+    assert types(events) == ["plan", "evidence", "evidence", "answer", "done"]      # the clearest frame has two chairs
+    ans = of(events, "answer")[0]
+    assert ans["verdict"] == "count" and ans["count"] == 1
+    assert ans["text"].startswith("About 1 chair was in view (between 1 and 2 depending on the frame).")
+    ev = of(events, "evidence")
+    assert ev[0]["bbox"] is not None and ev[0]["track_id"] is None and ev[0]["why"][0].startswith("open vocabulary: chair")
+    assert any("open-vocabulary detector" in n for n in ans["notes"])
+
+
+@pytest.mark.asyncio
+async def test_a_colour_asked_of_such_an_object_is_read_from_the_pixels(ws, tmp_path):
+    times = [1100.0, 1101.0]
+    for t in times:
+        ws.scene("cam_01", t, E[0])
+    write_frames(tmp_path, "cam_01", times)
+    detect = detector_returning([[(0.9, BOX)]] * 4)
+    red = QueryPlan(intent="count", targets=[Target(noun="chair", attributes=["red"], embed_text="a photo of a red chair")],
+                    action="any")
+    out = of(await collect(objects_router(ws, tmp_path, red, detect).answer("how many red chairs", "s1")), "answer")[0]
+    assert out["count"] == 1 and "red chair" in out["text"]
+    blue = red.model_copy(deep=True)
+    blue.targets[0].attributes = ["blue"]
+    out = of(await collect(objects_router(ws, tmp_path, blue, detect).answer("how many blue chairs", "s2")), "answer")[0]
+    assert out["count"] == 0 and "No blue chairs were found" in out["text"]
+
+
+@pytest.mark.asyncio
+async def test_without_the_detector_the_answer_says_so_instead_of_pretending(ws, tmp_path):
+    from evora.query.objects import OpenObjectSurveyor
+    ws.scene("cam_01", 1100.0, E[0])
+    plan = QueryPlan(intent="exists", targets=[Target(noun="carpet", embed_text="a photo of a carpet")], action="any")
+    router = make_router(ws)
+    router._planner = StubPlanner(plan)
+    surveyor = OpenObjectSurveyor(tmp_path / "media")
+    surveyor.ready = lambda: False
+    surveyor.unavailable = "missing yoloe weights"
+    router._objects = surveyor
+    ans = of(await collect(router.answer("is there a carpet", "s1")), "answer")[0]
+    assert ans["verdict"] == "partial" and "can't look for carpets here: missing yoloe weights" in ans["text"]
+
+
+@pytest.mark.asyncio
+async def test_a_people_count_over_two_cameras_passes_the_grounding_check(ws):
+    ws.camera("cam_02", "Hall", source="/data/hall.mp4")
+    for cam in ("cam_01", "cam_02"):
+        for i in range(3):
+            box = (0.1 * i, 0.2, 0.1 * i + 0.1, 0.6)
+            ws.track(f"{cam}_p{i}", cam, cls="person", crops=[E[2]], t0=1100.0, t1=1110.0, bbox=box)
+    ans = of(await collect(make_router(ws).answer("how many people are there", "s1")), "answer")[0]
+    assert ans["verdict"] == "count" and ans["count"] == 3
+    assert "Per camera: Gate 3, Hall 3." in ans["text"]
+    assert any("may show the same place" in n for n in ans["notes"])

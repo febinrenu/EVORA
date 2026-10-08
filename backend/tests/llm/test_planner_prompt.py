@@ -13,7 +13,7 @@ EXAMPLE_CAM_IDS = {c["id"] for c in EXAMPLE_CAMERAS}
 
 def test_examples_cover_every_intent():
     shots = load_examples()
-    assert len(shots) == 13
+    assert len(shots) == 16
     intents = {QueryPlan.model_validate(s["plan"]).intent for s in shots}
     assert intents == {"exists", "list", "count", "first", "last", "path", "describe", "standing"}
 
@@ -65,4 +65,14 @@ def test_system_prompt_carries_rules_shape_and_examples():
     text = planner_system_prompt()
     assert "Never invent camera ids" in text
     assert "PLAN SHAPE:" in text and '"unresolved"' in text and "$defs" not in text
-    assert text.count("QUESTION:") == 13
+    assert text.count("QUESTION:") == 16
+
+
+def test_objects_the_tracker_does_not_follow_are_still_targets():
+    text = planner_system_prompt()
+    assert "is still a target" in text and "cls = []" in text
+    shots = {s["question"]: QueryPlan.model_validate(s["plan"]) for s in load_examples()}
+    chair = shots["how many chairs are there in the room?"]
+    assert chair.intent == "count" and chair.targets[0].noun == "chair" and chair.targets[0].cls == []
+    red = shots["how many red objects are there in the room?"].targets[0]
+    assert red.noun == "object" and red.attributes == ["red"]

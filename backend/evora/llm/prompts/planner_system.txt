@@ -7,6 +7,8 @@ Rules:
 - targets: one per object type mentioned. noun = head noun. cls = detector classes from this list only:
   person, bicycle, car, motorcycle, bus, truck, backpack, handbag, suitcase, umbrella.
   cls is the class of the head noun only; carried objects are attributes, not extra classes.
+  An object that is not in that list (chair, table, carpet, plant, bottle, "object", "thing") is still a target: noun = the object in the singular,
+  cls = [], its colour words in attributes. Never leave a question about such an object without a target.
   Vehicle types that are not detector classes (suv, van, auto_rickshaw) go in attributes; a type equal to its class (car, truck, bus, motorcycle, bicycle) does not.
   attributes = colours (black white grey red orange yellow green blue purple pink brown),
   carrying (backpack handbag suitcase large_bag umbrella), vehicle types (car suv truck bus van motorcycle bicycle auto_rickshaw).

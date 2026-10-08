@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, tzinfo
 from typing import Any, Literal, Protocol
@@ -39,6 +40,7 @@ from evora.query.fuse import (
     squash_bm25,
 )
 from evora.query.logic import Candidate, TrackRec, instant_in_window, span_in_window
+from evora.query.objects import sample_evenly
 
 OTHER_COLOUR_CAP = 0.35     # below the router's accept line, so a person seen in another colour is never an answer
 VECTOR_CACHE = 128        # distinct query texts whose embeddings are kept
@@ -149,6 +151,20 @@ class Retriever:
     # ----------------------------------------------------------------- internals
     def _tables(self) -> set[str]:
         return set(self._store.list_tables().tables)
+
+    def scene_frames(self, camera_ids: Sequence[str], window: TimeWindow | None, tz: tzinfo = UTC,
+                     per_camera: int = 12) -> dict[str, list[tuple[float, str]]]:
+        """Whole-frame images stored for each camera inside the window, spread evenly: camera -> [(t, frame_path)]."""
+        if not camera_ids or "scenes" not in self._tables():
+            return {}
+        table = self._store.open_table("scenes")
+        where = _where(_in_clause("camera_id", list(camera_ids)), "tile = 'full'")
+        rows = table.search().where(where, prefilter=True).select(["camera_id", "t", "frame_path"]).limit(200000).to_list()
+        by_camera: dict[str, list[tuple[float, str]]] = {}
+        for row in sorted(rows, key=lambda r: (r["camera_id"], r["t"])):
+            if row.get("frame_path") and instant_in_window(float(row["t"]), window, tz):
+                by_camera.setdefault(row["camera_id"], []).append((float(row["t"]), row["frame_path"]))
+        return {camera: sample_evenly(frames, per_camera) for camera, frames in by_camera.items()}
 
     def _text_vector(self, text: str) -> np.ndarray:
         """The unit text embedding, computed once per distinct text: crops and scenes share the same query."""

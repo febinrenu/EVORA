@@ -39,7 +39,18 @@ from contracts.models import (
 
 from evora.core.db import Database
 from evora.evidence.store import EvidenceError, register
-from evora.query.compose import UNCONFIRMED_NOTE, Sentence, compose_checked, make_notes, stamp, validate
+from evora.query import fastpath
+from evora.query.compose import (
+    UNCONFIRMED_NOTE,
+    Composed,
+    Sentence,
+    compose_checked,
+    compose_objects,
+    make_notes,
+    pluralize,
+    stamp,
+    validate,
+)
 from evora.query.describe import deterministic_sentences, gather_facts, narrate
 from evora.query.logic import (
     Candidate,
@@ -52,6 +63,7 @@ from evora.query.logic import (
     instant_in_window,
     order_matches,
 )
+from evora.query.objects import FrameRef, OpenObjectSurveyor, Survey, labels_for
 from evora.query.planner import Planner, PlanningError, reference_now, workspace_tz
 from evora.query.retrieve import Retriever, SearchScope
 
@@ -60,6 +72,8 @@ log = logging.getLogger("evora.query.router")
 TRACK_PAD_S = 5.0     # evidence window around the best frame of a track
 EVENT_PAD_S = 1.5     # evidence window around a crossing / entry / dwell
 MAX_DESCRIBE_EVIDENCE = 8
+MAX_OBJECT_EVIDENCE = 6   # boxes shown from the clearest frame of a camera
+SAMPLE_FRAMES = 12        # stored frames looked at per camera for an object question
 EVENT_CHUNK = 400     # SQLite parameter budget when loading events
 
 
@@ -132,7 +146,10 @@ class Router:
         gateway: Any = None,
         path_for: Callable[[str], list[PathHop]] | None = None,
         file_offset: Callable[[str, float | None, float], float | None] | None = None,
+        objects: OpenObjectSurveyor | None = None,
     ) -> None:
+        # looks for things the tracker does not follow (chairs, carpets, "red objects") in the stored frames
+        self._objects = objects
         # (camera id, camera duration, wall-clock time) -> seconds into the recorded file, or None to use t - t0.
         # Replay-as-live footage loops, so its position in the file is not simply t - t0.
         self._file_offset = file_offset
@@ -206,6 +223,14 @@ class Router:
             async for ev in self._describe(query_id, text, plan, notes, timings, started, cameras, tz, ref_now, bound):
                 yield ev
             return
+
+        if self._objects is not None and plan.intent in ("count", "exists", "list", "first", "last") and plan.targets:
+            labels = labels_for(plan.targets[0])
+            if labels:
+                async for ev in self._objects_answer(query_id, text, plan, labels, notes, timings, started, cameras, tz,
+                                                     ref_now, bound):
+                    yield ev
+                return
 
         # 2. retrieval
         t = time.perf_counter()
@@ -481,6 +506,67 @@ class Router:
         all_notes = list(dict.fromkeys([*notes, *make_notes(plan, _as_compose_cameras(cameras), evidence)]))
         answer = Answer(query_id=query_id, text=" ".join(s.text for s in final), verdict=verdict, evidence=evidence,
                         confidence=1.0 if facts else 0.5, plan=plan, timings_ms=timings, notes=all_notes)
+        yield _event("answer", answer.model_dump(mode="json"))
+        timings["ttva"] = _ms(started)
+        self._log_query(query_id, text, plan, answer)
+        yield _event("done", {"query_id": query_id})
+
+    async def _objects_answer(self, query_id: str, text: str, plan: QueryPlan, labels: list[str], notes: list[str],
+                              timings: dict[str, float], started: float, cameras: list[_Camera], tz: tzinfo,
+                              ref_now: float, bound: _Bound) -> AsyncIterator[StreamEvent]:
+        """Something the tracker does not follow: look for it in the stored frames and answer from what is in view."""
+        t = time.perf_counter()
+        target = plan.targets[0]
+        noun = target.noun.strip().lower()
+        colour = next((a for a in target.attributes if a in fastpath.COLOURS.values()), None)
+        camera_by_id = {c.id: c for c in cameras}
+        scope = [c for c in sorted(set(plan.camera_ids) | bound.camera_ids) if c in camera_by_id] or sorted(camera_by_id)
+        frames_for = getattr(self._retriever, "scene_frames", None)
+        frames = frames_for(scope, plan.time, tz, SAMPLE_FRAMES) if frames_for is not None else {}
+        surveys: list[Survey] = []
+        if frames and self._objects is not None and self._objects.ready():
+            for camera_id, rows in frames.items():
+                refs = [FrameRef(camera_id, ft, path) for ft, path in rows]
+                surveys.append(await self._objects.survey(camera_id, refs, labels, colour))
+        evidence: list[Evidence] = []
+        summaries: list[dict[str, Any]] = []
+        for sv in surveys:
+            best = sv.best_frame()
+            cam = camera_by_id[sv.camera_id]
+            summaries.append({"camera_id": cam.id, "camera_name": cam.name, "typical": sv.typical, "peak": sv.peak,
+                              "least": sv.least, "frames": len(sv.frames), "seen_in": sv.seen_in,
+                              "breakdown": dict(sv.breakdown(best)) if best else {}})
+            if best is None:
+                continue
+            for det in sorted(sv.matching(best), key=lambda d: -d.conf)[:MAX_OBJECT_EVIDENCE]:
+                eid = f"{query_id}_{len(evidence) + 1}"
+                why = [f"open vocabulary: {det.label} {det.conf:.2f}"]
+                if colour:
+                    why.append(f"colour {colour} {det.colours.get(colour, 0.0):.2f}")
+                evidence.append(Evidence(
+                    id=eid, camera_id=cam.id, camera_name=cam.name, t_start=best.ref.t - 2.5, t_end=best.ref.t + 2.5,
+                    t_peak=best.ref.t, offset_s=self._offset_in_file(cam, best.ref.t), bbox=det.box,
+                    thumb_url=self.cfg.thumb_fmt.format(id=eid), clip_url=self.cfg.clip_fmt.format(id=eid),
+                    score=round(det.conf, 4), why=why))
+        for ev in evidence:
+            self._register(ev)
+            yield _event("evidence", ev.model_dump(mode="json"))
+        if not surveys:
+            why_not = (self._objects.unavailable if self._objects is not None and self._objects.unavailable else
+                       "no stored frames for those cameras and that time")
+            composed = Composed("partial", [Sentence(f"I can't look for {pluralize(noun)} here: {why_not}.", (), "negative")], [])
+        else:
+            composed = compose_objects(plan, summaries, evidence, noun=noun, colour=colour, tz=tz,
+                                       source_names={c.id: c.source_name for c in cameras if c.source_name},
+                                       reference_now=ref_now)
+        validate(composed.sentences, {e.id for e in evidence})
+        timings["objects"] = _ms(t)
+        timings["ttfa"] = _ms(started)
+        all_notes = list(dict.fromkeys([*notes, *composed.notes,
+                                        *make_notes(plan, _as_compose_cameras(cameras), evidence)]))
+        answer = Answer(query_id=query_id, text=composed.text, verdict=composed.verdict, count=composed.count,
+                        evidence=evidence, confidence=_confidence(evidence, None), plan=plan, timings_ms=timings,
+                        notes=all_notes)
         yield _event("answer", answer.model_dump(mode="json"))
         timings["ttva"] = _ms(started)
         self._log_query(query_id, text, plan, answer)

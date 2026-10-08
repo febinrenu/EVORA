@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, tzinfo
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 from contracts.models import Evidence, PathHop, QueryPlan
 
@@ -212,7 +212,7 @@ def compose(
         sentences.append(Sentence(sentence.replace("  ", " "), tuple(e.id for e in evidence), "fact" if evidence else "negative"))
         if len(concurrent) > 1:
             per = ", ".join(f"{cam_names.get(c, c)} {v['typical']}" for c, v in sorted(concurrent.items()))
-            sentences.append(Sentence(f"Per camera: {per}.", ()))
+            sentences.append(Sentence(f"Per camera: {per}.", (), "note"))
             notes.append("These cameras may show the same place, so the largest single-camera number is given, not the sum.")
         if appearances is not None and appearances > typical:
             notes.append(f"{appearances} separate appearances were tracked, but people who leave the view or are hidden for a "
@@ -299,6 +299,95 @@ def validate(sentences: Sequence[Sentence], known_ids: set[str]) -> None:
         missing = [i for i in s.evidence if i not in known_ids]
         if missing:
             raise UngroundedAnswer(f"sentence cites unknown evidence {missing}: {s.text!r}")
+
+
+OBJECT_NOTE = ("Found by looking for {what} in {frames} stored frames with an open-vocabulary detector. Objects hidden "
+               "behind people or furniture, and very small ones, can be missed; counts are what is in view in one frame, "
+               "not a total over time.")
+
+
+def compose_objects(
+    plan: QueryPlan,
+    cameras_summary: Sequence[Mapping[str, Any]],
+    evidence: Sequence[Evidence],
+    *,
+    noun: str,
+    colour: str | None,
+    tz: tzinfo = UTC,
+    source_names: Mapping[str, str] | None = None,
+    reference_now: float | None = None,
+) -> Composed:
+    """Answer about objects found by the open-vocabulary search (not tracks).
+
+    `cameras_summary` rows: camera_id, camera_name, typical, peak, least, frames, seen_in, breakdown {label: n}.
+    """
+    sources = dict(source_names or {})
+    shown = list(evidence)
+    days = {datetime.fromtimestamp(e.t_peak, tz).date() for e in shown}
+    ref_day = datetime.fromtimestamp(reference_now, tz).date() if reference_now is not None else None
+    with_date = len(days) > 1 or (ref_day is not None and days != {ref_day} and bool(days))
+    where = _where(plan, evidence, {r["camera_id"]: r["camera_name"] for r in cameras_summary})
+    spot = f" of {where}" if where else ""
+    frames = sum(int(r["frames"]) for r in cameras_summary)
+    adjective = f"{colour} " if colour else ""
+    ids = tuple(e.id for e in evidence)
+    notes = [OBJECT_NOTE.format(what=("everyday objects" if noun in ("object", "objects") else f"'{noun}'"), frames=frames)]
+    if colour:
+        notes.append(f"Colour is read from the middle of each detected object ({colour} when at least a quarter of it is "
+                     f"{colour}); something in front of it can change that.")
+    if 0 < frames < 3:
+        notes.append(f"Only {frames} stored frame(s) were available, so this is a thin sample.")
+    sentences: list[Sentence] = []
+    best = max(cameras_summary, key=lambda r: r["typical"], default=None)
+    found = bool(evidence) and best is not None and best["peak"] > 0
+    label = lambda n: (singular_word(noun) if n == 1 else pluralize(singular_word(noun)))  # noqa: E731
+
+    if plan.intent == "count":
+        n = best["typical"] if best is not None else 0
+        if not found or n == 0:
+            sentences.append(Sentence(f"No {adjective}{pluralize(singular_word(noun))} were found{_in(where)} in the "
+                                      f"{frames} frames looked at.", (), "negative"))
+            return Composed("count", sentences, notes, 0)
+        peak = best["peak"]
+        text = f"About {n} {adjective}{label(n)} {'was' if n == 1 else 'were'} in view{spot}"
+        text += f" (between {best['least']} and {peak} depending on the frame)." if peak > best["least"] else "."
+        sentences.append(Sentence(text, ids, "fact"))
+        mix = best.get("breakdown") or {}
+        if noun in ("object", "objects") and mix:
+            parts = ", ".join(f"{k} {v}" for k, v in sorted(mix.items(), key=lambda kv: -kv[1]))
+            sentences.append(Sentence(f"In the clearest frame: {parts}.", ids))
+        if len(cameras_summary) > 1:
+            per = ", ".join(f"{r['camera_name']} {r['typical']}" for r in sorted(cameras_summary, key=lambda r: r["camera_id"]))
+            sentences.append(Sentence(f"Per camera: {per}.", (), "note"))
+            notes.append("These cameras may show the same place, so the largest single-camera number is given, not the sum.")
+        return Composed("count", sentences, notes, n)
+
+    first = evidence[0] if evidence else None
+    if not found or first is None:
+        sentences.append(Sentence(f"No {adjective}{singular_word(noun)} was found{_in(where)} in the {frames} frames "
+                                  "looked at.", (), "negative"))
+        return Composed("no" if plan.intent == "exists" else "not_found", sentences, notes)
+    stamp_text = stamp(first, tz, with_date, sources.get(first.camera_id))
+    seen = f"seen in {best['seen_in']} of {best['frames']} frames"
+    if plan.intent == "exists":
+        sentences.append(Sentence(f"Yes. {_sentence_case(_article(adjective + singular_word(noun)))} was in view{spot}: "
+                                  f"{stamp_text} ({seen}).", (first.id,)))
+        return Composed("yes", sentences, notes)
+    n = best["typical"]
+    sentences.append(Sentence(f"Found {adjective}{label(n)}{spot}: {stamp_text} ({seen}).", ids))
+    return Composed("found", sentences, notes)
+
+
+def _in(where: str) -> str:
+    return f" in {where}" if where else ""
+
+
+def singular_word(noun: str) -> str:
+    return "object" if noun in ("object", "objects", "thing", "things", "item", "items", "stuff") else noun
+
+
+def _article(phrase: str) -> str:
+    return ("an " if phrase[:1].lower() in "aeiou" else "a ") + phrase
 
 
 def compose_checked(plan: QueryPlan, evidence: Sequence[Evidence], **kw) -> Composed:

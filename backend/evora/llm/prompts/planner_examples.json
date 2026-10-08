@@ -399,5 +399,94 @@
       "unresolved": [],
       "source": "llm"
     }
+  },
+  {
+    "question": "how many chairs are there in the room?",
+    "plan": {
+      "intent": "count",
+      "targets": [
+        {
+          "noun": "chair",
+          "cls": [],
+          "attributes": [],
+          "embed_text": "a photo of a chair"
+        }
+      ],
+      "place": {
+        "text": "room",
+        "role": "place"
+      },
+      "action": "any",
+      "time": null,
+      "camera_ids": [],
+      "limit": 10,
+      "unresolved": [
+        {
+          "text": "room",
+          "role": "place"
+        }
+      ],
+      "source": "llm"
+    }
+  },
+  {
+    "question": "is there a carpet in the room?",
+    "plan": {
+      "intent": "exists",
+      "targets": [
+        {
+          "noun": "carpet",
+          "cls": [],
+          "attributes": [],
+          "embed_text": "a photo of a carpet"
+        }
+      ],
+      "place": {
+        "text": "room",
+        "role": "place"
+      },
+      "action": "any",
+      "time": null,
+      "camera_ids": [],
+      "limit": 10,
+      "unresolved": [
+        {
+          "text": "room",
+          "role": "place"
+        }
+      ],
+      "source": "llm"
+    }
+  },
+  {
+    "question": "how many red objects are there in the room?",
+    "plan": {
+      "intent": "count",
+      "targets": [
+        {
+          "noun": "object",
+          "cls": [],
+          "attributes": [
+            "red"
+          ],
+          "embed_text": "a photo of a red object"
+        }
+      ],
+      "place": {
+        "text": "room",
+        "role": "place"
+      },
+      "action": "any",
+      "time": null,
+      "camera_ids": [],
+      "limit": 10,
+      "unresolved": [
+        {
+          "text": "room",
+          "role": "place"
+        }
+      ],
+      "source": "llm"
+    }
   }
 ]

@@ -13,6 +13,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, tzinfo
+from functools import lru_cache
 from typing import Protocol
 
 from contracts.models import QueryPlan, Referent, Target, TimeWindow
@@ -20,7 +21,7 @@ from pydantic import ValidationError
 
 from evora.core.db import Database
 from evora.llm.gateway import Gateway
-from evora.llm.prompts import build_planner_messages
+from evora.llm.prompts import build_planner_messages, planner_system_prompt
 from evora.llm.schemas import LLMError
 from evora.query import fastpath
 from evora.query.fuse import CARRIED, GARMENTS
@@ -98,10 +99,16 @@ def norm_key(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
 
 
+@lru_cache(maxsize=1)
+def _prompt_signature() -> str:
+    """A plan made under an older prompt must not be served after the prompt changes."""
+    return hashlib.sha1(planner_system_prompt().encode()).hexdigest()[:6]
+
+
 def cache_key(text: str, cameras: Sequence[CameraLike]) -> str:
-    """Plans name camera ids, so the key includes the camera set they were made for."""
+    """Plans name camera ids, so the key includes the camera set they were made for, and the prompt that made them."""
     sig = hashlib.sha1("|".join(sorted(f"{c.id}={c.name}" for c in cameras)).encode()).hexdigest()[:8]
-    return f"{normalize_text(text)}\x1f{sig}"
+    return f"{normalize_text(text)}\x1f{sig}\x1f{_prompt_signature()}"
 
 
 def reference_now(db: Database, fallback: float | None = None) -> float:
