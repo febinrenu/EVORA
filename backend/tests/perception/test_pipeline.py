@@ -37,6 +37,16 @@ class FakeEmbedder:
         return out
 
 
+class FakeReid:
+    dim = 8
+
+    def encode(self, crops):
+        out = np.zeros((len(crops), self.dim), dtype=np.float32)
+        for i, c in enumerate(crops):
+            out[i, int(np.mean(c)) % self.dim] = 1.0
+        return out
+
+
 class ScriptedTracker:
     """A person walks left to right (tracker id 1) for the first second, then another one appears (id 2)."""
 
@@ -55,6 +65,7 @@ class ScriptedTracker:
 def env(tmp_path, monkeypatch, sample_mp4):
     monkeypatch.setattr(pipeline, "get_embedder", lambda cfg: FakeEmbedder())
     monkeypatch.setattr(pipeline, "load_detector", lambda cfg: object())
+    monkeypatch.setattr("evora.reid.features.get_encoder", lambda cfg: FakeReid())
     monkeypatch.setattr(pipeline, "FrameTracker", ScriptedTracker)
     ws = wsmod.create("pipeline-test", tmp_path / "workspaces")
     db = open_db(ws.db_path)
@@ -132,6 +143,11 @@ def test_l2_writes_attributes_and_events(env):
         assert a["upper_color"] in COLOURS and a["lower_color"] in COLOURS and a["color"] == a["upper_color"]
     assert kinds == ["appear", "appear", "disappear", "disappear"]
     assert ir == 0.0
+    from evora.core.vectors import open_store
+
+    reid = open_store(ws.vectors_dir).open_table("reid").to_arrow().to_pylist()
+    assert sorted(r["track_id"] for r in reid) == [f"{cam.id}:t000001", f"{cam.id}:t000002"]
+    assert db.get_meta("embed_dim_reid") == "8" and len(reid[0]["vector"]) == 8
 
 
 def test_l3_is_skipped_and_never_reported_finished(env, caplog):

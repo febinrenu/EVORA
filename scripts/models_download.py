@@ -24,7 +24,7 @@ YUNET_URL = ("https://github.com/opencv/opencv_zoo/raw/main/models/face_detectio
              "face_detection_yunet_2023mar.onnx")
 # Exact YOLO26 / YOLOE-26 checkpoint names must be confirmed against the Ultralytics docs (spike P2.3).
 YOLO_WEIGHTS = ["yolo26n.pt", "yolo26s.pt", "yoloe-26n-seg.pt", "yoloe-26n-seg-pf.pt"]
-BOXMOT_WEIGHTS = ["osnet_x0_25_msmt17.pt"]
+BOXMOT_WEIGHTS = {"osnet_x0_25_msmt17.pt": "1sSwXSUlj4_tHZequ_iZ8w_Jh0VaRQMqF"}
 ALL_STEPS = ["yolo", "siglip2", "bge", "fastembed", "boxmot", "yunet", "ollama"]
 
 
@@ -64,13 +64,18 @@ def step_fastembed() -> None:
 
 
 def step_boxmot() -> None:
-    from boxmot.reid.core.registry import ReIDModelRegistry
+    """OSNet person ReID weights (BoxMOT model zoo, hosted on Google Drive)."""
+    import gdown
 
     dest = ROOT / "boxmot"
     dest.mkdir(parents=True, exist_ok=True)
-    for name in BOXMOT_WEIGHTS:
+    for name, file_id in BOXMOT_WEIGHTS.items():
         target = dest / name
-        ReIDModelRegistry.download_model(model_name=name, model_path=target)
+        if target.is_file() and target.stat().st_size > 0:
+            log.info("boxmot %s present", name)
+            continue
+        if not gdown.download(id=file_id, output=str(target), quiet=True):
+            raise RuntimeError(f"could not download {name} from Google Drive (quota?); try again later")
         log.info("boxmot %s -> %s", name, target)
 
 

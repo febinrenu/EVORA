@@ -2,7 +2,7 @@
 
 Reads the crops and track points of one camera, writes `tracks.attrs` (TrackAttrs JSON), the camera's
 `ir_fraction`, and the events for appear / disappear and every stored zone. No video is decoded.
-ReID features are a later part of this layer (P2.14).
+Also writes one ReID vector per track (`reid` table); cross-camera linking is a separate step (P2.15).
 """
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ from evora.core.workspace import Workspace
 from evora.perception import attributes as at
 from evora.perception.events import recompute_events, zones_of
 from evora.perception.settings import IngestSettings
+from evora.reid.features import ReidUnavailable, compute_reid
 
 log = logging.getLogger("evora.perception.l2")
 
@@ -160,10 +161,16 @@ def run_l2(cam: CameraInfo, ws: Workspace, db: Database, store, st: IngestSettin
 
     with db.write() as c:
         c.executemany("UPDATE tracks SET attrs=? WHERE id=?", [(a, tid) for a, tid in updates])
+    report(0.8)
+    try:
+        n_reid = compute_reid(cid, ws, db, store, st)
+    except ReidUnavailable as exc:
+        n_reid = 0
+        log.warning("%s: no ReID features (%s); cross-camera linking will be unavailable", cid, exc)
     report(0.9)
     n_events = recompute_events(cid, zones_of(db, cid), db=db, settings=st)
     report(1.0)
-    stats = {"tracks": len(tracks), "events": n_events, "ir_scenes": int(sum(ir_flags)),
+    stats = {"tracks": len(tracks), "events": n_events, "reid": n_reid, "ir_scenes": int(sum(ir_flags)),
              "carrying": sum(1 for v in carrying.values() if v)}
     log.info("%s L2 in %.1fs: %s", cid, time.monotonic() - started, stats)
     return stats
