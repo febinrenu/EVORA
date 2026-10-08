@@ -124,10 +124,11 @@ CAR_PLAN = QueryPlan(
 async def test_the_router_answers_an_action_question_honestly(ws):  # noqa: F811
     red_car_crossing(ws)
     router = make_router(ws, gateway=FakeGateway(plan=CAR_PLAN))
-    events = await collect(router.answer("did a red car turn left at the main gate", "s1"))
+    events = await collect(router.answer("did someone open the car door at the main gate", "s1"))
     ans = of(events, "answer")[0]
-    assert ans["verdict"] == "partial" and ans["text"].startswith("I can't tell whether anyone was turning left")
-    assert ans["evidence"], "who was there is still shown, with its evidence"
+    assert ans["verdict"] == "partial" and ans["text"].startswith("I can't verify whether anyone was opening or closing")
+    assert ans["evidence"] == [] and "evidence" not in [e.type for e in events]    # nothing detects it: no people shown
+    assert any("What evora does recognise" in n for n in ans["notes"])
 
 
 @pytest.mark.asyncio
@@ -137,7 +138,7 @@ async def test_the_switch_restores_the_old_answer(ws):  # noqa: F811
     red_car_crossing(ws)
     router = make_router(ws, gateway=FakeGateway(plan=CAR_PLAN))
     router.cfg = RouterConfig(accept=0.4, honest_actions=False)
-    events = await collect(router.answer("did a red car turn left at the main gate", "s1"))
+    events = await collect(router.answer("did someone open the car door at the main gate", "s1"))
     assert of(events, "answer")[0]["verdict"] == "yes"
 
 
@@ -146,7 +147,7 @@ async def test_the_switch_restores_the_old_answer(ws):  # noqa: F811
 async def test_the_answer_carries_the_action_as_a_field_for_the_interface(ws):  # noqa: F811
     red_car_crossing(ws)
     router = make_router(ws, gateway=FakeGateway(plan=CAR_PLAN))
-    ans = of(await collect(router.answer("did a red car turn left at the main gate", "s1")), "answer")[0]
-    assert ans["unsupported_action"] == "turning left"
+    ans = of(await collect(router.answer("did someone open the car door at the main gate", "s1")), "answer")[0]
+    assert ans["unsupported_action"] == "opening or closing something"
     plain = of(await collect(make_router(ws).answer("did a red car pass through the main gate", "s1")), "answer")[0]
     assert plain["unsupported_action"] is None

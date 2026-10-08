@@ -12,8 +12,11 @@ are not listed here on purpose, and neither are words that only look like action
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 _VEHICLE = r"(?:car|cars|vehicle|vehicles|truck|trucks|van|vans|bus|buses|taxi|suv|auto|rickshaw)"
+VEHICLE_CLASSES = {"car", "truck", "bus", "motorcycle", "bicycle", "vehicle"}
 _DET = r"(?:the|a|an|his|her|their|its|car|vehicle)"
 
 # (pattern, key, readable phrase used in the answer: "I can't tell whether anyone was <phrase>"); first match wins
@@ -40,6 +43,8 @@ _ACTIONS: list[tuple[re.Pattern[str], str, str]] = [(re.compile(p, re.IGNORECASE
     (r"\b(?:hand|hands|handed|handing)\s+(?:over|something|it|a|an|the)\b"
      r"|\b(?:give|gives|gave|giving)\b(?:\s+\w+){1,3}\s+to\s+(?:a|an|the|someone|somebody|another|him|her|them)\b",
      "hand_over", "handing something over"),
+    (r"\b(?:texting|phoning|calling|on\s+(?:the|a|his|her|their)\s+phone|using\s+(?:a|the|his|her|their)\s+phone)\b",
+     "phone", "using a phone"),
     (r"\b(?:talk|talks|talked|talking|chat|chats|chatted|chatting|speak|speaks|spoke|speaking)\b", "talk", "talking"),
     (r"\b(?:hug|hugs|hugged|hugging|embrac\w*)\b|\bshak\w*\s+hands\b", "greet", "greeting someone"),
     (r"\b(?:fight|fights|fought|fighting|punch\w*|hit|hits|hitting|kick|kicks|kicked|kicking|attack\w*)\b",
@@ -51,9 +56,74 @@ _ACTIONS: list[tuple[re.Pattern[str], str, str]] = [(re.compile(p, re.IGNORECASE
     (r"\b(?:run|runs|ran|running|jog|jogs|jogged|jogging|sprint\w*)\b", "run", "running"),
     (r"\b(?:sit|sits|sat|sitting|lie|lies|lying)\b|\blay\s+down\b", "sit", "sitting or lying down"),
     (r"\b(?:smok\w+|vap(?:e|es|ed|ing))\b", "smoke", "smoking"),
-    (r"\b(?:texting|phoning|calling|on\s+(?:the|a|his|her|their)\s+phone|using\s+(?:a|the|his|her|their)\s+phone)\b",
-     "phone", "using a phone"),
 ]]
+
+
+@dataclass(frozen=True)
+class DetectedAction:
+    """An action perception writes to the `events` table, so an answer about it can come from a matching event."""
+
+    key: str
+    kinds: tuple[str, ...]     # event kinds that satisfy it (see ACTION_EVENT_KINDS in logic.py)
+    subject: str               # "vehicle" or "person": the kind of track the event belongs to
+    label: str                 # what the answer calls it: "a vehicle turning left"
+    cue: str                   # how it is found, for the note: "from how the vehicle moved"
+
+
+# (pattern, action); first match wins. Only what perception/actions.py detects: nothing here is a guess.
+_DETECTED: list[tuple[re.Pattern[str], DetectedAction]] = [(re.compile(p, re.IGNORECASE), d) for p, d in [
+    (rf"\b(?:get|gets|got|getting|climb|climbs|climbed|climbing|step|steps|stepped|stepping|hop|hops|hopped)\s+"
+     rf"(?:out\s+of|out|off)\b(?:\s+\w+){{0,2}}\s+{_VEHICLE}\b"
+     rf"|\b(?:exit|exits|exited|exiting|leave|leaves|left|leaving)\s+(?:a|an|the|their|his|her)?\s*{_VEHICLE}\b",
+     DetectedAction("vehicle_out", ("person_exits_vehicle",), "person", "a person getting out of a vehicle",
+                    "from a person appearing next to a vehicle that has stopped")),
+    (rf"\b(?:get|gets|got|getting|climb|climbs|climbed|climbing|step|steps|stepped|stepping|hop|hops|hopped)\s+"
+     rf"(?:in|into|onto|on)\b(?:\s+\w+){{0,2}}\s+{_VEHICLE}\b"
+     rf"|\b(?:enter|enters|entered|entering|board|boards|boarded|boarding)\s+(?:a|an|the|their|his|her)?\s*{_VEHICLE}\b",
+     DetectedAction("vehicle_in", ("person_enters_vehicle",), "person", "a person getting into a vehicle",
+                    "from a person disappearing next to a vehicle that has stopped")),
+    (r"\bu-?turns?\b|\b(?:turn|turns|turned|turning)\s+(?:around|round)\b",
+     DetectedAction("u_turn", ("vehicle_u_turn",), "vehicle", "a vehicle making a U-turn", "from the vehicle's path")),
+    (r"\b(?:turn|turns|turned|turning)\s+left\b",
+     DetectedAction("turn_left", ("vehicle_turn_left",), "vehicle", "a vehicle turning left", "from the vehicle's path")),
+    (r"\b(?:turn|turns|turned|turning)\s+right\b",
+     DetectedAction("turn_right", ("vehicle_turn_right",), "vehicle", "a vehicle turning right", "from the vehicle's path")),
+    (r"\b(?:reverse|reverses|reversed|reversing|back\s+up|backs\s+up|backed\s+up|backing\s+up)\b",
+     DetectedAction("reverse", ("vehicle_reverse",), "vehicle", "a vehicle reversing", "from the vehicle's path")),
+    (r"\b(?:start|starts|started|starting)\s+(?:to\s+)?(?:moving|move|driving|drive|off)\b"
+     r"|\b(?:drive|drives|drove|driving|pull|pulls|pulled|pulling)\s+(?:off|away)\b|\bmove\s+off\b",
+     DetectedAction("start", ("vehicle_start",), "vehicle", "a vehicle starting to move", "from the vehicle's speed")),
+    (r"\b(?:stop|stops|stopped|stopping|halt|halts|halted|halting)\b",
+     DetectedAction("stop", ("vehicle_stop",), "vehicle", "a vehicle stopping", "from the vehicle's speed")),
+    (r"\b(?:talk|talks|talked|talking|chat|chats|chatted|chatting|conversation)\b",
+     DetectedAction("talk", ("people_close",), "person", "two people standing together",
+                    "from two people standing close together and still")),
+]]
+_PHONE = re.compile(r"\bphone|\bcall(?:ing)?\b|\btext(?:ing)?\b", re.IGNORECASE)
+_VEHICLE_WORDS = re.compile(rf"\b{_VEHICLE}\b", re.IGNORECASE)
+_PEOPLE_WORDS = re.compile(r"\b(?:person|people|man|men|woman|women|someone|somebody|anyone|anybody|pedestrians?|two)\b",
+                           re.IGNORECASE)
+
+
+def detected_action(text: str, target_classes: Sequence[str] = ()) -> DetectedAction | None:
+    """The action perception detects that this question asks about, or None.
+
+    A vehicle action needs a vehicle: "did a person turn left" is not "did a vehicle turn left" and stays unrecognised.
+    "Talking on the phone" is not two people standing together.
+    """
+    for pattern, action in _DETECTED:
+        if not pattern.search(text or ""):
+            continue
+        if action.key == "talk" and _PHONE.search(text):
+            return None
+        if action.subject == "vehicle":
+            classes = set(target_classes)
+            if classes and not classes & VEHICLE_CLASSES:
+                return None                       # the question names something else (a person) as the one acting
+            if not classes and not _VEHICLE_WORDS.search(text) and _PEOPLE_WORDS.search(text):
+                return None
+        return action
+    return None
 
 
 def classify_action(text: str) -> tuple[str, str] | None:
@@ -70,4 +140,4 @@ def unsupported_action(text: str) -> str | None:
     return found[1] if found else None
 
 
-__all__ = ["classify_action", "unsupported_action"]
+__all__ = ["DetectedAction", "classify_action", "detected_action", "unsupported_action"]

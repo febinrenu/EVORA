@@ -24,6 +24,19 @@ ACTION_EVENTS: dict[str, dict[str, tuple[str, ...]]] = {
     "dwell": {"line": (), "polygon": ("dwell",), "frame": ("dwell",)},
     "appear": {"line": (), "polygon": ("enter_zone",), "frame": ("appear",)},
 }
+# detected actions (keys of query/actions.py) -> the event kinds perception writes for them. A "yes" about one of these
+# comes only from a matching event; an action that is not here is not recognised and cannot be answered with "yes".
+ACTION_EVENT_KINDS: dict[str, tuple[str, ...]] = {
+    "vehicle_out": ("person_exits_vehicle",),
+    "vehicle_in": ("person_enters_vehicle",),
+    "u_turn": ("vehicle_u_turn",),
+    "turn_left": ("vehicle_turn_left",),
+    "turn_right": ("vehicle_turn_right",),
+    "reverse": ("vehicle_reverse",),
+    "start": ("vehicle_start",),
+    "stop": ("vehicle_stop",),
+    "talk": ("people_close",),
+}
 # direction a line crossing must have for "enter" / "exit" (a_to_b is "inwards" by convention)
 LINE_DIRECTION = {"enter": "a_to_b", "exit": "b_to_a"}
 MAX_TOD_SCAN_DAYS = 8

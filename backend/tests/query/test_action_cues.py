@@ -3,6 +3,7 @@ import pytest
 from contracts.models import QueryPlan, Target
 
 from evora.query.action_cues import CueConfig, find_cues
+from evora.query.router import RouterConfig
 from tests.query.test_router import FakeGateway, collect, make_router, of
 from tests.query.ws_helpers import E, Workspace
 
@@ -210,6 +211,7 @@ def scene_with_a_left_bag(ws):
 async def test_the_answer_puts_the_estimated_person_first_at_the_estimated_moment(ws):
     scene_with_a_left_bag(ws)
     router = make_router(ws, gateway=FakeGateway(plan=PERSON_PLAN))
+    router.cfg = RouterConfig(accept=0.4, show_unverified_actions=True)   # the estimates are an option now
     events = await collect(router.answer("did a person put something down", "s1"))
     ans = of(events, "answer")[0]
     first = ans["evidence"][0]
@@ -222,11 +224,9 @@ async def test_the_answer_puts_the_estimated_person_first_at_the_estimated_momen
 
 @pytest.mark.asyncio
 async def test_with_the_switch_off_the_plain_honest_answer_comes_back(ws):
-    from evora.query.router import RouterConfig
-
     scene_with_a_left_bag(ws)
     router = make_router(ws, gateway=FakeGateway(plan=PERSON_PLAN))
-    router.cfg = RouterConfig(accept=0.4, action_cues=False)
+    router.cfg = RouterConfig(accept=0.4, action_cues=False, show_unverified_actions=True)
     ans = of(await collect(router.answer("did a person put something down", "s1")), "answer")[0]
     assert ans["verdict"] == "partial" and "Most likely" not in ans["text"] and "These are the people" in ans["text"]
 
@@ -235,6 +235,7 @@ async def test_with_the_switch_off_the_plain_honest_answer_comes_back(ws):
 async def test_no_movement_fits_so_the_plain_honest_answer_stays(ws):
     move(ws, "p1", "person", 1000, 1010, (0.1, 0.5), (0.3, 0.5))
     router = make_router(ws, gateway=FakeGateway(plan=PERSON_PLAN))
+    router.cfg = RouterConfig(accept=0.4, show_unverified_actions=True)
     ans = of(await collect(router.answer("did a person put something down", "s1")), "answer")[0]
     assert "Most likely" not in ans["text"] and ans["text"].startswith("I can't tell whether anyone was putting")
 

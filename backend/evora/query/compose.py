@@ -454,6 +454,82 @@ def _article(phrase: str) -> str:
     return ("an " if phrase[:1].lower() in "aeiou" else "a ") + phrase
 
 
+def describe_payload(kind: str, payload: Mapping[str, Any]) -> str | None:
+    """What the detector measured, in words, for the evidence of a detected action."""
+    if payload.get("turn_deg") is not None:
+        return f"path turned {abs(float(payload['turn_deg'])):.0f} degrees"
+    if payload.get("seconds") is not None:
+        return f"together for {float(payload['seconds']):.0f} s"
+    if payload.get("with_track"):
+        return f"next to {payload['with_track']}"
+    return None
+
+
+def compose_actions(
+    plan: QueryPlan,
+    label: str,
+    cue: str,
+    events: int,
+    evidence: Sequence[Evidence],
+    *,
+    where: str = "",
+    tz: tzinfo = UTC,
+    source_names: Mapping[str, str] | None = None,
+    reference_now: float | None = None,
+) -> Composed:
+    """Answer about an action that perception detects: a yes, a count or a list only from matching events."""
+    sources = dict(source_names or {})
+    days = {datetime.fromtimestamp(e.t_peak, tz).date() for e in evidence}
+    ref_day = datetime.fromtimestamp(reference_now, tz).date() if reference_now is not None else None
+    with_date = len(days) > 1 or (ref_day is not None and days != {ref_day} and bool(days))
+    spot = f" {where}" if where else ""
+    when = _when(plan)
+    ids = tuple(e.id for e in evidence)
+    notes = [f"Detected {cue}, not by watching the footage: it counts what the detector found, so \"no\" means none "
+             "was detected, not that none happened."]
+    sentences: list[Sentence] = []
+
+    def stamped(ev: Evidence) -> str:
+        return stamp(ev, tz, with_date, sources.get(ev.camera_id))
+
+    if events == 0:
+        verdict = {"exists": "no", "count": "count"}.get(plan.intent, "not_found")
+        text = (f"I detected 0 occurrences of {label}{spot}{when}." if plan.intent == "count"
+                else f"No, {label} was not detected{spot}{when}.")
+        sentences.append(Sentence(text.replace("  ", " "), (), "negative"))
+        return Composed(verdict, sentences, notes, 0 if plan.intent == "count" else None)
+    first = min(evidence, key=lambda e: e.t_peak)
+    last = max(evidence, key=lambda e: e.t_peak)
+    if plan.intent == "count":
+        sentences.append(Sentence(f"{_sentence_case(label)} was detected {events} time{'s' if events != 1 else ''}{spot}{when}.",
+                                  ids, "fact"))
+        sentences.append(Sentence(f"First at {stamped(first)}.", (first.id,)))
+        return Composed("count", sentences, notes, events)
+    if plan.intent == "exists":
+        yes = f"Yes. {_sentence_case(label)} was detected{spot}{when}: {stamped(evidence[0])}."
+        sentences.append(Sentence(yes.replace("  ", " "), (evidence[0].id,)))
+        if events > 1:
+            sentences.append(Sentence(f"{events - 1} more time{'s' if events > 2 else ''} detected.", ids[1:]))
+        return Composed("yes", sentences, notes)
+    if plan.intent in ("first", "last"):
+        pick = first if plan.intent == "first" else last
+        sentences.append(Sentence(f"The {plan.intent} time {label} was detected{spot}{when}: {stamped(pick)}.".replace("  ", " "),
+                                  (pick.id,)))
+        return Composed("found", sentences, notes)
+    sentences.append(Sentence(f"{_sentence_case(label)} was detected {events} time{'s' if events != 1 else ''}{spot}{when}."
+                              .replace("  ", " "), ids, "fact"))
+    sentences.append(Sentence(f"Earliest: {stamped(first)}.", (first.id,)))
+    return Composed("found", sentences, notes)
+
+
+def compose_unverified(phrase: str, recognised: str) -> Composed:
+    """The answer for an action nothing detects: no claim and no evidence."""
+    text = (f"I can't verify whether anyone was {phrase}: evora does not recognise that action, so I am not showing "
+            "people who merely happened to be on the camera.")
+    return Composed("partial", [Sentence(text, (), "negative")],
+                    [f"What evora does recognise: {recognised}."])
+
+
 def compose_checked(plan: QueryPlan, evidence: Sequence[Evidence], **kw) -> Composed:
     """`compose` plus the validator. Cited ids must be in `evidence` (or be the nearest miss)."""
     out = compose(plan, evidence, **kw)

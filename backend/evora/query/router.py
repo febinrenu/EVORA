@@ -34,6 +34,7 @@ from contracts.models import (
     QueryPlan,
     Referent,
     StreamEvent,
+    Target,
     TimeWindow,
     Zone,
 )
@@ -42,14 +43,17 @@ from evora.core.db import Database
 from evora.evidence.store import EvidenceError, register
 from evora.query import fastpath
 from evora.query.action_cues import find_cues
-from evora.query.actions import classify_action, unsupported_action
+from evora.query.actions import VEHICLE_CLASSES, DetectedAction, classify_action, detected_action, unsupported_action
 from evora.query.compose import (
     ESTIMATE_PREFIX,
     UNCONFIRMED_NOTE,
     Composed,
     Sentence,
+    compose_actions,
     compose_checked,
     compose_objects,
+    compose_unverified,
+    describe_payload,
     make_notes,
     pluralize,
     stamp,
@@ -78,6 +82,15 @@ TRACK_PAD_S = 5.0     # evidence window around the best frame of a track
 EVENT_PAD_S = 1.5     # evidence window around a crossing / entry / dwell
 MAX_DESCRIBE_EVIDENCE = 8
 VISION_COUNT_FRAMES = 4       # frames the vision model counts in for an object count
+RECOGNISED_ACTIONS = ("vehicles turning left or right, making a U-turn, reversing, stopping and starting; people getting "
+                     "into or out of a vehicle and people standing together; crossing a line, entering or leaving a place, "
+                     "staying; carrying a bag")
+# for the actions a single frame can support: (what the check asks about, its wording, how it is described in a note)
+ACTION_VIEWS = {
+    "talk": ("two people standing together", "a photo of two people standing close together", "two people close together"),
+    "vehicle_in": ("a person next to a vehicle", "a photo of a person standing next to a vehicle", "a person next to a vehicle"),
+    "vehicle_out": ("a person next to a vehicle", "a photo of a person standing next to a vehicle", "a person next to a vehicle"),
+}
 MAX_LOOK_CAMERAS = 3       # cameras shown to the vision model for one question
 MAX_OBJECT_EVIDENCE = 6   # boxes shown from the clearest frame of a camera
 SAMPLE_FRAMES = 12        # stored frames looked at per camera for an object question
@@ -110,6 +123,8 @@ class RouterConfig:
     accept: float = 0.40          # a match scoring below this is a near miss, not an answer (calibrated on dev)
     verify: str = "filter"        # "filter": the visual check can set candidates aside; "annotate": flags only
     honest_actions: bool = True   # a question about an action we cannot recognise is answered with who was there
+    detected_actions: bool = True  # actions perception detects (turns, stops, getting in or out, people together): from events
+    show_unverified_actions: bool = False  # False: an action nothing detects gets "I can't verify that" and no evidence
     action_cues: bool = True      # ... with the most likely person and moment first, estimated from how things moved
     thumb_fmt: str = "/api/media/thumb/{id}.jpg"
     clip_fmt: str = "/api/media/clip/{id}.mp4"
@@ -233,6 +248,14 @@ class Router:
 
         plan = self._with_bound_time(plan, bound)
 
+        detected = (detected_action(text, [c for tg in plan.targets for c in tg.cls])
+                    if self.cfg.detected_actions and plan.intent in ("exists", "list", "count", "first", "last") else None)
+        if detected is not None:
+            async for ev in self._action_answer(query_id, text, plan, detected, notes, timings, started, cameras, tz, ref_now,
+                                                bound):
+                yield ev
+            return
+
         if self._look is not None and wants_look(plan, text) and not any(
                 z.kind != "frame" for z in bound.zones.values()):
             looked = await self._look_answer(query_id, text, plan, notes, timings, started, cameras, tz, ref_now, bound)
@@ -240,6 +263,12 @@ class Router:
                 for ev in looked:
                     yield ev
                 return
+
+        unverified = unsupported_action(text) if self.cfg.honest_actions and not self.cfg.show_unverified_actions else None
+        if unverified is not None and plan.intent in ("exists", "list", "count", "first", "last"):
+            for ev in self._unverified_answer(query_id, text, plan, unverified, notes, timings, started):
+                yield ev
+            return
 
         if plan.intent == "describe":
             async for ev in self._describe(query_id, text, plan, notes, timings, started, cameras, tz, ref_now, bound):
@@ -550,6 +579,105 @@ class Router:
         answer = Answer(query_id=query_id, text=" ".join(s.text for s in final), verdict=verdict, evidence=evidence,
                         confidence=1.0 if facts else 0.5, plan=plan, timings_ms=timings, notes=all_notes)
         yield _event("answer", answer.model_dump(mode="json"))
+        timings["ttva"] = _ms(started)
+        self._log_query(query_id, text, plan, answer)
+        yield _event("done", {"query_id": query_id})
+
+    def _unverified_answer(self, query_id: str, text: str, plan: QueryPlan, phrase: str, notes: list[str],
+                           timings: dict[str, float], started: float) -> list[StreamEvent]:
+        """An action nothing detects: no claim and no evidence, and what is recognised instead."""
+        composed = compose_unverified(phrase, RECOGNISED_ACTIONS)
+        timings["ttfa"] = timings["ttva"] = _ms(started)
+        answer = Answer(query_id=query_id, text=composed.text, verdict=composed.verdict, evidence=[], confidence=0.0, plan=plan,
+                        timings_ms=timings, notes=list(dict.fromkeys([*notes, *composed.notes])), unsupported_action=phrase)
+        self._log_query(query_id, text, plan, answer)
+        return [_event("answer", answer.model_dump(mode="json")), _event("done", {"query_id": query_id})]
+
+    def _action_events(self, kinds: tuple[str, ...], cameras: list[str], window: TimeWindow | None, tz: tzinfo,
+                       subject: str) -> list[dict[str, Any]]:
+        """Detected action events of these kinds on these cameras inside the window, earliest first."""
+        if not cameras:
+            return []
+        marks, kind_marks = ",".join("?" * len(cameras)), ",".join("?" * len(kinds))
+        with self._db.read() as conn:
+            rows = conn.execute(
+                f"SELECT e.id, e.camera_id, e.track_id, e.kind, e.t, e.payload, t.cls, t.global_id, t.t_start, t.t_end "
+                f"FROM events e JOIN tracks t ON t.id = e.track_id WHERE e.kind IN ({kind_marks}) "
+                f"AND e.camera_id IN ({marks}) ORDER BY e.t", [*kinds, *cameras]).fetchall()
+        out = []
+        for row in rows:
+            if not instant_in_window(row["t"], window, tz):
+                continue
+            if subject == "vehicle" and row["cls"] not in VEHICLE_CLASSES:
+                continue
+            if subject == "person" and row["cls"] != "person":
+                continue
+            out.append({**dict(row), "payload": json.loads(row["payload"] or "{}")})
+        return out
+
+    async def _action_answer(self, query_id: str, text: str, plan: QueryPlan, detected: DetectedAction, notes: list[str],
+                             timings: dict[str, float], started: float, cameras: list[_Camera], tz: tzinfo, ref_now: float,
+                             bound: _Bound) -> AsyncIterator[StreamEvent]:
+        """An action perception detects: the answer is the matching events, nothing else."""
+        t = time.perf_counter()
+        camera_by_id = {c.id: c for c in cameras}
+        scope = [c for c in sorted(set(plan.camera_ids) | bound.camera_ids) if c in camera_by_id] or sorted(camera_by_id)
+        rows = self._action_events(detected.kinds, scope, plan.time, tz, detected.subject)
+        shown = rows if plan.intent == "count" else rows[: max(1, plan.limit)]
+        if plan.intent == "last":
+            shown = rows[-1:]
+        elif plan.intent == "first":
+            shown = rows[:1]
+        evidence: list[Evidence] = []
+        for n, row in enumerate(shown, start=1):
+            facts = describe_payload(row["kind"], row["payload"])
+            why = (f"detected: {detected.label}", *([facts] if facts else []))
+            match = Match(row["track_id"], row["camera_id"], row["t"], row["t"], row["t"], 1.0, row["global_id"], row["id"], why)
+            evidence.append(self._evidence(match, camera_by_id, f"{query_id}_{n}"))
+        if plan.place is not None:
+            notes.append(f'The place "{plan.place.text}" is not used for this action: the whole view of each camera counts.')
+        where = ""
+        if plan.camera_ids or bound.camera_ids:
+            where = "on " + " or ".join(camera_by_id[c].name for c in scope)
+        composed = compose_actions(plan, detected.label, detected.cue, len(rows), evidence, where=where, tz=tz,
+                                   source_names={c.id: c.source_name for c in cameras if c.source_name}, reference_now=ref_now)
+        validate(composed.sentences, {e.id for e in evidence})
+        for ev in evidence:
+            self._register(ev)
+            yield _event("evidence", ev.model_dump(mode="json"))
+        timings["actions"] = _ms(t)
+        timings["ttfa"] = _ms(started)
+        base_notes = list(dict.fromkeys([*notes, *composed.notes, *make_notes(plan, _as_compose_cameras(cameras), evidence)]))
+        answer = Answer(query_id=query_id, text=composed.text, verdict=composed.verdict, count=composed.count, evidence=evidence,
+                        confidence=_confidence(evidence, None) if evidence else 0.5, plan=plan, timings_ms=timings,
+                        notes=base_notes)
+        yield _event("answer", answer.model_dump(mode="json"))
+        question = ACTION_VIEWS.get(detected.key)
+        checkable = plan.intent in ("exists", "list", "first", "last")
+        if self._verifier is not None and evidence and question is not None and checkable:
+            view = plan.model_copy(update={"targets": [Target(noun=question[0], embed_text=question[1])]})
+            whole_frames = [e.model_copy(update={"track_id": None, "bbox": None}) for e in evidence]  # the scene, not one track
+            checked: dict[str, bool | None] = {}
+            try:
+                async for evidence_id, ok in self._verifier.verify(view, whole_frames):
+                    checked[evidence_id] = ok
+                    yield _event("verified", {"evidence_id": evidence_id, "verified": ok})
+            except Exception as exc:  # noqa: BLE001 - the check is optional; the detected answer stands without it
+                log.warning("action check failed: %s", exc)
+            decided = [v for v in checked.values() if v is not None]
+            if decided:
+                marked = [e.model_copy(update={"verified": checked.get(e.id)}) for e in evidence]
+                confirmed = sum(1 for v in decided if v)
+                extra = [f"A visual check of the frames at those moments confirmed {confirmed} of {len(decided)} "
+                         f"({question[2]})."]
+                verdict = composed.verdict
+                if confirmed == 0 and verdict == "yes":
+                    verdict = "partial"
+                    extra.append("Nothing in the frames confirmed it, so treat it as unconfirmed.")
+                answer = Answer(query_id=query_id, text=composed.text, verdict=verdict, count=composed.count, evidence=marked,
+                                confidence=answer.confidence, plan=plan, timings_ms=timings,
+                                notes=list(dict.fromkeys([*base_notes, *extra])))
+                yield _event("answer", answer.model_dump(mode="json"))
         timings["ttva"] = _ms(started)
         self._log_query(query_id, text, plan, answer)
         yield _event("done", {"query_id": query_id})
