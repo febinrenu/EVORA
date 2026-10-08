@@ -195,6 +195,9 @@ def compose(
         if evidence:
             first = min(evidence, key=lambda e: e.t_peak)
             sentences.append(Sentence(f"First at {at(first)}.", (first.id,)))
+        if n > 1:
+            notes.append("This counts separate appearances. Someone who leaves the view or is hidden for a while and returns "
+                         "can be counted more than once, and small or distant objects can be missed.")
         return Composed("count", sentences, notes, n)
 
     if intent == "path" and path:
