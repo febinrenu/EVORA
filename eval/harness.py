@@ -101,9 +101,20 @@ def write_reports(reports: dict[str, Report], out_dir: Path = REPORTS_DIR, stem:
     return json_path, md_path
 
 
-def build_system(name: str) -> System:
-    """Resolve a system by name. Real systems are registered here as they are wired up."""
-    raise SystemNotReady(f"system {name!r} is not wired up yet (needs the query router and an indexed workspace)")
+def build_system(name: str, workspace: str | None = None, root: Path | None = None, replay: Path | None = None,
+                 overrides: dict | None = None) -> System:
+    """Resolve a system by name against an indexed workspace."""
+    from eval.systems import SYSTEM_BUILDERS
+
+    builder = SYSTEM_BUILDERS.get(name)
+    if builder is None:
+        raise SystemNotReady(f"unknown system {name!r}; known: {', '.join(sorted(SYSTEM_BUILDERS))}")
+    if workspace is None:
+        raise SystemNotReady(f"system {name!r} needs an indexed workspace: pass --workspace <slug>")
+    kwargs: dict = {"root": root, "replay_path": replay}
+    if name == "ours":
+        kwargs["overrides"] = overrides
+    return builder(workspace, **kwargs)
 
 
 async def evaluate(system: System, items: list[QueryItem], split: str) -> Report:
@@ -116,6 +127,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--split", choices=["dev", "test", "judge_sim"], default="dev")
     parser.add_argument("--queries", type=Path, action="append", help="query file(s); default eval/queries/*.yaml")
     parser.add_argument("--out", type=Path, default=REPORTS_DIR)
+    parser.add_argument("--workspace", help="slug of the indexed workspace to evaluate on")
+    parser.add_argument("--root", type=Path, help="workspaces folder (default: workspaces/)")
+    parser.add_argument("--replay", type=Path, help="record and replay model calls here, so reruns cost no Groq calls")
     args = parser.parse_args(argv)
 
     split: Split = args.split
@@ -126,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
     reports: dict[str, Report] = {}
     for name in args.system:
         try:
-            system = build_system(name)
+            system = build_system(name, args.workspace, args.root, args.replay)
         except SystemNotReady as exc:
             print(str(exc), file=sys.stderr)
             return 2

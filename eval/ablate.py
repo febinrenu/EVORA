@@ -144,17 +144,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--split", choices=["dev", "test", "judge_sim"], default="test")
     parser.add_argument("--queries", type=Path, action="append")
     parser.add_argument("--out", type=Path, default=REPORTS_DIR)
+    parser.add_argument("--workspace", required=False, help="slug of the indexed workspace")
+    parser.add_argument("--root", type=Path)
+    parser.add_argument("--replay", type=Path, help="shared replay file: ablations that plan alike reuse each other")
     args = parser.parse_args(argv)
     items = load_queries(args.queries, split=args.split)
     if not items:
         print(f"No {args.split} queries found.", file=sys.stderr)
         return 2
     try:
-        build_system("ours")
+        build_system("ours", args.workspace, args.root, args.replay)
     except Exception as exc:  # noqa: BLE001 - report whatever stops the run, once, clearly
         print(str(exc), file=sys.stderr)
         return 2
-    rows = asyncio.run(run_ablation(lambda overrides: build_system("ours"), items, args.split))
+    rows = asyncio.run(run_ablation(
+        lambda overrides: build_system("ours", args.workspace, args.root, args.replay, overrides), items, args.split))
     jp, mp = write_reports(rows, args.out)
     print(format_markdown(rows))
     print(f"\nwrote {jp} and {mp}")

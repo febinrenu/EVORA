@@ -112,4 +112,4 @@ def test_cli_reports_that_ours_is_not_wired(tmp_path, capsys):
     q = tmp_path / "q.yaml"
     q.write_text("- {id: a, text: x, workspace: w, intent: exists, split: test, expected: {verdict: no}}\n")
     assert ablate.main(["--queries", str(q), "--out", str(tmp_path)]) == 2
-    assert "not wired up" in capsys.readouterr().err
+    assert "needs an indexed workspace" in capsys.readouterr().err

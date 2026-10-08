@@ -25,9 +25,10 @@ class ToyEmbedder:
 
 
 class Workspace:
-    def __init__(self, path) -> None:
-        self.db: Database = open_db(path / "evora.db")
-        self.store = open_store(path / "vectors")
+    def __init__(self, path=None, db: Database | None = None, vectors_dir=None) -> None:
+        """A fresh workspace under `path`, or wrap an existing database and vector folder."""
+        self.db: Database = db if db is not None else open_db(path / "evora.db")
+        self.store = open_store(vectors_dir if vectors_dir is not None else path / "vectors")
         ensure_tables(self.store, {"embed_dim_image": DIM, "embed_dim_text": 384})
 
     def close(self) -> None:

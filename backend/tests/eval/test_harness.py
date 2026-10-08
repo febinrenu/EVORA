@@ -99,7 +99,7 @@ def test_cli_reports_unwired_systems_and_empty_splits(tmp_path, capsys):
     qfile = tmp_path / "q.yaml"
     qfile.write_text("- {id: a, text: x, workspace: w, intent: exists, split: dev, expected: {verdict: no}}\n")
     assert harness.main(["--system", "ours", "--queries", str(qfile), "--out", str(tmp_path)]) == 2
-    assert "not wired up" in capsys.readouterr().err
+    assert "needs an indexed workspace" in capsys.readouterr().err
     assert harness.main(["--system", "ours", "--split", "test", "--queries", str(qfile)]) == 2
     assert "No test queries" in capsys.readouterr().err
 
@@ -108,7 +108,7 @@ def test_cli_end_to_end_with_a_registered_system(tmp_path, monkeypatch, capsys):
     qfile = tmp_path / "q.yaml"
     qfile.write_text(
         "- {id: a, text: x, workspace: w, intent: exists, split: dev, expected: {verdict: no}}\n")
-    monkeypatch.setattr(harness, "build_system", lambda name: Oracle())
+    monkeypatch.setattr(harness, "build_system", lambda *args, **kwargs: Oracle())
     assert harness.main(["--system", "oracle", "--queries", str(qfile), "--out", str(tmp_path / "out")]) == 0
     assert "| oracle | dev | 1 |" in capsys.readouterr().out
     assert Path(tmp_path / "out" / "eval_dev.json").exists()
