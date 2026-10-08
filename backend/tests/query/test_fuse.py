@@ -94,3 +94,17 @@ def test_scene_support_needs_same_camera_and_overlap():
     assert scene_support("cam_01", 8.0, 25.0, scenes) == 0.9
     assert scene_support("cam_01", 30.0, 40.0, scenes) is None
     assert scene_support("cam_01", 12.5, 15.0, scenes, pad_s=1.0) is None
+
+
+def test_attribute_score_reads_each_colour_slot_and_treats_unknown_slots_as_no_evidence():
+    attrs = {"upper_color": "red", "upper_color_conf": 0.8, "lower_color": "blue", "lower_color_conf": 0.7,
+             "color": "red", "color_conf": 0.8}
+    assert attribute_score(["blue"], attrs) == pytest.approx(0.7)       # trousers count, with their own confidence
+    assert attribute_score(["red"], attrs) == pytest.approx(0.8)
+    assert attribute_score(["green"], attrs) == 0.0                     # a stored colour that differs is a mismatch
+    # a slot left unknown is not a mismatch, and a track with nothing known is not penalised
+    partial = {"upper_color": "red", "upper_color_conf": 0.8, "lower_color_conf": 0.3, "colour_unsure": ["lower"]}
+    assert attribute_score(["red"], partial) == pytest.approx(0.8)
+    unknown = {"upper_color_conf": 0.2, "lower_color_conf": 0.2, "colour_unsure": ["upper", "lower"], "carrying": []}
+    assert attribute_score(["red"], unknown) is None
+    assert explain_attributes(["blue"], attrs) == ["colour blue 0.70"]

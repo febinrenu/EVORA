@@ -71,6 +71,23 @@ def aggregate_crops(sims: Sequence[float], unit: str = "track", top: int = 3) ->
 
 
 # --------------------------------------------------------------- attributes
+_COLOUR_SLOTS = (("color", "color_conf"), ("upper_color", "upper_color_conf"), ("lower_color", "lower_color_conf"))
+
+
+def _stored_colours(attrs: Mapping[str, object]) -> dict[str, float]:
+    """Colour name -> confidence over every slot that has a colour; a slot left unknown contributes nothing."""
+    found: dict[str, float] = {}
+    for slot, conf_key in _COLOUR_SLOTS:
+        name = attrs.get(slot)
+        if not name or not isinstance(name, str):
+            continue
+        conf = attrs.get(conf_key)
+        if not isinstance(conf, (int, float)):
+            conf = attrs.get("color_conf")  # older workspaces carry one confidence for all slots
+        found[name] = max(found.get(name, 0.0), float(conf) if isinstance(conf, (int, float)) else 1.0)
+    return found
+
+
 def attribute_score(wanted: Iterable[str], attrs: Mapping[str, object], colour_threshold: float = 0.0) -> float | None:
     """Agreement in [0, 1] between the query's attributes and a track's stored attributes.
 
@@ -82,9 +99,7 @@ def attribute_score(wanted: Iterable[str], attrs: Mapping[str, object], colour_t
         return None
     is_ir = bool(attrs.get("is_ir"))
     carrying = set(attrs.get("carrying") or [])
-    colours = {c for c in (attrs.get("color"), attrs.get("upper_color")) if c}
-    colour_conf = attrs.get("color_conf")
-    conf = float(colour_conf) if isinstance(colour_conf, (int, float)) else 1.0
+    colours = _stored_colours(attrs)
     vehicle = attrs.get("vehicle_type")
 
     scores: list[float] = []
@@ -92,7 +107,7 @@ def attribute_score(wanted: Iterable[str], attrs: Mapping[str, object], colour_t
         if a in COLOUR_TERMS:
             if is_ir or not colours:
                 continue  # cannot judge
-            scores.append(max(conf, colour_threshold) if a in colours else 0.0)
+            scores.append(max(colours[a], colour_threshold) if a in colours else 0.0)
         elif a in CARRY_TERMS:
             scores.append(1.0 if a in carrying else 0.0)
         elif a in VEHICLE_TYPES and vehicle:
@@ -102,10 +117,10 @@ def attribute_score(wanted: Iterable[str], attrs: Mapping[str, object], colour_t
 
 def explain_attributes(wanted: Iterable[str], attrs: Mapping[str, object]) -> list[str]:
     out: list[str] = []
-    conf = attrs.get("color_conf")
+    colours = _stored_colours(attrs)
     for a in dict.fromkeys(wanted):
-        if a in COLOUR_TERMS and not attrs.get("is_ir") and a in {attrs.get("color"), attrs.get("upper_color")}:
-            out.append(f"colour {a} {float(conf):.2f}" if isinstance(conf, (int, float)) else f"colour {a}")
+        if a in COLOUR_TERMS and not attrs.get("is_ir") and a in colours:
+            out.append(f"colour {a} {colours[a]:.2f}")
         elif a in CARRY_TERMS and a in (attrs.get("carrying") or []):
             out.append(f"carrying {a.replace('_', ' ')}")
         elif a in VEHICLE_TYPES and attrs.get("vehicle_type") == a:
