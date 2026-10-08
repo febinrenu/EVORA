@@ -16,9 +16,9 @@ import json
 import logging
 import time
 import uuid
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import tzinfo
+from datetime import datetime, tzinfo
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
@@ -29,6 +29,7 @@ from contracts.models import (
     ClarifyResponse,
     Evidence,
     MemoryFact,
+    PathHop,
     QueryPlan,
     Referent,
     StreamEvent,
@@ -38,7 +39,8 @@ from contracts.models import (
 
 from evora.core.db import Database
 from evora.evidence.store import EvidenceError, register
-from evora.query.compose import compose_checked
+from evora.query.compose import Sentence, compose_checked, make_notes, stamp, validate
+from evora.query.describe import deterministic_sentences, gather_facts, narrate
 from evora.query.logic import (
     Candidate,
     EventRec,
@@ -55,6 +57,7 @@ log = logging.getLogger("evora.query.router")
 
 TRACK_PAD_S = 5.0     # evidence window around the best frame of a track
 EVENT_PAD_S = 1.5     # evidence window around a crossing / entry / dwell
+MAX_DESCRIBE_EVIDENCE = 8
 EVENT_CHUNK = 400     # SQLite parameter budget when loading events
 
 
@@ -122,7 +125,11 @@ class Router:
         verifier: Verifier | None = None,
         cfg: RouterConfig | None = None,
         reference_override=lambda: None,  # noqa: B008 - callable returning settings.reference_now or None
+        gateway: Any = None,
+        path_for: Callable[[str], list[PathHop]] | None = None,
     ) -> None:
+        self._gateway = gateway  # phrases `describe` answers; without it they are plain deterministic summaries
+        self._path_for = path_for or self._reid_path
         self._db, self._planner, self._retriever = db, planner, retriever
         self._resolver, self._clarifier, self._verifier = resolver, clarifier, verifier
         self.cfg = cfg or RouterConfig()
@@ -187,6 +194,11 @@ class Router:
 
         plan = self._with_bound_time(plan, bound)
 
+        if plan.intent == "describe":
+            async for ev in self._describe(query_id, text, plan, notes, timings, started, cameras, tz, ref_now, bound):
+                yield ev
+            return
+
         # 2. retrieval
         t = time.monotonic()
         scope_cams = frozenset(set(plan.camera_ids) | bound.camera_ids)
@@ -209,8 +221,12 @@ class Router:
         # 4. evidence and answer
         t = time.monotonic()
         camera_by_id = {c.id: c for c in cameras}
-        shown = self._select(plan, accepted)
-        evidence = [self._evidence(m, camera_by_id, f"{query_id}_{i}") for i, m in enumerate(shown, start=1)]
+        hops: list[PathHop] = []
+        if plan.intent == "path" and accepted:
+            evidence, hops = self._path_evidence(query_id, max(accepted, key=lambda m: m.score), camera_by_id, notes)
+        else:
+            shown = self._select(plan, accepted)
+            evidence = [self._evidence(m, camera_by_id, f"{query_id}_{i}") for i, m in enumerate(shown, start=1)]
         miss = None
         if not accepted and near:
             best = max(near, key=lambda m: m.score)
@@ -222,7 +238,7 @@ class Router:
 
         count = count_distinct(accepted) if plan.intent == "count" else None
         composed = compose_checked(
-            plan, evidence, count=count, nearest_miss=miss, cameras=_as_compose_cameras(cameras),
+            plan, evidence, count=count, nearest_miss=miss, path=hops, cameras=_as_compose_cameras(cameras),
             source_names={c.id: c.source_name for c in cameras if c.source_name}, tz=tz, reference_now=ref_now,
             partial=_is_partial(cameras, plan, evidence),
         )
@@ -231,7 +247,7 @@ class Router:
         all_notes = list(dict.fromkeys([*notes, *composed.notes]))
         answer = Answer(
             query_id=query_id, text=composed.text, verdict=composed.verdict, count=composed.count,
-            evidence=evidence, nearest_miss=miss, confidence=_confidence(evidence, miss),
+            evidence=evidence, path=hops, nearest_miss=miss, confidence=_confidence(evidence, miss),
             plan=plan, timings_ms=timings, notes=all_notes,
         )
         yield _event("answer", answer.model_dump(mode="json"))
@@ -306,6 +322,99 @@ class Router:
         merged = base.model_copy(update={"tod_after": bound.window.tod_after or base.tod_after,
                                          "tod_before": bound.window.tod_before or base.tod_before})
         return plan.model_copy(update={"time": merged})
+
+    def _reid_path(self, global_id: str) -> list[PathHop]:
+        from evora.reid.paths import path_for
+
+        return path_for(global_id, db=self._db)
+
+    def _path_evidence(self, query_id: str, anchor: Match, cameras: dict[str, _Camera],
+                       notes: list[str]) -> tuple[list[Evidence], list[PathHop]]:
+        """The cameras one identity passed through, as evidence in time order.
+
+        The anchor is the best match for the question; its identity's other tracks come from the re-ID
+        links. A track with no identity gives a one-hop path, and the answer says so.
+        """
+        hops = self._path_for(anchor.global_id) if anchor.global_id else []
+        if not hops:
+            cam = cameras[anchor.camera_id]
+            hops = [PathHop(camera_id=anchor.camera_id, camera_name=cam.name, t_in=anchor.t_start, t_out=anchor.t_end,
+                            evidence_id=anchor.track_id.replace(":", "_"))]
+            notes.append("This one was not linked to any other camera, so the path has a single stop.")
+        elif len(hops) == 1:
+            notes.append("Only one camera saw this identity, so the path has a single stop.")
+        evidence: list[Evidence] = []
+        final: list[PathHop] = []
+        for i, hop in enumerate(hops, start=1):
+            with self._db.read() as conn:
+                row = conn.execute("SELECT id, camera_id, cls, t_start, t_end, best_t, global_id FROM tracks "
+                                   "WHERE REPLACE(id, ':', '_') = ?", (hop.evidence_id,)).fetchone()
+            if row is None or row["camera_id"] not in cameras:
+                continue
+            is_anchor = row["id"] == anchor.track_id
+            peak = row["best_t"] if row["best_t"] is not None else hop.t_in
+            why = anchor.why if is_anchor else (f"same identity as the best match ({row['global_id']})",)
+            match = Match(row["id"], row["camera_id"], row["t_start"], peak, row["t_end"], anchor.score,
+                          row["global_id"], None, why)
+            ev = self._evidence(match, cameras, f"{query_id}_p{i}")
+            evidence.append(ev)
+            final.append(hop.model_copy(update={"evidence_id": ev.id}))
+        return evidence, final
+
+    async def _describe(self, query_id: str, text: str, plan: QueryPlan, notes: list[str], timings: dict[str, float],
+                        started: float, cameras: list[_Camera], tz: tzinfo, ref_now: float,
+                        bound: _Bound) -> AsyncIterator[StreamEvent]:
+        """What happened: a grounded summary of the events in scope, with no retrieval involved."""
+        t = time.monotonic()
+        names = {c.id: c.name for c in cameras}
+        camera_by_id = {c.id: c for c in cameras}
+        scope = set(plan.camera_ids) | bound.camera_ids
+        facts, overview = gather_facts(self._db, scope, plan.time, tz)
+        where = (f"the {plan.place.text}" if plan.place else
+                 " or ".join(f"the {names[c]} camera" for c in sorted(scope) if c in names))
+        when = plan.time.phrase.strip() if plan.time and plan.time.phrase else ""
+        days = {datetime.fromtimestamp(f.t, tz).date() for f in facts}
+        with_date = len(days) > 1 or (bool(days) and days != {datetime.fromtimestamp(ref_now, tz).date()})
+        narrated = await narrate(self._gateway, facts, overview, where, when)
+        sources = {c.id: c.source_name for c in cameras if c.source_name}
+
+        by_id = {f.id: f for f in facts}
+        sentences = narrated or deterministic_sentences(facts, overview, where, when, tz, names, sources, with_date)
+        cited = list(dict.fromkeys(fid for s in sentences for fid in s.fact_ids))[:MAX_DESCRIBE_EVIDENCE]
+        evidence_for: dict[str, Evidence] = {}
+        for n, fid in enumerate(cited, start=1):
+            f = by_id[fid]
+            match = Match(f.track_id, f.camera_id, f.track_start, f.t, f.track_end, 1.0, f.global_id, fid, (f.text,))
+            evidence_for[fid] = self._evidence(match, camera_by_id, f"{query_id}_{n}")
+        for ev in evidence_for.values():
+            self._register(ev)
+            yield _event("evidence", ev.model_dump(mode="json"))
+
+        final: list[Sentence] = []
+        for s in sentences:
+            ids = tuple(evidence_for[f].id for f in s.fact_ids if f in evidence_for)
+            body = s.text
+            if narrated and ids:  # the model never writes times: the code adds them from the cited evidence
+                first = evidence_for[next(f for f in s.fact_ids if f in evidence_for)]
+                where_when = stamp(first, tz, with_date, sources.get(first.camera_id))
+                body = f"{body[:-1] if body.endswith('.') else body}. At {where_when}."
+            final.append(Sentence(body, ids, "fact" if ids else "negative"))
+        evidence = list(evidence_for.values())
+        validate(final, {e.id for e in evidence})
+        timings["describe"] = _ms(t)
+        timings["ttfa"] = _ms(started)
+        if narrated:
+            notes.append("Worded by the language model from the listed events; every sentence cites its evidence.")
+        verdict = "found" if facts else "not_found"
+        if facts and _is_partial(cameras, plan, evidence):
+            verdict = "partial"
+        all_notes = list(dict.fromkeys([*notes, *make_notes(plan, _as_compose_cameras(cameras), evidence)]))
+        answer = Answer(query_id=query_id, text=" ".join(s.text for s in final), verdict=verdict, evidence=evidence,
+                        confidence=1.0 if facts else 0.5, plan=plan, timings_ms=timings, notes=all_notes)
+        yield _event("answer", answer.model_dump(mode="json"))
+        timings["ttva"] = _ms(started)
+        self._log_query(query_id, text, plan, answer)
+        yield _event("done", {"query_id": query_id})
 
     def _events_for(self, track_ids: list[str]) -> list[EventRec]:
         out: list[EventRec] = []

@@ -82,12 +82,13 @@ def ws(tmp_path):
     w.close()
 
 
-def make_router(ws, resolver=None, clarifier=None, verifier=None, gateway=None, accept=0.4, **retrieval):
+def make_router(ws, resolver=None, clarifier=None, verifier=None, gateway=None, accept=0.4, narrator=None,
+                path_for=None, **retrieval):
     resolver = resolver or FakeResolver({"main gate": place_fact()})
     retriever = Retriever(ws.db, ws.store, ToyEmbedder(),
                           RetrievalConfig(calibration=Calibration(0.5, 0.2), **retrieval))
     return Router(ws.db, Planner(gateway), retriever, resolver, clarifier or FakeClarifier(resolver), verifier,
-                  RouterConfig(accept=accept))
+                  RouterConfig(accept=accept), gateway=narrator, path_for=path_for)
 
 
 async def collect(stream):
@@ -344,3 +345,144 @@ async def test_an_unknown_time_word_is_asked_once_through_memory(ws):
     again = await collect(make_router(ws, resolver, clarifier, gateway=FakeGateway(plan)).answer("odd", "s1"))
     assert types(again)[-2:] == ["answer", "done"] and "clarify" not in types(again)
     assert of(again, "answer")[0]["plan"]["time"]["tod_after"] == "20:00"
+
+
+# --------------------------------------------------------------------- path
+def path_plan(**kw):
+    base = dict(intent="path", targets=[Target(noun="car", cls=["car"], attributes=["red"],
+                                               embed_text="a photo of a red car")], action="any", limit=10)
+    base.update(kw)
+    return QueryPlan(**base)
+
+
+@pytest.mark.asyncio
+async def test_path_follows_the_identity_across_cameras_in_time_order(ws):
+    ws.camera("cam_02", "Lobby", source="/data/lobby.mp4")
+    ws.track("cam_01:t1", "cam_01", attrs=RED_CAR, gid="g1", t0=1100.0, t1=1110.0, crops=[E[0]])
+    ws.track("cam_02:t7", "cam_02", attrs=RED_CAR, gid="g1", t0=1180.0, t1=1190.0, crops=[E[3]])  # looks different
+    ws.track("cam_02:t8", "cam_02", attrs=BLUE_CAR, gid="g2", t0=1100.0, t1=1110.0, crops=[E[1]])  # someone else
+    router = make_router(ws, gateway=FakeGateway(path_plan()))
+    events = await collect(router.answer("where did the red car go", "s1"))
+    assert types(events) == ["plan", "evidence", "evidence", "answer", "done"]
+    ans = of(events, "answer")[0]
+    assert ans["verdict"] == "found" and [e["camera_name"] for e in ans["evidence"]] == ["Gate", "Lobby"]
+    assert [h["camera_name"] for h in ans["path"]] == ["Gate", "Lobby"]
+    assert [h["evidence_id"] for h in ans["path"]] == [e["id"] for e in ans["evidence"]]  # hops cite our evidence ids
+    assert ans["text"].startswith("Path of red car: Gate ") and " → Lobby " in ans["text"]
+    assert any("same identity" in w for w in ans["evidence"][1]["why"])
+    with ws.db.read() as c:  # every hop is renderable
+        assert c.execute("SELECT COUNT(*) AS n FROM evidence").fetchone()["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_a_track_with_no_identity_gives_a_single_stop_and_says_so(ws):
+    ws.track("cam_01:t1", "cam_01", attrs=RED_CAR, crops=[E[0]])
+    events = await collect(make_router(ws, gateway=FakeGateway(path_plan())).answer("where did the red car go", "s1"))
+    ans = of(events, "answer")[0]
+    assert len(ans["path"]) == 1 and any("single stop" in n for n in ans["notes"])
+
+
+@pytest.mark.asyncio
+async def test_path_with_no_matching_car_is_an_honest_negative(ws):
+    ws.track("cam_01:t1", "cam_01", attrs=BLUE_CAR, crops=[E[1]])
+    events = await collect(make_router(ws, gateway=FakeGateway(path_plan())).answer("where did the red car go", "s1"))
+    ans = of(events, "answer")[0]
+    assert ans["verdict"] == "not_found" and ans["path"] == []
+
+
+@pytest.mark.asyncio
+async def test_a_path_provider_can_be_injected(ws):
+    ws.track("cam_01:t1", "cam_01", attrs=RED_CAR, gid="g1", crops=[E[0]])
+    from contracts.models import PathHop
+
+    calls = []
+
+    def provider(gid):
+        calls.append(gid)
+        return [PathHop(camera_id="cam_01", camera_name="Gate", t_in=1100.0, t_out=1110.0, evidence_id="cam_01_t1")]
+
+    router = make_router(ws, gateway=FakeGateway(path_plan()), path_for=provider)
+    events = await collect(router.answer("where did the red car go", "s1"))
+    assert calls == ["g1"] and len(of(events, "answer")[0]["path"]) == 1
+
+
+# ----------------------------------------------------------------- describe
+def describe_plan(**kw):
+    base = dict(intent="describe", targets=[], camera_ids=["cam_01"], time=TimeWindow(phrase="today"))
+    base.update(kw)
+    return QueryPlan(**base)
+
+
+class Narrator:
+    def __init__(self, lines=None, error=None):
+        self.lines, self.error = lines or [], error
+
+    async def chat_json(self, task, messages, schema):
+        if self.error:
+            raise self.error
+        return schema.model_validate({"sentences": self.lines})
+
+
+def two_events(ws):
+    red_car_crossing(ws, tid="t1", eid="e1", t=1105.0)
+    ws.track("t2", "cam_01", cls="person", attrs={"upper_color": "red"}, t0=1150.0, t1=1160.0, crops=[E[2]])
+    ws.event("e2", "cam_01", "t2", "enter_zone", 1155.0)
+
+
+@pytest.mark.asyncio
+async def test_describe_summarises_the_events_with_cited_evidence(ws):
+    two_events(ws)
+    router = make_router(ws, gateway=FakeGateway(describe_plan()))
+    events = await collect(router.answer("what happened at the gate today", "s1"))
+    assert types(events)[0] == "plan" and types(events)[-2:] == ["answer", "done"]
+    assert types(events).count("evidence") == 2
+    ans = of(events, "answer")[0]
+    assert ans["verdict"] == "found" and "were tracked at the Gate camera today" in ans["text"]
+    assert "A red car crossed the Gate camera at" in ans["text"]
+    assert {e["track_id"] for e in ans["evidence"]} == {"t1", "t2"}
+    assert not any("language model" in n for n in ans["notes"])  # no model configured: plain summary
+
+
+@pytest.mark.asyncio
+async def test_describe_with_a_model_adds_the_times_itself(ws):
+    two_events(ws)
+    lines = [{"text": "A red car crossed the Gate camera and a person came in", "cites": ["E1", "E2"]}]
+    router = make_router(ws, gateway=FakeGateway(describe_plan()), narrator=Narrator(lines))
+    ans = of(await collect(router.answer("what happened at the gate today", "s1")), "answer")[0]
+    assert ans["text"].startswith("A red car crossed the Gate camera and a person came in. At ")
+    assert "into gate.mp4" not in ans["text"] or "on Gate" in ans["text"]
+    assert any("language model" in n for n in ans["notes"])
+    assert len(ans["evidence"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_describe_ignores_wording_that_breaks_the_rules(ws):
+    two_events(ws)
+    bad = [{"text": "A red car crossed at 09:14", "cites": ["E1"]}]  # a clock time written by the model
+    router = make_router(ws, gateway=FakeGateway(describe_plan()), narrator=Narrator(bad))
+    ans = of(await collect(router.answer("what happened at the gate today", "s1")), "answer")[0]
+    assert "were tracked" in ans["text"] and not any("language model" in n for n in ans["notes"])
+    router = make_router(ws, gateway=FakeGateway(describe_plan()), narrator=Narrator(error=LLMError("down")))
+    again = of(await collect(router.answer("what happened at the gate today", "s1")), "answer")[0]
+    assert "were tracked" in again["text"]
+
+
+@pytest.mark.asyncio
+async def test_describe_with_nothing_to_report_is_a_grounded_negative(ws):
+    events = await collect(make_router(ws, gateway=FakeGateway(describe_plan())).answer("what happened at the gate today", "s1"))
+    ans = of(events, "answer")[0]
+    assert ans["verdict"] == "not_found" and ans["evidence"] == []
+    assert ans["text"] == "No activity was recorded at the Gate camera today."
+    assert "evidence" not in types(events)
+
+
+@pytest.mark.asyncio
+async def test_describe_uses_the_remembered_place_name_for_events_in_a_zone(ws):
+    two_events(ws)
+    with ws.db.write() as c:
+        c.execute("INSERT INTO memory_facts(id,kind,canonical,aliases,binding,source,created_at) "
+                  "VALUES('mf9','place','main gate','[]','{}','clarification',0)")
+        c.execute("UPDATE zones SET fact_id='mf9' WHERE id='z1'")
+    ans = of(await collect(make_router(ws, gateway=FakeGateway(describe_plan())).answer("what happened at the gate today", "s1")),
+             "answer")[0]
+    assert "A red car crossed the main gate at" in ans["text"]
