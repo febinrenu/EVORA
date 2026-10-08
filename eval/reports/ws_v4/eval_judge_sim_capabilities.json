@@ -1,0 +1,854 @@
+{
+  "ours": {
+    "object": {
+      "split": "judge_sim",
+      "n_queries": 1,
+      "metrics": {
+        "hit@1": {
+          "value": 1.0,
+          "n": 1
+        },
+        "hit@5": {
+          "value": 1.0,
+          "n": 1
+        },
+        "mrr": {
+          "value": 1.0,
+          "n": 1
+        },
+        "camera_accuracy": {
+          "value": 1.0,
+          "n": 1
+        },
+        "temporal_iou": {
+          "value": 0.4669,
+          "n": 1
+        },
+        "timestamp_error_s": {
+          "value": 0.781,
+          "n": 1
+        },
+        "existence_accuracy": {
+          "value": 1.0,
+          "n": 1
+        },
+        "existence_f1": {
+          "value": 1.0,
+          "n": 1
+        },
+        "negative_precision": {
+          "value": null,
+          "n": 0
+        },
+        "count_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "count_mae": {
+          "value": null,
+          "n": 0
+        },
+        "count_within_1": {
+          "value": null,
+          "n": 0
+        },
+        "ask_precision": {
+          "value": null,
+          "n": 0
+        },
+        "ask_recall": {
+          "value": null,
+          "n": 0
+        },
+        "reask_count": {
+          "value": 0.0,
+          "n": 1
+        },
+        "path_hop_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "ttfa_p50_ms": {
+          "value": 308.7543,
+          "n": 1
+        },
+        "ttfa_p95_ms": {
+          "value": 308.7543,
+          "n": 1
+        },
+        "ttva_p50_ms": {
+          "value": 310.7752,
+          "n": 1
+        },
+        "ttva_p95_ms": {
+          "value": 310.7752,
+          "n": 1
+        },
+        "no_model_share": {
+          "value": 1.0,
+          "n": 1
+        },
+        "errors": {
+          "value": 0.0,
+          "n": 9
+        }
+      }
+    },
+    "negative": {
+      "split": "judge_sim",
+      "n_queries": 4,
+      "metrics": {
+        "hit@1": {
+          "value": null,
+          "n": 0
+        },
+        "hit@5": {
+          "value": null,
+          "n": 0
+        },
+        "mrr": {
+          "value": null,
+          "n": 0
+        },
+        "camera_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "temporal_iou": {
+          "value": null,
+          "n": 0
+        },
+        "timestamp_error_s": {
+          "value": null,
+          "n": 0
+        },
+        "existence_accuracy": {
+          "value": 1.0,
+          "n": 4
+        },
+        "existence_f1": {
+          "value": null,
+          "n": 4
+        },
+        "negative_precision": {
+          "value": 1.0,
+          "n": 4
+        },
+        "count_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "count_mae": {
+          "value": null,
+          "n": 0
+        },
+        "count_within_1": {
+          "value": null,
+          "n": 0
+        },
+        "ask_precision": {
+          "value": null,
+          "n": 0
+        },
+        "ask_recall": {
+          "value": null,
+          "n": 0
+        },
+        "reask_count": {
+          "value": 0.0,
+          "n": 4
+        },
+        "path_hop_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "ttfa_p50_ms": {
+          "value": 8.8942,
+          "n": 4
+        },
+        "ttfa_p95_ms": {
+          "value": 9.2148,
+          "n": 4
+        },
+        "ttva_p50_ms": {
+          "value": 10.4583,
+          "n": 4
+        },
+        "ttva_p95_ms": {
+          "value": 10.8073,
+          "n": 4
+        },
+        "no_model_share": {
+          "value": 1.0,
+          "n": 4
+        },
+        "errors": {
+          "value": 0.0,
+          "n": 9
+        }
+      }
+    },
+    "activity (diagnostic)": {
+      "split": "judge_sim",
+      "n_queries": 4,
+      "metrics": {
+        "hit@1": {
+          "value": 0.0,
+          "n": 3
+        },
+        "hit@5": {
+          "value": 0.0,
+          "n": 3
+        },
+        "mrr": {
+          "value": 0.0,
+          "n": 3
+        },
+        "camera_accuracy": {
+          "value": 0.6667,
+          "n": 3
+        },
+        "temporal_iou": {
+          "value": 0.0,
+          "n": 3
+        },
+        "timestamp_error_s": {
+          "value": 68.4419,
+          "n": 2
+        },
+        "existence_accuracy": {
+          "value": 0.5,
+          "n": 4
+        },
+        "existence_f1": {
+          "value": 0.6667,
+          "n": 4
+        },
+        "negative_precision": {
+          "value": 0.0,
+          "n": 1
+        },
+        "count_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "count_mae": {
+          "value": null,
+          "n": 0
+        },
+        "count_within_1": {
+          "value": null,
+          "n": 0
+        },
+        "ask_precision": {
+          "value": 0.0,
+          "n": 1
+        },
+        "ask_recall": {
+          "value": null,
+          "n": 0
+        },
+        "reask_count": {
+          "value": 1.0,
+          "n": 4
+        },
+        "path_hop_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "ttfa_p50_ms": {
+          "value": 284.7509,
+          "n": 4
+        },
+        "ttfa_p95_ms": {
+          "value": 343.1624,
+          "n": 4
+        },
+        "ttva_p50_ms": {
+          "value": 286.5932,
+          "n": 4
+        },
+        "ttva_p95_ms": {
+          "value": 345.232,
+          "n": 4
+        },
+        "no_model_share": {
+          "value": 0.0,
+          "n": 4
+        },
+        "errors": {
+          "value": 0.0,
+          "n": 9
+        }
+      }
+    }
+  },
+  "b0": {
+    "object": {
+      "split": "judge_sim",
+      "n_queries": 1,
+      "metrics": {
+        "hit@1": {
+          "value": 1.0,
+          "n": 1
+        },
+        "hit@5": {
+          "value": 1.0,
+          "n": 1
+        },
+        "mrr": {
+          "value": 1.0,
+          "n": 1
+        },
+        "camera_accuracy": {
+          "value": 1.0,
+          "n": 1
+        },
+        "temporal_iou": {
+          "value": 0.3985,
+          "n": 1
+        },
+        "timestamp_error_s": {
+          "value": 3.2127,
+          "n": 1
+        },
+        "existence_accuracy": {
+          "value": 1.0,
+          "n": 1
+        },
+        "existence_f1": {
+          "value": 1.0,
+          "n": 1
+        },
+        "negative_precision": {
+          "value": null,
+          "n": 0
+        },
+        "count_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "count_mae": {
+          "value": null,
+          "n": 0
+        },
+        "count_within_1": {
+          "value": null,
+          "n": 0
+        },
+        "ask_precision": {
+          "value": null,
+          "n": 0
+        },
+        "ask_recall": {
+          "value": null,
+          "n": 0
+        },
+        "reask_count": {
+          "value": 0.0,
+          "n": 1
+        },
+        "path_hop_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "ttfa_p50_ms": {
+          "value": 50.603,
+          "n": 1
+        },
+        "ttfa_p95_ms": {
+          "value": 50.603,
+          "n": 1
+        },
+        "ttva_p50_ms": {
+          "value": 50.603,
+          "n": 1
+        },
+        "ttva_p95_ms": {
+          "value": 50.603,
+          "n": 1
+        },
+        "no_model_share": {
+          "value": 1.0,
+          "n": 1
+        },
+        "errors": {
+          "value": 0.0,
+          "n": 9
+        }
+      }
+    },
+    "negative": {
+      "split": "judge_sim",
+      "n_queries": 4,
+      "metrics": {
+        "hit@1": {
+          "value": null,
+          "n": 0
+        },
+        "hit@5": {
+          "value": null,
+          "n": 0
+        },
+        "mrr": {
+          "value": null,
+          "n": 0
+        },
+        "camera_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "temporal_iou": {
+          "value": null,
+          "n": 0
+        },
+        "timestamp_error_s": {
+          "value": null,
+          "n": 0
+        },
+        "existence_accuracy": {
+          "value": 0.0,
+          "n": 4
+        },
+        "existence_f1": {
+          "value": 0.0,
+          "n": 4
+        },
+        "negative_precision": {
+          "value": 0.0,
+          "n": 4
+        },
+        "count_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "count_mae": {
+          "value": null,
+          "n": 0
+        },
+        "count_within_1": {
+          "value": null,
+          "n": 0
+        },
+        "ask_precision": {
+          "value": null,
+          "n": 0
+        },
+        "ask_recall": {
+          "value": null,
+          "n": 0
+        },
+        "reask_count": {
+          "value": 0.0,
+          "n": 4
+        },
+        "path_hop_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "ttfa_p50_ms": {
+          "value": 45.107,
+          "n": 4
+        },
+        "ttfa_p95_ms": {
+          "value": 49.1824,
+          "n": 4
+        },
+        "ttva_p50_ms": {
+          "value": 45.107,
+          "n": 4
+        },
+        "ttva_p95_ms": {
+          "value": 49.1824,
+          "n": 4
+        },
+        "no_model_share": {
+          "value": 1.0,
+          "n": 4
+        },
+        "errors": {
+          "value": 0.0,
+          "n": 9
+        }
+      }
+    },
+    "activity (diagnostic)": {
+      "split": "judge_sim",
+      "n_queries": 4,
+      "metrics": {
+        "hit@1": {
+          "value": 0.0,
+          "n": 3
+        },
+        "hit@5": {
+          "value": 0.3333,
+          "n": 3
+        },
+        "mrr": {
+          "value": 0.131,
+          "n": 3
+        },
+        "camera_accuracy": {
+          "value": 0.3333,
+          "n": 3
+        },
+        "temporal_iou": {
+          "value": 0.0,
+          "n": 3
+        },
+        "timestamp_error_s": {
+          "value": 11.6832,
+          "n": 1
+        },
+        "existence_accuracy": {
+          "value": 0.75,
+          "n": 4
+        },
+        "existence_f1": {
+          "value": 0.8571,
+          "n": 4
+        },
+        "negative_precision": {
+          "value": 0.0,
+          "n": 1
+        },
+        "count_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "count_mae": {
+          "value": null,
+          "n": 0
+        },
+        "count_within_1": {
+          "value": null,
+          "n": 0
+        },
+        "ask_precision": {
+          "value": null,
+          "n": 0
+        },
+        "ask_recall": {
+          "value": null,
+          "n": 0
+        },
+        "reask_count": {
+          "value": 0.0,
+          "n": 4
+        },
+        "path_hop_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "ttfa_p50_ms": {
+          "value": 46.0246,
+          "n": 4
+        },
+        "ttfa_p95_ms": {
+          "value": 49.4621,
+          "n": 4
+        },
+        "ttva_p50_ms": {
+          "value": 46.0246,
+          "n": 4
+        },
+        "ttva_p95_ms": {
+          "value": 49.4621,
+          "n": 4
+        },
+        "no_model_share": {
+          "value": 1.0,
+          "n": 4
+        },
+        "errors": {
+          "value": 0.0,
+          "n": 9
+        }
+      }
+    }
+  },
+  "null": {
+    "object": {
+      "split": "judge_sim",
+      "n_queries": 1,
+      "metrics": {
+        "hit@1": {
+          "value": 0.0,
+          "n": 1
+        },
+        "hit@5": {
+          "value": 1.0,
+          "n": 1
+        },
+        "mrr": {
+          "value": 0.3333,
+          "n": 1
+        },
+        "camera_accuracy": {
+          "value": 1.0,
+          "n": 1
+        },
+        "temporal_iou": {
+          "value": 0.0,
+          "n": 1
+        },
+        "timestamp_error_s": {
+          "value": 19.8462,
+          "n": 1
+        },
+        "existence_accuracy": {
+          "value": 1.0,
+          "n": 1
+        },
+        "existence_f1": {
+          "value": 1.0,
+          "n": 1
+        },
+        "negative_precision": {
+          "value": null,
+          "n": 0
+        },
+        "count_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "count_mae": {
+          "value": null,
+          "n": 0
+        },
+        "count_within_1": {
+          "value": null,
+          "n": 0
+        },
+        "ask_precision": {
+          "value": null,
+          "n": 0
+        },
+        "ask_recall": {
+          "value": null,
+          "n": 0
+        },
+        "reask_count": {
+          "value": 0.0,
+          "n": 1
+        },
+        "path_hop_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "ttfa_p50_ms": {
+          "value": 1.0606,
+          "n": 1
+        },
+        "ttfa_p95_ms": {
+          "value": 1.0606,
+          "n": 1
+        },
+        "ttva_p50_ms": {
+          "value": 1.0606,
+          "n": 1
+        },
+        "ttva_p95_ms": {
+          "value": 1.0606,
+          "n": 1
+        },
+        "no_model_share": {
+          "value": 1.0,
+          "n": 1
+        },
+        "errors": {
+          "value": 0.0,
+          "n": 9
+        }
+      }
+    },
+    "negative": {
+      "split": "judge_sim",
+      "n_queries": 4,
+      "metrics": {
+        "hit@1": {
+          "value": null,
+          "n": 0
+        },
+        "hit@5": {
+          "value": null,
+          "n": 0
+        },
+        "mrr": {
+          "value": null,
+          "n": 0
+        },
+        "camera_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "temporal_iou": {
+          "value": null,
+          "n": 0
+        },
+        "timestamp_error_s": {
+          "value": null,
+          "n": 0
+        },
+        "existence_accuracy": {
+          "value": 0.0,
+          "n": 4
+        },
+        "existence_f1": {
+          "value": 0.0,
+          "n": 4
+        },
+        "negative_precision": {
+          "value": 0.0,
+          "n": 4
+        },
+        "count_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "count_mae": {
+          "value": null,
+          "n": 0
+        },
+        "count_within_1": {
+          "value": null,
+          "n": 0
+        },
+        "ask_precision": {
+          "value": null,
+          "n": 0
+        },
+        "ask_recall": {
+          "value": null,
+          "n": 0
+        },
+        "reask_count": {
+          "value": 0.0,
+          "n": 4
+        },
+        "path_hop_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "ttfa_p50_ms": {
+          "value": 0.8814,
+          "n": 4
+        },
+        "ttfa_p95_ms": {
+          "value": 0.9234,
+          "n": 4
+        },
+        "ttva_p50_ms": {
+          "value": 0.8814,
+          "n": 4
+        },
+        "ttva_p95_ms": {
+          "value": 0.9234,
+          "n": 4
+        },
+        "no_model_share": {
+          "value": 1.0,
+          "n": 4
+        },
+        "errors": {
+          "value": 0.0,
+          "n": 9
+        }
+      }
+    },
+    "activity (diagnostic)": {
+      "split": "judge_sim",
+      "n_queries": 4,
+      "metrics": {
+        "hit@1": {
+          "value": 0.0,
+          "n": 3
+        },
+        "hit@5": {
+          "value": 0.3333,
+          "n": 3
+        },
+        "mrr": {
+          "value": 0.1667,
+          "n": 3
+        },
+        "camera_accuracy": {
+          "value": 0.3333,
+          "n": 3
+        },
+        "temporal_iou": {
+          "value": 0.0,
+          "n": 3
+        },
+        "timestamp_error_s": {
+          "value": 106.0344,
+          "n": 1
+        },
+        "existence_accuracy": {
+          "value": 0.75,
+          "n": 4
+        },
+        "existence_f1": {
+          "value": 0.8571,
+          "n": 4
+        },
+        "negative_precision": {
+          "value": 0.0,
+          "n": 1
+        },
+        "count_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "count_mae": {
+          "value": null,
+          "n": 0
+        },
+        "count_within_1": {
+          "value": null,
+          "n": 0
+        },
+        "ask_precision": {
+          "value": null,
+          "n": 0
+        },
+        "ask_recall": {
+          "value": null,
+          "n": 0
+        },
+        "reask_count": {
+          "value": 0.0,
+          "n": 4
+        },
+        "path_hop_accuracy": {
+          "value": null,
+          "n": 0
+        },
+        "ttfa_p50_ms": {
+          "value": 1.1466,
+          "n": 4
+        },
+        "ttfa_p95_ms": {
+          "value": 1.3923,
+          "n": 4
+        },
+        "ttva_p50_ms": {
+          "value": 1.1466,
+          "n": 4
+        },
+        "ttva_p95_ms": {
+          "value": 1.3923,
+          "n": 4
+        },
+        "no_model_share": {
+          "value": 1.0,
+          "n": 4
+        },
+        "errors": {
+          "value": 0.0,
+          "n": 9
+        }
+      }
+    }
+  }
+}
