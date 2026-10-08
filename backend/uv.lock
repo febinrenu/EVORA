@@ -444,6 +444,7 @@ dependencies = [
     { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "sse-starlette" },
+    { name = "tzdata" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -456,7 +457,6 @@ perception = [
     { name = "torch" },
     { name = "torchvision" },
     { name = "transformers" },
-    { name = "tzdata" },
     { name = "ultralytics" },
 ]
 
@@ -487,7 +487,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'perception'", specifier = ">=2.3" },
     { name = "torchvision", marker = "extra == 'perception'", specifier = ">=0.18" },
     { name = "transformers", marker = "extra == 'perception'", specifier = ">=4.45" },
-    { name = "tzdata", marker = "extra == 'perception'" },
+    { name = "tzdata" },
     { name = "ultralytics", marker = "extra == 'perception'", specifier = ">=8.3" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]

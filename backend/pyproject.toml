@@ -16,6 +16,7 @@ dependencies = [
   "opencv-python-headless>=4.9",
   "pillow>=10",
   "av>=12",
+  "tzdata",
 ]
 
 [project.optional-dependencies]
@@ -25,7 +26,6 @@ perception = [
   "torchvision>=0.18",
   "ultralytics>=8.3",
   "transformers>=4.45",
-  "tzdata",
   "boxmot>=10",
 ]
 
