@@ -6,9 +6,9 @@ import base64
 import json
 
 from contracts.models import CameraInfo
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.datastructures import UploadFile
 
 from evora.api.context import AppContext
@@ -109,11 +109,6 @@ def make_router(ctx: AppContext) -> APIRouter:
         if t0 is not None and not isinstance(t0, int | float):
             raise HTTPException(422, "t0 must be epoch seconds")
         return cams.update_camera(ctx.db, cid, name=name, t0=t0, site_xy=tuple(site) if site else None)
-
-    @router.get("/{cid}/frame")
-    def frame(cid: str, t: float = Query(...)):
-        _require(cid)
-        return Response(PLACEHOLDER_JPEG, media_type="image/jpeg")
 
     @router.get("/{cid}/live.mjpg")
     async def live(cid: str):

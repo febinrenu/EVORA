@@ -72,3 +72,8 @@ def ingest(
                 id="", camera_id=cam.id, state="running", layer=layer,  # type: ignore[arg-type]
                 progress=step / 4, video_s_per_s=None,
             ))
+
+
+def get_blur_faces() -> Callable[[bytes], bytes] | None:
+    """M2's `blur_faces(jpeg) -> jpeg`, or None when the face model is not installed."""
+    return _find("blur_faces")

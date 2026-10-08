@@ -64,7 +64,6 @@ def test_remaining_routes_respond(client):
     assert client.post("/api/alerts/al_001/ack").json()["acknowledged"] is True
     assert client.get("/api/standing").json()[0]["active"] is True
     assert client.post("/api/evidence/ev_001/pack").content[:2] == b"PK"
-    assert client.get("/api/media/thumb/ev_001.jpg").status_code == 200
     assert client.post("/api/settings", json={"onprem": True}).json()["onprem"] is True
     assert json.loads(client.get("/api/report").text) == {"eval": None, "ablations": None}
 

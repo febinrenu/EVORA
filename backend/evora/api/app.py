@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -11,11 +12,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from evora.api import fixtures, routes_cameras, routes_ingest
+from evora.api import fixtures, routes_cameras, routes_ingest, routes_media
 from evora.api.context import AppContext
 from evora.api.sse import stream_events
 from evora.core.config import load_config
 from evora.core.jobs import IngestFn
+from evora.core.media_service import BlurFn
+from evora.evidence import audit
 
 # 1x1 JPEG standing in for thumbnails and frames in the skeleton
 _JPEG = base64.b64decode(
@@ -24,9 +27,12 @@ _JPEG = base64.b64decode(
 )
 
 
-def create_app(workspaces_root: Path | None = None, ingest_fn: IngestFn | None = None) -> FastAPI:
+def create_app(
+    workspaces_root: Path | None = None, ingest_fn: IngestFn | None = None,
+    blur_provider: Callable[[], BlurFn | None] | None = None,
+) -> FastAPI:
     cfg = load_config()
-    ctx = AppContext.build(cfg, workspaces_root, ingest_fn)
+    ctx = AppContext.build(cfg, workspaces_root, ingest_fn, blur_provider)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -37,6 +43,7 @@ def create_app(workspaces_root: Path | None = None, ingest_fn: IngestFn | None =
     app.state.ctx = ctx
     app.include_router(routes_cameras.make_router(ctx))
     app.include_router(routes_ingest.make_router(ctx))
+    app.include_router(routes_media.make_router(ctx))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cfg["server"]["cors_origins"],
@@ -44,7 +51,7 @@ def create_app(workspaces_root: Path | None = None, ingest_fn: IngestFn | None =
         allow_headers=["*"],
     )
     state: dict[str, Any] = {
-        "settings": {"onprem": False, "blur_faces": True, "reference_now": None},
+        "settings": ctx.settings,
         "memory": [dict(f) for f in fixtures.load("memory_facts")],
         "workspaces": [{"slug": ctx.ws.slug, "name": ctx.ws.slug, "active": True}],
     }
@@ -141,15 +148,7 @@ def create_app(workspaces_root: Path | None = None, ingest_fn: IngestFn | None =
     def path(gid: str):
         return fixtures.load("path")
 
-    # --- media, evidence ---
-    @app.get("/api/media/thumb/{evidence_id}.jpg")
-    def thumb(evidence_id: str):
-        return Response(_JPEG, media_type="image/jpeg")
-
-    @app.get("/api/media/clip/{evidence_id}.mp4")
-    def clip(evidence_id: str):
-        return Response(b"", media_type="video/mp4")
-
+    # --- evidence ---
     @app.post("/api/evidence/{evidence_id}/pack")
     def pack(evidence_id: str):
         return Response(b"PK\x05\x06" + b"\x00" * 18, media_type="application/zip")
@@ -178,7 +177,10 @@ def create_app(workspaces_root: Path | None = None, ingest_fn: IngestFn | None =
     # --- settings, voice, report, dev ---
     @app.post("/api/settings")
     def settings(body: dict):
-        state["settings"].update({k: v for k, v in body.items() if k in state["settings"]})
+        changes = {k: v for k, v in body.items() if k in state["settings"]}
+        if "blur_faces" in changes and changes["blur_faces"] != state["settings"]["blur_faces"]:
+            audit.record(ctx.db, "blur_setting", {"blur_faces": bool(changes["blur_faces"])})
+        state["settings"].update(changes)
         return state["settings"]
 
     @app.post("/api/voice")
