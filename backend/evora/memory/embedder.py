@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import logging
+import os
 import zlib
 from pathlib import Path
 from typing import Protocol
 
 import numpy as np
+
+from evora.core.config import REPO_ROOT
 
 log = logging.getLogger("evora.memory.embedder")
 
@@ -56,7 +59,9 @@ class FastEmbedder:
         except ImportError as exc:
             raise EmbedderUnavailable("fastembed is not installed") from exc
         try:
-            self._model = TextEmbedding(MODEL_ID, cache_dir=str(cache_dir) if cache_dir else None, local_files_only=True)
+            # `make models` stores the model in <repo>/models/fastembed, not in fastembed's default temp folder
+            cache = cache_dir or Path(os.environ.get("EVORA_MODELS_DIR", REPO_ROOT / "models")) / "fastembed"
+            self._model = TextEmbedding(MODEL_ID, cache_dir=str(cache), local_files_only=True)
         except Exception as exc:  # noqa: BLE001 - fastembed raises several unrelated types for a missing model
             raise EmbedderUnavailable(f"{MODEL_ID} is not cached: {exc}") from exc
         self.name = f"fastembed:{MODEL_ID}"
