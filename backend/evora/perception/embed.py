@@ -11,6 +11,7 @@ import logging
 import os
 import threading
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -39,6 +40,9 @@ class SigLIP2Embedder:
     def __init__(self, cfg: IngestSettings):
         # keep every model under ./models so the demo runs offline after `make models`
         os.environ.setdefault("HF_HOME", str(REPO_ROOT / "models" / "hf"))
+        cached = Path(os.environ["HF_HOME"]) / "hub" / ("models--" + cfg.image_model.replace("/", "--"))
+        if cached.is_dir():
+            os.environ.setdefault("HF_HUB_OFFLINE", "1")  # weights are local: never call out (demo works with Wi-Fi off)
         import torch
         from transformers import AutoModel, AutoProcessor
 
@@ -82,3 +86,24 @@ class SigLIP2Embedder:
 
     def embed_text(self, text: str) -> np.ndarray:
         return self.embed_texts([text])[0]
+
+
+_shared: SigLIP2Embedder | None = None
+_shared_lock = threading.Lock()
+
+
+def get_embedder(cfg: IngestSettings) -> SigLIP2Embedder:
+    """The process-wide embedder: one copy of the model serves ingestion and query-time text encoding."""
+    global _shared
+    with _shared_lock:
+        if _shared is None:
+            _shared = SigLIP2Embedder(cfg)
+        return _shared
+
+
+def query_embedder() -> SigLIP2Embedder:
+    """Embedder for query time (`embed_text`, `embed_images`) using the configured profile and device."""
+    from evora.core.config import load_config
+    from evora.perception.settings import load_settings
+
+    return get_embedder(load_settings(load_config()))

@@ -14,7 +14,6 @@ import json
 import logging
 import re
 import shutil
-import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -31,7 +30,7 @@ from evora.core.workspace import create as create_workspace
 from evora.perception.crops import FinishedTrack, TrackBook, save_jpeg
 from evora.perception.decode import DecodeError, probe_video, read_frames
 from evora.perception.detect import load_detector
-from evora.perception.embed import SigLIP2Embedder
+from evora.perception.embed import SigLIP2Embedder, get_embedder
 from evora.perception.motion import AdaptiveSampler
 from evora.perception.settings import IngestSettings, load_settings
 from evora.perception.track import FrameTracker
@@ -41,16 +40,6 @@ log = logging.getLogger("evora.perception.pipeline")
 ProgressFn = Callable[[IngestJob], None]
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_\-]+$")
 _IMPLEMENTED = ("L0", "L1")
-_embedder: SigLIP2Embedder | None = None
-_embedder_lock = threading.Lock()
-
-
-def get_embedder(cfg: IngestSettings) -> SigLIP2Embedder:
-    global _embedder
-    with _embedder_lock:
-        if _embedder is None:
-            _embedder = SigLIP2Embedder(cfg)
-        return _embedder
 
 
 def resolve_workspace(slug: str | None = None) -> Workspace:
