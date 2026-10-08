@@ -58,6 +58,7 @@ function LowChance({ r }: { r: Raw }) {
             <tr>
               <th scope="col">System</th>
               <th scope="col">Hit@1</th>
+              <th scope="col">Hit@1 strict</th>
               <th scope="col">Hit@5</th>
               <th scope="col">MRR</th>
             </tr>
@@ -69,6 +70,7 @@ function LowChance({ r }: { r: Raw }) {
                 <tr key={s} className={s === "ours" ? "is-ours" : undefined}>
                   <th scope="row">{who(s)}</th>
                   <Cell m={m["object.hit@1"]} />
+                  <Cell m={m["object.hit@1_strict"]} />
                   <Cell m={m["object.hit@5"]} />
                   <Cell m={m["object.mrr"]} />
                 </tr>

@@ -103,6 +103,9 @@ export const fetchReport = async (): Promise<Report | null> => normalise(await a
 
 export const LABELS: Record<string, string> = {
   "hit@1": "Hit@1",
+  "hit@1_strict": "Hit@1 strict",
+  "hit@5_strict": "Hit@5 strict",
+  mrr_strict: "MRR strict",
   "hit@5": "Hit@5",
   mrr: "MRR",
   camera_accuracy: "Camera accuracy",

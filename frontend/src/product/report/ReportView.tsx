@@ -10,7 +10,7 @@ import { CAPABILITY, LABELS, SPLITS, fetchReport, metric, splitName, systemName,
 import { ExtraChecks } from "./Extended";
 
 const RATIOS = ["hit@1", "hit@5", "mrr", "camera_accuracy", "negative_precision"] as const;
-const TABLE = ["hit@1", "hit@5", "mrr", "camera_accuracy", "timestamp_error_s", "negative_precision", "reask_count", "ttfa_p50_ms"] as const;
+const TABLE = ["hit@1", "hit@1_strict", "hit@5", "mrr", "camera_accuracy", "timestamp_error_s", "negative_precision", "reask_count", "ttfa_p50_ms"] as const;
 
 const fmt = (v: number | null | undefined, key: string): string => {
   if (v === null || v === undefined || Number.isNaN(v)) return "–";
@@ -95,7 +95,7 @@ export function ReportView({ initial = null }: { initial?: Report | null }) {
             <Tiles r={r} main={main} baseline={baseline} />
             <section className="rp-section" aria-labelledby="rp-results">
               <h2 id="rp-results">Results</h2>
-              <p className="rp-lead">Same footage, same parsed time window and camera filter for every system; only retrieval differs. n is the number of questions a metric applies to.</p>
+              <p className="rp-lead">Same footage, same parsed time window and camera filter for every system; only retrieval differs. n is the number of questions a metric applies to. Hit@1 counts a returned window that overlaps the labelled one; the strict Hit@1 also needs its peak moment inside it.</p>
               <ResultsTable overall={r.overall} splits={splits} />
             </section>
             <ExtraChecks extended={r.extended} />
