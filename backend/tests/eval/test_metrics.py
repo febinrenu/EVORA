@@ -191,3 +191,12 @@ def test_loader_rejects_naive_times_duplicates_and_filters_by_split(tmp_path):
     dup.write_text(line + line)
     with pytest.raises(ValueError, match="duplicate"):
         load_queries([dup])
+
+
+def test_no_model_share_counts_fastpath_and_cache_but_not_llm_plans():
+    items = [item(f"q{i}") for i in range(5)]
+    sources = ["fastpath", "cache", "llm", "local_llm", None]
+    results = [run(f"q{i}", answer("no"), plan_source=src) for i, src in enumerate(sources)]
+    share = metric(score(items, results), "no_model_share")
+    assert share.value == 0.5 and share.n == 4  # the result with no recorded source is not counted
+    assert metric(score(items, []), "no_model_share").value is None

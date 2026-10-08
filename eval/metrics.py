@@ -17,6 +17,7 @@ from eval.queries import GroundTruthHit, QueryItem
 TAU_S = 2.0  # slack added around a ground-truth window
 POSITIVE_VERDICTS = {"yes", "found", "partial"}
 NEGATIVE_VERDICTS = {"no", "not_found"}
+NO_MODEL_SOURCES = {"fastpath", "cache"}  # planned without any language-model call
 
 
 @dataclass
@@ -28,6 +29,7 @@ class RunResult:
     ttfa_ms: float | None = None
     ttva_ms: float | None = None
     error: str | None = None
+    plan_source: str | None = None  # QueryPlan.source: fastpath | cache | llm | local_llm
 
 
 @dataclass
@@ -190,5 +192,8 @@ def score(items: list[QueryItem], results: list[RunResult], split: str = "all") 
     for name, vals in (("ttfa", ttfa), ("ttva", ttva)):
         m[f"{name}_p50_ms"] = Metric(percentile(vals, 50), len(vals))
         m[f"{name}_p95_ms"] = Metric(percentile(vals, 95), len(vals))
+    sourced = [r for r in results if r.query_id in wanted and r.plan_source]
+    no_model = sum(1 for r in sourced if r.plan_source in NO_MODEL_SOURCES)
+    m["no_model_share"] = Metric(no_model / len(sourced) if sourced else None, len(sourced))
     m["errors"] = Metric(float(sum(1 for r in results if r.error)), len(results))
     return report

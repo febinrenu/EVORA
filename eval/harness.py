@@ -27,7 +27,7 @@ HEADLINE = [
     ("Hit@1", "hit@1", "{:.2f}"), ("Hit@5", "hit@5", "{:.2f}"), ("MRR", "mrr", "{:.2f}"),
     ("Cam acc", "camera_accuracy", "{:.2f}"), ("Ts err (s)", "timestamp_error_s", "{:.1f}"),
     ("Neg prec", "negative_precision", "{:.2f}"), ("Re-asks", "reask_count", "{:.0f}"),
-    ("TTFA p50 (ms)", "ttfa_p50_ms", "{:.0f}"),
+    ("TTFA p50 (ms)", "ttfa_p50_ms", "{:.0f}"), ("No-LLM share", "no_model_share", "{:.2f}"),
 ]
 
 
