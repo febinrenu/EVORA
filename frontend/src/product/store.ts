@@ -64,6 +64,8 @@ interface State {
   live: Record<string, string>;
   /** live analysis state per camera: starting | running | retrying | stopped | error */
   analysis: Record<string, string>;
+  /** on-screen clock reading per camera, while it runs or after it failed (absent once done) */
+  clock: Record<string, { state: "reading" | "failed"; error?: string }>;
   drawer: boolean;
   /** text to prefill in the watch form ("Watch for this" on an answer) */
   draft: string;
@@ -86,6 +88,7 @@ interface State {
   setDrawer: (open: boolean, draft?: string) => void;
   setLive: (cameraId: string, state: string) => void;
   setAnalysis: (cameraId: string, state: string) => void;
+  setClock: (cameraId: string, state: { state: "reading" | "failed"; error?: string } | null) => void;
   /** show an alert's evidence as an entry in the case log */
   openAlert: (a: Alert, watchText: string) => void;
   /** query by example: sightings that look like this track */
@@ -188,6 +191,7 @@ export const useEvora = create<State>()((set, get) => {
     playhead: null,
     live: {},
     analysis: {},
+    clock: {},
     drawer: false,
     draft: "",
 
@@ -331,6 +335,13 @@ export const useEvora = create<State>()((set, get) => {
     },
     setLive: (cameraId, state) => set((s) => ({ live: { ...s.live, [cameraId]: state } })),
     setAnalysis: (cameraId, state) => set((s) => ({ analysis: { ...s.analysis, [cameraId]: state } })),
+    setClock: (cameraId, state) =>
+      set((s) => {
+        const clock = { ...s.clock };
+        if (state) clock[cameraId] = state;
+        else delete clock[cameraId];
+        return { clock };
+      }),
     setDrawer: (drawer, draft) => set((s) => ({ drawer, draft: draft ?? s.draft })),
     openAlert: (a, watchText) => {
       const id = `alert-${a.id}`;

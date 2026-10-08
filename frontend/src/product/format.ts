@@ -27,6 +27,37 @@ export function clock(epoch: number, withMs = false): string {
   return withMs ? `${base}.${String(Math.floor((((epoch % 1) + 1) % 1) * 1000)).padStart(3, "0")}` : base;
 }
 
+/** Site-clock wall time as "YYYY-MM-DDTHH:MM:SS", the value a datetime-local input takes. */
+export function wallInput(epoch: number): string {
+  const f = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hourCycle: "h23", timeZone: siteZone,
+  });
+  const p = Object.fromEntries(f.formatToParts(new Date(epoch * 1000)).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`;
+}
+
+/** Inverse of wallInput: a site-clock wall time back to epoch seconds, or null if it does not parse. */
+export function fromWall(value: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
+  if (!m) return null;
+  const asUtc = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] ?? 0)) / 1000;
+  // the zone's offset at that moment, refined once so a day of daylight change lands right
+  let t = asUtc;
+  for (let i = 0; i < 2; i++) {
+    const shown = fromParts(wallInput(t));
+    t += asUtc - shown;
+  }
+  return t;
+}
+
+function fromParts(v: string): number {
+  const [d, h] = v.split("T");
+  const [y, mo, da] = d.split("-").map(Number);
+  const [hh, mi, se] = h.split(":").map(Number);
+  return Date.UTC(y, mo - 1, da, hh, mi, se) / 1000;
+}
+
 export function day(epoch: number): string {
   return dayFmt.format(new Date(epoch * 1000));
 }

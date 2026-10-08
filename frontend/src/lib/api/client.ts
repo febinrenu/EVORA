@@ -146,6 +146,8 @@ export const endpoints = {
   signer: () => api<{ algorithm: string; fingerprint: string }>("/api/evidence/signer"),
   stopReplay: (ids: string[]) => api<unknown>("/api/live/replay/stop", { method: "POST", body: JSON.stringify({ camera_ids: ids }) }),
   live: () => api<{ streams: { camera_id: string; state: string; error: string | null }[]; analyzers?: { camera_id: string; state: string; error: string | null }[] }>("/api/live"),
+  /** Correct a camera's clock; everything already indexed moves with it (409 while it is being indexed). */
+  setClock: (id: string, t0: number) => api<CameraInfo>(`/api/cameras/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ t0 }) }),
   placeCamera: (id: string, xy: [number, number]) => api<CameraInfo>(`/api/cameras/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ site_xy: xy }) }),
   /** audited, 5-minute token; pass as ?unblur= on media and frame routes */
   unblur: (reason: string, evidenceId?: string) => api<{ token: string; expires_at: number }>("/api/media/unblur", { method: "POST", body: JSON.stringify({ reason, evidence_id: evidenceId }) }),

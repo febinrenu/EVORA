@@ -44,7 +44,14 @@ export function AppShell() {
         if (n.kind === "ingest" && n.job && typeof n.job === "object") st.setJob(n.job as IngestJob);
         else if (n.kind === "camera" && typeof n.camera_id === "string") {
           st.setCameraStatus(n.camera_id, n.status as never);
-          if (n.status === "ready") void st.refreshCameras();
+          // a clock correction moved the camera's stored times: fetch its new t0
+          if (n.status === "ready" || typeof n.clock === "string") void st.refreshCameras();
+        } else if (n.kind === "clock" && typeof n.camera_id === "string") {
+          if (n.state === "reading") st.setClock(n.camera_id, { state: "reading" });
+          else {
+            st.setClock(n.camera_id, n.state === "failed" ? { state: "failed", error: typeof n.error === "string" ? n.error : undefined } : null);
+            void st.refreshCameras();
+          }
         } else if (n.kind === "privacy") void st.refreshHealth();
         else if (n.kind === "live" && typeof n.camera_id === "string" && typeof n.state === "string") st.setLive(n.camera_id, n.state);
         else if (n.kind === "analysis" && typeof n.camera_id === "string" && typeof n.state === "string") st.setAnalysis(n.camera_id, n.state);

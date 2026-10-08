@@ -150,6 +150,37 @@
   font-size: 0.8125rem;
   color: var(--g48);
 }
+.lt-cam-clock.is-reading {
+  color: var(--cyanotype);
+}
+.lt-clock-edit {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.3rem 0 0.2rem;
+}
+.lt-clock-edit label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.8125rem;
+}
+.lt-clock-edit input {
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--g16);
+  border-radius: 4px;
+  background: var(--diffuser);
+  color: inherit;
+}
+.lt-clock-actions {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+}
+.lt-clock-actions .lt-link {
+  margin-top: 0;
+}
 .lt-cam.is-error .lt-cam-state {
   color: var(--chinagraph);
 }

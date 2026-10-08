@@ -74,7 +74,8 @@ export function ClipPlayer({ ev, token, onClose }: { ev: Evidence; token?: strin
   const onKey = (e: React.KeyboardEvent) => {
     const v = video.current;
     if (!v) return;
-    const frame = 1 / 25;
+    // evidence clips are rendered at most 15 fps (media.clip_max_fps), so one step is one frame
+    const frame = 1 / 15;
     switch (e.key.toLowerCase()) {
       case "k":
         if (v.paused) void v.play();

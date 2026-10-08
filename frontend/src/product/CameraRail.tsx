@@ -1,11 +1,12 @@
 "use client";
 
 // Camera rail and load-footage flow (P4.7). Drop files, check each detected
-// clock and where it came from, name the cameras, start indexing, and watch
-// per-layer progress with throughput.
+// clock and where it came from (the on-screen clock is read in the background
+// after upload), correct it by hand, name the cameras, start indexing, and
+// watch per-layer progress with throughput.
 import { useCallback, useState } from "react";
 import { ApiError, endpoints, frameUrl, liveUrl, type CameraInfo } from "@/lib/api/client";
-import { clock, day } from "./format";
+import { clock, day, fromWall, wallInput } from "./format";
 import { useEvora } from "./store";
 import { Frame } from "./Frame";
 
@@ -108,6 +109,7 @@ function CameraRow({ cam }: { cam: CameraInfo }) {
   const job = useEvora((s) => s.jobs[cam.id]);
   const live = useEvora((s) => s.live[cam.id]);
   const analysis = useEvora((s) => s.analysis[cam.id]);
+  const reading = useEvora((s) => s.clock[cam.id]);
   const [liveError, setLiveError] = useState<string | null>(null);
   const streaming = cam.status === "live" || live === "running" || live === "retrying" || live === "starting";
   const toggleLive = async () => {
@@ -165,10 +167,8 @@ function CameraRow({ cam }: { cam: CameraInfo }) {
           onBlur={() => void saveName()}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
         />
-        <p className="lt-cam-clock">
-          {day(cam.t0)} {clock(cam.t0)}, {CLOCK_SOURCE[cam.t0_source]}
-        </p>
-        <p className="lt-cam-state">{stateLine(cam, job)}</p>
+        <ClockLine cam={cam} reading={reading} />
+        <p className="lt-cam-state">{stateLine(cam, job, reading?.state === "reading")}</p>
         {cam.kind === "file" && cam.status === "ready" ? (
           <button type="button" className="lt-link" onClick={() => void toggleLive()}>
             {streaming ? "Stop the live replay" : "Replay as live"}
@@ -188,9 +188,94 @@ function CameraRow({ cam }: { cam: CameraInfo }) {
   );
 }
 
-function stateLine(cam: CameraInfo, job: ReturnType<typeof useEvora.getState>["jobs"][string] | undefined): string {
+/** The camera's clock, where it came from, and a by-hand correction that moves everything already indexed. */
+function ClockLine({ cam, reading }: { cam: CameraInfo; reading: { state: "reading" | "failed"; error?: string } | undefined }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // the API reports a typed clock and the file time both as "manual"; this session knows which
+  const [byHand, setByHand] = useState(false);
+  const source =
+    reading?.state === "reading"
+      ? "reading the on-screen clock…"
+      : reading?.state === "failed"
+        ? "the on-screen clock could not be read, using the file time"
+        : byHand && cam.t0_source === "manual"
+          ? "set by hand"
+          : CLOCK_SOURCE[cam.t0_source];
+  const open = () => {
+    setValue(wallInput(cam.t0));
+    setError(null);
+    setEditing(true);
+  };
+  const save = async () => {
+    const t0 = fromWall(value);
+    if (t0 === null) return setError("Give a date and a time to the second.");
+    if (Math.abs(t0 - cam.t0) < 0.5) return setEditing(false);
+    setSaving(true);
+    setError(null);
+    try {
+      useEvora.getState().upsertCameras([await endpoints.setClock(cam.id, t0)]);
+      useEvora.getState().setClock(cam.id, null);
+      setByHand(true);
+      setEditing(false);
+    } catch (e) {
+      // 409 while the camera is being indexed: the server's sentence says why
+      setError(e instanceof ApiError ? e.message : "The clock could not be changed.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <>
+        <p className={`lt-cam-clock${reading?.state === "reading" ? " is-reading" : ""}`} aria-live="polite">
+          {day(cam.t0)} {clock(cam.t0)}, {source}
+        </p>
+        {cam.kind === "file" ? (
+          <button type="button" className="lt-link" onClick={open}>
+            Correct the clock
+          </button>
+        ) : null}
+      </>
+    );
+  }
+  return (
+    <form
+      className="lt-clock-edit"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+    >
+      <label>
+        <span>First frame of {cam.name} was recorded at</span>
+        <input type="datetime-local" step={1} value={value} onChange={(e) => setValue(e.target.value)} disabled={saving} autoFocus />
+      </label>
+      <p className="lt-cam-state">Everything already indexed for this camera moves with it.</p>
+      <div className="lt-clock-actions">
+        <button type="submit" className="lt-primary" disabled={saving}>
+          {saving ? "Moving…" : "Set the clock"}
+        </button>
+        <button type="button" className="lt-link" onClick={() => setEditing(false)} disabled={saving}>
+          Cancel
+        </button>
+      </div>
+      {error ? (
+        <p className="lt-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+function stateLine(cam: CameraInfo, job: ReturnType<typeof useEvora.getState>["jobs"][string] | undefined, reading: boolean): string {
   if (cam.status === "error") return job?.error ? `Stopped: ${job.error}` : "Indexing stopped. Check the file.";
-  if (cam.status === "pending") return "Ready to index";
+  if (cam.status === "pending") return reading ? "Ready to index; indexing starts once the clock is read" : "Ready to index";
+  if (cam.status === "ingesting" && reading) return "Waiting for the clock reading, then indexing";
   if (cam.status === "live") return "Live";
   const layers = cam.layers ?? [];
   const searchable = layers.includes("L0");
