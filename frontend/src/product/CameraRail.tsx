@@ -178,6 +178,11 @@ function CameraRow({ cam }: { cam: CameraInfo }) {
           <p className="lt-cam-state">{analysis === "running" ? "Live replay, analysed as it plays: watches can fire" : analysis === "error" ? "Live replay; analysis stopped with an error" : "Live replay"}</p>
         ) : null}
         {liveError ? <p className="lt-error">{liveError}</p> : null}
+        {cam.status === "error" ? (
+          <button type="button" className="lt-link" onClick={() => void startIngest([cam.id], setLiveError)}>
+            Try again
+          </button>
+        ) : null}
         {cam.status === "ingesting" && job ? (
           <span className="lt-progress" style={{ ["--p" as string]: String(job.progress ?? 0) }} aria-hidden="true">
             <i />
