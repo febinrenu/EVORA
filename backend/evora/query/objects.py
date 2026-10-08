@@ -157,22 +157,48 @@ def merge_duplicates(boxes: Sequence[Detection], iou: float = DUPLICATE_IOU) -> 
     return kept
 
 
-def box_colours(image_bgr: np.ndarray, box: tuple[float, float, float, float], k: int = 3) -> dict[str, float]:
-    """Colour terms present in the middle of a box with their share of its pixels (a person in front shifts it)."""
+def _outline_pixels(image_bgr: np.ndarray, polygon: Sequence[Sequence[float]], max_pixels: int = 900) -> np.ndarray | None:
+    """The pixels inside an object's outline (normalised points), or None when the outline is too small to read."""
+    import cv2
+
+    h, w = image_bgr.shape[:2]
+    points = np.round(np.asarray(polygon, dtype=np.float32) * np.array([w, h], dtype=np.float32)).astype(np.int32)
+    if len(points) < 3:
+        return None
+    mask = np.zeros((h, w), np.uint8)
+    cv2.fillPoly(mask, [points], 255)
+    mask = cv2.erode(mask, np.ones((3, 3), np.uint8))          # the edge mixes in what is behind the object
+    pixels = image_bgr[mask > 0]
+    if len(pixels) < 12:
+        return None
+    if len(pixels) > max_pixels:
+        pixels = pixels[np.random.default_rng(0).choice(len(pixels), max_pixels, replace=False)]
+    return pixels
+
+
+def box_colours(image_bgr: np.ndarray, box: tuple[float, float, float, float], k: int = 3,
+                polygon: Sequence[Sequence[float]] | None = None) -> dict[str, float]:
+    """Colour terms of an object with their share of its pixels.
+
+    With the object's outline the colour is read from the object only. Without one it is read from the middle of the
+    box, which also holds whatever is behind and in front of the object, so it is a rougher guess.
+    """
     import cv2
 
     from evora.perception import colourmodel as cm
 
-    h, w = image_bgr.shape[:2]
-    x1, y1, x2, y2 = box
-    bw, bh = (x2 - x1) * w, (y2 - y1) * h
-    cx1, cx2 = int(x1 * w + 0.2 * bw), int(x2 * w - 0.2 * bw)
-    cy1, cy2 = int(y1 * h + 0.2 * bh), int(y2 * h - 0.2 * bh)
-    crop = image_bgr[max(cy1, 0):max(cy2, 0), max(cx1, 0):max(cx2, 0)]
-    if crop.shape[0] < 3 or crop.shape[1] < 3:
-        return {}
-    small = cv2.resize(crop, (24, 24), interpolation=cv2.INTER_AREA)
-    lab = cv2.cvtColor(small.astype(np.float32) / 255.0, cv2.COLOR_BGR2Lab).reshape(-1, 3)
+    pixels = _outline_pixels(image_bgr, polygon) if polygon is not None else None
+    if pixels is None:
+        h, w = image_bgr.shape[:2]
+        x1, y1, x2, y2 = box
+        bw, bh = (x2 - x1) * w, (y2 - y1) * h
+        cx1, cx2 = int(x1 * w + 0.2 * bw), int(x2 * w - 0.2 * bw)
+        cy1, cy2 = int(y1 * h + 0.2 * bh), int(y2 * h - 0.2 * bh)
+        crop = image_bgr[max(cy1, 0):max(cy2, 0), max(cx1, 0):max(cx2, 0)]
+        if crop.shape[0] < 3 or crop.shape[1] < 3:
+            return {}
+        pixels = cv2.resize(crop, (24, 24), interpolation=cv2.INTER_AREA).reshape(-1, 3)
+    lab = cv2.cvtColor(pixels.reshape(-1, 1, 3).astype(np.float32) / 255.0, cv2.COLOR_BGR2Lab).reshape(-1, 3)
     kk = min(k, max(1, len(np.unique(lab, axis=0))))
     if kk == 1:
         centres, counts = lab.mean(axis=0, keepdims=True), np.array([len(lab)])
@@ -190,6 +216,43 @@ def box_colours(image_bgr: np.ndarray, box: tuple[float, float, float, float], k
 
 
 DetectFn = Callable[[np.ndarray, Sequence[str], float], list[Any]]
+
+
+class OutliningDetector:
+    """The open-vocabulary detector, returning each object's outline as well as its box.
+
+    The weights are the segmentation model, so the outline comes with every detection; the detector in
+    evora.perception.openvocab keeps only the boxes. Same model, same prompts, same lock.
+    """
+
+    def __init__(self, detector: Any) -> None:
+        self._d = detector
+
+    def __call__(self, image: np.ndarray, labels: Sequence[str], conf: float) -> list[Any]:
+        from types import SimpleNamespace
+
+        d = self._d
+        names = tuple(t.strip() for t in labels if t.strip())
+        if not names:
+            return []
+        h, w = image.shape[:2]
+        with d._lock:
+            if names != d._classes:
+                d._model.set_classes(list(names), d._model.get_text_pe(list(names)))
+                d._classes = names
+            result = d._model.predict(image, conf=conf, device=d.device, verbose=False)[0]
+        if result.boxes is None or len(result.boxes) == 0:
+            return []
+        xyxy, confs = result.boxes.xyxy.cpu().numpy(), result.boxes.conf.cpu().numpy()
+        clss = result.boxes.cls.cpu().numpy()
+        outlines = result.masks.xyn if result.masks is not None else [None] * len(confs)
+        found = [
+            SimpleNamespace(label=names[int(c)], conf=float(p), xyxy=(float(b[0] / w), float(b[1] / h), float(b[2] / w),
+                                                                         float(b[3] / h)),
+                            polygon=(None if o is None or len(o) < 3 else o.tolist()))
+            for b, p, c, o in zip(xyxy, confs, clss, outlines, strict=True)
+        ]
+        return sorted(found, key=lambda b: -b.conf)
 
 
 class OpenObjectSurveyor:
@@ -220,7 +283,7 @@ class OpenObjectSurveyor:
         except ImportError as exc:  # perception stack not installed
             self.unavailable = f"the perception stack is not installed ({exc})"
             return None
-        self._detect = lambda image, labels, conf: detector.detect(image, labels, conf=conf)
+        self._detect = OutliningDetector(detector)
         return self._detect
 
     def ready(self) -> bool:
@@ -240,7 +303,8 @@ class OpenObjectSurveyor:
                 if image is None or detect is None:
                     continue
                 found = [
-                    Detection(b.label, float(b.conf), tuple(b.xyxy), box_colours(image, tuple(b.xyxy)))
+                    Detection(b.label, float(b.conf), tuple(b.xyxy),
+                              box_colours(image, tuple(b.xyxy), polygon=getattr(b, "polygon", None)))
                     for b in detect(image, labels, self._conf)
                     if (b.xyxy[2] - b.xyxy[0]) * (b.xyxy[3] - b.xyxy[1]) >= MIN_AREA
                 ]

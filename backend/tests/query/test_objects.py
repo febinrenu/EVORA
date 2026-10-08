@@ -176,3 +176,20 @@ def test_several_cameras_give_the_largest_count_and_the_per_camera_line_passes_t
     out = compose_objects(object_plan("count"), two, [evidence_for()], noun="chair", colour=None)
     assert out.count == 5 and "Per camera: Gate 5, Hall 3." in out.text
     validate(out.sentences, {"e1"})
+
+
+def test_colour_from_the_outline_ignores_what_is_behind_the_object():
+    image = np.full((240, 320, 3), (200, 40, 0), np.uint8)               # a blue room ...
+    image[100:140, 140:180] = (0, 0, 200)                                 # ... with a small red seat in the middle
+    box = (100 / 320, 60 / 240, 220 / 320, 180 / 240)                      # a loose box around it
+    seat = [(140 / 320, 100 / 240), (180 / 320, 100 / 240), (180 / 320, 140 / 240), (140 / 320, 140 / 240)]
+    assert ob.box_colours(image, box, polygon=seat).get("red", 0) > 0.8     # only the object's own pixels
+    loose = ob.box_colours(image, box)
+    assert loose.get("blue", 0) > loose.get("red", 0)                       # the box is mostly background
+    assert ob.box_colours(image, box, polygon=[(0.1, 0.1), (0.1, 0.1)]).get("blue", 0) > 0.5   # too few points: the box
+
+
+def test_an_outline_that_is_too_small_to_read_falls_back_to_the_box():
+    image = frame_with((0, 0, 200))
+    tiny = [(0.5, 0.5), (0.5005, 0.5), (0.5005, 0.5005)]
+    assert ob._outline_pixels(image, tiny) is None
