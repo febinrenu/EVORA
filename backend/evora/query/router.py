@@ -98,6 +98,7 @@ class _Camera:
     layers: list[str]
     ir_fraction: float | None
     source_name: str | None
+    duration_s: float | None = None
 
 
 @dataclass
@@ -128,7 +129,11 @@ class Router:
         reference_override=lambda: None,  # noqa: B008 - callable returning settings.reference_now or None
         gateway: Any = None,
         path_for: Callable[[str], list[PathHop]] | None = None,
+        file_offset: Callable[[str, float | None, float], float | None] | None = None,
     ) -> None:
+        # (camera id, camera duration, wall-clock time) -> seconds into the recorded file, or None to use t - t0.
+        # Replay-as-live footage loops, so its position in the file is not simply t - t0.
+        self._file_offset = file_offset
         self._gateway = gateway  # phrases `describe` answers; without it they are plain deterministic summaries
         self._path_for = path_for or self._reid_path
         self._db, self._planner, self._retriever = db, planner, retriever
@@ -326,7 +331,7 @@ class Router:
 
     def _cameras(self) -> list[_Camera]:
         with self._db.read() as conn:
-            rows = list(conn.execute("SELECT id, name, t0, layers, ir_fraction, source_uri FROM cameras ORDER BY id"))
+            rows = list(conn.execute("SELECT id, name, t0, layers, ir_fraction, source_uri, duration_s FROM cameras ORDER BY id"))
         out = []
         for r in rows:
             try:
@@ -334,7 +339,7 @@ class Router:
             except json.JSONDecodeError:
                 layers = []
             out.append(_Camera(r["id"], r["name"], r["t0"], layers, r["ir_fraction"],
-                               Path(r["source_uri"]).name if r["source_uri"] else None))
+                               Path(r["source_uri"]).name if r["source_uri"] else None, r["duration_s"]))
         return out
 
     def _apply_fact(self, fact: MemoryFact, ref: Referent, bound: _Bound) -> None:
@@ -510,12 +515,23 @@ class Router:
         is_scene = m.track_id.startswith("scene:")
         return Evidence(
             id=evidence_id, camera_id=m.camera_id, camera_name=cam.name,
-            t_start=lo, t_end=hi, t_peak=m.t_peak, offset_s=m.t_peak - cam.t0,
+            t_start=lo, t_end=hi, t_peak=m.t_peak, offset_s=self._offset_in_file(cam, m.t_peak),
             track_id=None if is_scene else m.track_id, global_id=m.global_id,
             bbox=None if is_scene else self._bbox(m.track_id, m.t_peak),
             thumb_url=self.cfg.thumb_fmt.format(id=evidence_id), clip_url=self.cfg.clip_fmt.format(id=evidence_id),
             score=round(m.score, 4), why=list(m.why),
         )
+
+    def _offset_in_file(self, cam: _Camera, t: float) -> float:
+        if self._file_offset is not None:
+            try:
+                looped = self._file_offset(cam.id, cam.duration_s, t)
+            except Exception as exc:  # noqa: BLE001 - a bad offset hook must never break an answer
+                log.warning("file offset hook failed for %s: %s", cam.id, exc)
+                looped = None
+            if looped is not None:
+                return looped
+        return t - cam.t0
 
     def _bbox(self, track_id: str, t: float) -> tuple[float, float, float, float] | None:
         with self._db.read() as conn:

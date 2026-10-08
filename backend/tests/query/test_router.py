@@ -86,12 +86,12 @@ def ws(tmp_path):
 
 
 def make_router(ws, resolver=None, clarifier=None, verifier=None, gateway=None, accept=0.4, narrator=None,
-                path_for=None, **retrieval):
+                path_for=None, file_offset=None, **retrieval):
     resolver = resolver or FakeResolver({"main gate": place_fact()})
     retriever = Retriever(ws.db, ws.store, ToyEmbedder(),
                           RetrievalConfig(calibration=Calibration(0.5, 0.2), **retrieval))
     return Router(ws.db, Planner(gateway), retriever, resolver, clarifier or FakeClarifier(resolver), verifier,
-                  RouterConfig(accept=accept), gateway=narrator, path_for=path_for)
+                  RouterConfig(accept=accept), gateway=narrator, path_for=path_for, file_offset=file_offset)
 
 
 async def collect(stream):
@@ -573,3 +573,40 @@ async def test_the_revised_answer_is_what_gets_logged(ws):
     with ws.db.read() as c:
         logged = c.execute("SELECT answer FROM query_log WHERE id=?", (final["query_id"],)).fetchone()["answer"]
     assert json.loads(logged)["evidence"][0]["verified"] is True and len(json.loads(logged)["evidence"]) == 1
+
+
+# ------------------------------------------------- position in the file for looped (replay-as-live) footage
+@pytest.mark.asyncio
+async def test_a_file_offset_hook_gives_the_position_in_a_looping_file(ws):
+    red_car_crossing(ws)  # crossing at t=1105 on a camera whose t0 is 1000: 105 s by t - t0
+    calls = []
+
+    def hook(camera_id, duration, t):
+        calls.append((camera_id, duration, t))
+        return (t - 1000.0) % 40.0  # the file is 40 s long and has looped twice
+
+    events = await collect(make_router(ws, file_offset=hook).answer(GATE_Q, "s1"))
+    ev = of(events, "evidence")[0]
+    assert ev["offset_s"] == 25.0 and ev["t_peak"] == 1105.0  # wall clock stays; the file position is the looped one
+    assert calls == [("cam_01", 300.0, 1105.0)]  # the camera's real duration is passed along
+    assert "(00:25 into gate.mp4)" in of(events, "answer")[0]["text"]  # the answer shows the looped position
+
+
+@pytest.mark.asyncio
+async def test_no_offset_from_the_hook_means_the_ordinary_offset(ws):
+    red_car_crossing(ws)
+    events = await collect(make_router(ws, file_offset=lambda cam, dur, t: None).answer(GATE_Q, "s1"))
+    assert of(events, "evidence")[0]["offset_s"] == 105.0  # recorded footage is unaffected
+    plain = await collect(make_router(ws).answer(GATE_Q, "s1"))
+    assert of(plain, "evidence")[0]["offset_s"] == 105.0
+
+
+@pytest.mark.asyncio
+async def test_a_failing_offset_hook_never_breaks_the_answer(ws):
+    red_car_crossing(ws)
+
+    def broken(cam, dur, t):
+        raise RuntimeError("session table unavailable")
+
+    events = await collect(make_router(ws, file_offset=broken).answer(GATE_Q, "s1"))
+    assert of(events, "answer")[0]["verdict"] == "yes" and of(events, "evidence")[0]["offset_s"] == 105.0
