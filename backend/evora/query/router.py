@@ -85,6 +85,7 @@ class Verifier(Protocol):
 @dataclass(frozen=True)
 class RouterConfig:
     accept: float = 0.40          # a match scoring below this is a near miss, not an answer (calibrated on dev)
+    verify: str = "filter"        # "filter": the visual check can set candidates aside; "annotate": flags only
     thumb_fmt: str = "/api/media/thumb/{id}.jpg"
     clip_fmt: str = "/api/media/clip/{id}.mp4"
 
@@ -252,20 +253,73 @@ class Router:
         )
         yield _event("answer", answer.model_dump(mode="json"))
 
-        # 5. optional verification, streamed after the answer
-        if self._verifier is not None and evidence:
+        # 5. verification: a second, independent look at the top evidence. The first answer above is already out
+        # (time to first answer); if the look sets candidates aside, a revised answer follows (time to verified answer).
+        if self._verifier is not None and evidence and self._worth_verifying(plan):
+            checked: dict[str, bool | None] = {}
+            t = time.monotonic()
             try:
                 async for evidence_id, ok in self._verifier.verify(plan, evidence):
+                    checked[evidence_id] = ok
                     yield _event("verified", {"evidence_id": evidence_id, "verified": ok})
             except Exception as exc:  # noqa: BLE001 - verification is optional; never lose the answer over it
                 log.warning("verification failed: %s", exc)
                 yield _event("note", {"text": "Verification was unavailable for this answer."})
+            timings["verify"] = _ms(t)
+            if self.cfg.verify == "filter":
+                revised = self._revise(query_id, plan, evidence, checked, cameras, camera_by_id, tz, ref_now,
+                                       all_notes, timings)
+                if revised is not None:
+                    answer = revised
+                    yield _event("answer", answer.model_dump(mode="json"))
         timings["ttva"] = _ms(started)
         answer.timings_ms = timings
         self._log_query(query_id, text, plan, answer)
         yield _event("done", {"query_id": query_id})
 
     # ------------------------------------------------------------------ helpers
+    @staticmethod
+    def _worth_verifying(plan: QueryPlan) -> bool:
+        """Only questions whose answer depends on how something looks need a look.
+
+        "a person at the gate after 8pm" is settled by the detector, the zone and the clock; "a red car" or
+        "a person carrying a large bag" is not, so those get checked. Counts and first/last are left alone:
+        the check covers only the top few, so it cannot settle them honestly.
+        """
+        return plan.intent in ("exists", "list") and bool(plan.targets) and bool(plan.targets[0].attributes)
+
+    def _revise(self, query_id: str, plan: QueryPlan, evidence: list[Evidence], checked: dict[str, bool | None],
+                cameras: list[_Camera], camera_by_id: dict[str, _Camera], tz: tzinfo, ref_now: float,
+                notes: list[str], timings: dict[str, float]) -> Answer | None:
+        """The answer after the visual check, or None when the check changed nothing.
+
+        Candidates the check said no to are set aside; confirmed ones rank first, undecided ones keep their
+        order after them. If nothing is left, the answer is a grounded not-found with the best rejected
+        candidate as the nearest miss.
+        """
+        failed = [e for e in evidence if checked.get(e.id) is False]
+        if not failed:
+            return None
+        kept = [e for e in evidence if checked.get(e.id) is not False]
+        kept.sort(key=lambda e: 0 if checked.get(e.id) else 1)  # stable: confirmed before undecided
+        kept = [e.model_copy(update={"verified": checked.get(e.id)}) for e in kept]
+        miss = None
+        if not kept:
+            best = max(failed, key=lambda e: e.score)
+            miss = best.model_copy(update={"verified": False, "why": [*best.why, "the visual check did not show it"]})
+        what = plan.targets[0].embed_text.removeprefix("a photo of ").strip() or "the object"
+        composed = compose_checked(
+            plan, kept, nearest_miss=miss, cameras=_as_compose_cameras(cameras),
+            source_names={c.id: c.source_name for c in cameras if c.source_name}, tz=tz, reference_now=ref_now,
+            partial=_is_partial(cameras, plan, kept),
+        )
+        revised_notes = list(dict.fromkeys([*notes, *composed.notes,
+                                            f"The visual check set aside {len(failed)} of {len(evidence)} "
+                                            f"candidate(s) that did not clearly show {what}."]))
+        return Answer(query_id=query_id, text=composed.text, verdict=composed.verdict, count=composed.count,
+                      evidence=kept, nearest_miss=miss, confidence=_confidence(kept, miss), plan=plan,
+                      timings_ms=timings, notes=revised_notes)
+
     def _clock(self) -> tuple[float, tzinfo]:
         override = self._reference_override()
         return (override if override is not None else reference_now(self._db)), workspace_tz(self._db)

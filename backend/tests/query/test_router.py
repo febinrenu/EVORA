@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 
 import pytest
@@ -53,14 +54,16 @@ class FakeClarifier:
 
 
 class FakeVerifier:
-    def __init__(self, results=None, error=None):
-        self.results, self.error = results or {}, error
+    def __init__(self, results=None, error=None, by_track=None, default=True):
+        self.results, self.error, self.by_track, self.default = results or {}, error, by_track or {}, default
+        self.calls = 0
 
     async def verify(self, plan, evidence):
+        self.calls += 1
         if self.error:
             raise self.error
         for ev in evidence:
-            yield ev.id, self.results.get(ev.id, True)
+            yield ev.id, self.results.get(ev.id, self.by_track.get(ev.track_id, self.default))
 
 
 class FakeGateway:
@@ -486,3 +489,87 @@ async def test_describe_uses_the_remembered_place_name_for_events_in_a_zone(ws):
     ans = of(await collect(make_router(ws, gateway=FakeGateway(describe_plan())).answer("what happened at the gate today", "s1")),
              "answer")[0]
     assert "A red car crossed the main gate at" in ans["text"]
+
+
+# ------------------------------------------------- verification changes the answer
+def two_red_cars(ws):
+    red_car_crossing(ws, tid="good", eid="e1", t=1105.0, t0=1100.0, t1=1110.0)
+    red_car_crossing(ws, tid="lookalike", eid="e2", t=1205.0, t0=1200.0, t1=1210.0)
+
+
+@pytest.mark.asyncio
+async def test_a_candidate_the_visual_check_rejects_is_set_aside_in_a_revised_answer(ws):
+    two_red_cars(ws)
+    verifier = FakeVerifier(by_track={"lookalike": False, "good": True})
+    events = await collect(make_router(ws, verifier=verifier).answer(GATE_Q, "s1"))
+    assert types(events) == ["plan", "evidence", "evidence", "answer", "verified", "verified", "answer", "done"]
+    first, final = of(events, "answer")
+    assert len(first["evidence"]) == 2 and first["verdict"] == "yes"  # the fast answer goes out unverified
+    assert [e["track_id"] for e in final["evidence"]] == ["good"] and final["evidence"][0]["verified"] is True
+    assert any("set aside 1 of 2" in n for n in final["notes"])
+    assert "more match" not in final["text"]  # the text is recomposed from what is left
+
+
+@pytest.mark.asyncio
+async def test_confirmed_candidates_rank_ahead_of_undecided_ones(ws):
+    two_red_cars(ws)
+    ws.track("t_third", "cam_01", attrs=RED_CAR, crops=[E[0]], t0=1300.0, t1=1310.0)
+    ws.event("e3", "cam_01", "t_third", "cross_line", 1305.0, direction="a_to_b")
+    verifier = FakeVerifier(by_track={"good": None, "lookalike": True, "t_third": False})
+    events = await collect(make_router(ws, verifier=verifier).answer(GATE_Q, "s1"))
+    final = of(events, "answer")[-1]
+    assert [e["track_id"] for e in final["evidence"]] == ["lookalike", "good"]  # confirmed first, undecided kept
+    assert [e["verified"] for e in final["evidence"]] == [True, None]
+
+
+@pytest.mark.asyncio
+async def test_if_every_candidate_fails_the_answer_is_not_found_with_the_nearest_miss(ws):
+    two_red_cars(ws)
+    events = await collect(make_router(ws, verifier=FakeVerifier(default=False)).answer(GATE_Q, "s1"))
+    final = of(events, "answer")[-1]
+    assert final["verdict"] == "no" and final["evidence"] == []
+    assert final["nearest_miss"]["verified"] is False
+    assert "the visual check did not show it" in final["nearest_miss"]["why"]
+    assert final["text"].startswith("No red car passed through the main gate.") and "Closest:" in final["text"]
+    assert types(events)[-1] == "done" and types(events).count("answer") == 2
+
+
+@pytest.mark.asyncio
+async def test_annotate_mode_keeps_the_old_behaviour(ws):
+    two_red_cars(ws)
+    router = make_router(ws, verifier=FakeVerifier(default=False))
+    router.cfg = RouterConfig(accept=0.4, verify="annotate")
+    events = await collect(router.answer(GATE_Q, "s1"))
+    assert types(events).count("answer") == 1 and len(of(events, "answer")[0]["evidence"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_an_undecided_check_changes_nothing(ws):
+    two_red_cars(ws)
+    events = await collect(make_router(ws, verifier=FakeVerifier(default=None)).answer(GATE_Q, "s1"))
+    assert types(events).count("answer") == 1  # no model answer is not evidence against anything
+
+
+@pytest.mark.asyncio
+async def test_questions_that_do_not_depend_on_appearance_are_not_sent_for_a_visual_check(ws):
+    ws.track("t1", "cam_01", attrs=RED_CAR, crops=[E[2]], t0=1100.0, t1=1110.0)  # generic-car look: "a car" matches
+    ws.event("e1", "cam_01", "t1", "cross_line", 1105.0, direction="a_to_b")
+    ws.track("t2", "cam_01", attrs=RED_CAR, crops=[E[0]], t0=1200.0, t1=1210.0)
+    ws.event("e2", "cam_01", "t2", "cross_line", 1205.0, direction="a_to_b")
+    verifier = FakeVerifier(default=False)
+    plain = await collect(make_router(ws, verifier=verifier).answer("did a car pass through the main gate", "s1"))
+    assert verifier.calls == 0 and of(plain, "answer")[0]["verdict"] == "yes"
+    counted = await collect(make_router(ws, verifier=verifier).answer(
+        "how many red cars passed through the main gate", "s1"))
+    assert verifier.calls == 0 and of(counted, "answer")[0]["verdict"] == "count"
+
+
+@pytest.mark.asyncio
+async def test_the_revised_answer_is_what_gets_logged(ws):
+    two_red_cars(ws)
+    router = make_router(ws, verifier=FakeVerifier(by_track={"lookalike": False}))
+    events = await collect(router.answer(GATE_Q, "s1"))
+    final = of(events, "answer")[-1]
+    with ws.db.read() as c:
+        logged = c.execute("SELECT answer FROM query_log WHERE id=?", (final["query_id"],)).fetchone()["answer"]
+    assert json.loads(logged)["evidence"][0]["verified"] is True and len(json.loads(logged)["evidence"]) == 1
