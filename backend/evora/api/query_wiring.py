@@ -69,7 +69,11 @@ class CropSource:
         if blur is None:
             log.warning("verification skipped: face blur is not installed and nothing unblurred may leave the machine")
             return None
-        return blur(data)
+        try:
+            return blur(data)
+        except Exception as exc:  # noqa: BLE001 - a blur model that cannot run means nothing may be sent
+            log.warning("verification skipped: face blur failed (%s)", exc.__class__.__name__)
+            return None
 
     def _best_crop(self, ev: Evidence) -> bytes | None:
         if not ev.track_id:

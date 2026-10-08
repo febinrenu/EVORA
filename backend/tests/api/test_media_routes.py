@@ -221,3 +221,29 @@ def test_prerender_warms_the_top_three_only(env):
 def test_prerender_failure_is_contained(env):
     futures = env.ctx.prerender.schedule(["ev_missing"])
     assert futures[0].result(timeout=30) is False
+
+
+def _boom(_jpeg):
+    raise RuntimeError("face model missing")
+
+
+def test_a_blur_function_that_cannot_run_is_reported_not_a_crash(env):
+    env.blur_fn["fn"] = _boom
+    eid = env.evidence()
+    thumb = env.client.get(f"/api/media/thumb/{eid}.jpg")
+    assert thumb.status_code == 200 and thumb.headers["x-evora-blur"] == "unavailable"
+    clip = env.client.get(f"/api/media/clip/{eid}.mp4")
+    assert clip.status_code == 200 and clip.headers["x-evora-blur"] == "unavailable"
+    frame = env.client.get(f"/api/cameras/{env.cam_id}/frame", params={"t": T0 + 0.5})
+    assert frame.status_code == 200 and frame.headers["x-evora-blur"] == "unavailable"
+    assert not list(env.ctx.ws.clips_dir.glob("*_blur.mp4"))
+
+
+def test_an_unblurred_image_is_never_filed_as_the_blurred_one(env, gray_jpeg):
+    eid = env.evidence()
+    env.blur_fn["fn"] = _boom
+    env.client.get(f"/api/media/thumb/{eid}.jpg")
+    assert not list((env.ctx.ws.media_dir / "thumbs").glob("*_blur.jpg"))
+    env.blur_fn["fn"] = lambda jpeg: gray_jpeg  # the model arrives later: blurred output must now be served
+    again = env.client.get(f"/api/media/thumb/{eid}.jpg")
+    assert again.headers["x-evora-blur"] == "applied" and again.content == gray_jpeg

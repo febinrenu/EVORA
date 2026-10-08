@@ -33,6 +33,10 @@ class MediaError(Exception):
         self.message = message
 
 
+class BlurFailed(Exception):
+    """The face-blur function exists but could not run (for example its model file is missing)."""
+
+
 class UnblurTokens:
     """Short-lived tokens that allow one viewer to see unblurred media. In memory on purpose."""
 
@@ -134,20 +138,34 @@ class MediaService:
         if not jpeg:
             raise MediaError(502, "no frame at that time")
         fn, status = self.blur_state(want_blur)
-        return (fn(jpeg) if fn else jpeg), status
+        if fn is None:
+            return jpeg, status
+        try:
+            return self._blur(fn, jpeg), status
+        except BlurFailed:
+            return jpeg, "unavailable"  # reported honestly; the UI warns and nothing pretends to be blurred
+
+    def _blur(self, fn: BlurFn, data: bytes) -> bytes:
+        try:
+            return fn(data)
+        except Exception as exc:  # noqa: BLE001 - any failure of the blur model must degrade, never crash a media request
+            log.warning("face blur failed (%s): %s", exc.__class__.__name__, exc)
+            raise BlurFailed from exc
 
     def thumb(self, cam: CameraInfo, rec: EvidenceRecord, want_blur: bool) -> tuple[Path, str]:
         fn, status = self.blur_state(want_blur)
-        key = "blur" if fn else "raw"
-        path = self.ws.media_dir / "thumbs" / f"{rec.id}_{key}.jpg"
+        thumbs = self.ws.media_dir / "thumbs"
+        path = thumbs / f"{rec.id}_{'blur' if fn else 'raw'}.jpg"
         with self._lock_for(path):
             if path.is_file():
                 os.utime(path)
-            else:
-                data, _ = self.frame(cam, rec.t_peak, want_blur, rec.bbox)
-                self._atomic_write(path, data)
-                self.trim_cache(keep=path)
-        return path, status
+                return path, status
+            data, actual = self.frame(cam, rec.t_peak, want_blur, rec.bbox)
+            if fn is not None and actual != "applied":  # the blur failed: never file an unblurred image as the blurred one
+                path = thumbs / f"{rec.id}_raw.jpg"
+            self._atomic_write(path, data)
+            self.trim_cache(keep=path)
+            return path, actual
 
     # --- clips ---
     def clip(self, cam: CameraInfo, rec: EvidenceRecord, want_blur: bool) -> tuple[Path, str]:
@@ -166,7 +184,10 @@ class MediaService:
             if blurred.is_file():
                 os.utime(blurred)
             else:
-                self._blur_clip(cam, raw, blurred, fn)
+                try:
+                    self._blur_clip(cam, raw, blurred, fn)
+                except BlurFailed:
+                    return raw, "unavailable"
                 self.trim_cache(keep=blurred, also_keep=raw)
         return blurred, status
 
@@ -197,7 +218,7 @@ class MediaService:
             try:
                 self._ffmpeg(["-i", str(raw), "-q:v", "3", str(frames / "%06d.jpg")])
                 for jpg in sorted(frames.glob("*.jpg")):
-                    jpg.write_bytes(fn(jpg.read_bytes()))
+                    jpg.write_bytes(self._blur(fn, jpg.read_bytes()))
                 self._ffmpeg([
                     "-framerate", f"{fps:.3f}", "-i", str(frames / "%06d.jpg"), "-c:v", "libx264",
                     "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart",

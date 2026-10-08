@@ -174,3 +174,17 @@ def test_crop_source_falls_back_to_a_video_frame(client):
     client.app.state.ctx.settings["blur_faces"] = False
     got = CropSource(client.app.state.ctx).crop_for(evidence())
     assert got is not None and got[:2] == b"\xff\xd8"
+
+
+def test_crop_source_sends_nothing_when_the_blur_model_cannot_run(client):
+    ctx = client.app.state.ctx
+    (ctx.ws.media_dir / "crops").mkdir(parents=True, exist_ok=True)
+    (ctx.ws.media_dir / "crops" / "c.jpg").write_bytes(b"RAW-CROP")
+    with_track(ctx, "crops/c.jpg")
+    ctx.settings["blur_faces"] = True
+
+    def broken(_data):
+        raise RuntimeError("model missing")
+
+    ctx.media._blur_provider = lambda: broken
+    assert CropSource(ctx).crop_for(evidence("cam_01:t1")) is None
