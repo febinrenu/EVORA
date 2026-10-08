@@ -17,8 +17,8 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M1 — Platform, Memory & Integration
 - State: on track
-- Doing: P1.7 done; starting P1.8 memory KB + resolve
-- Next: P1.8, P1.9 wire /api/query and /api/clarify to M3's router
+- Doing: P1.8 done; waiting for M3's router to start P1.9
+- Next: P1.9 wire /api/query and /api/clarify (stub router until M3 lands), P1.10 zones + recompute
 - Blockers:
 
 ### M2 — Perception & Identity
@@ -73,6 +73,8 @@ State values: not started · on track · at risk · blocked · done
 <!-- - [HH:MM] [M3] REQUEST: add optional `Answer.followups: list[str]`. Why: UI suggestions. Affects: M1, M4. → [HH:MM] [M1] APPROVED v1.1 -->
 
 ## Requests to other areas (append only)
+- [13:05] [M1] → M3 (memory contract, read before writing router.py): use `ctx.memory` (`evora.memory.service.MemoryService`). (1) `await memory.resolve(Referent)` returns `Bound(fact, via)`, `Ambiguous(facts)` or `Unknown`; NOTE it is async (PLAN §5.6 shows sync) because the grey-band equivalence check calls the gateway. For a `Bound`, `fact.binding` holds `camera_id` and optionally `zone_id` (place), `tod_after`/`tod_before` (time) or `track_id`/`global_id` (object). (2) For Unknown/Ambiguous call `memory.ask(query_id, text, plan, referent, resolution)`; it persists the pending query and returns the `ClarifyRequest` to emit as the `clarify` event, then stop. (3) Resume after `POST /api/clarify`: M1 applies the answer (`memory.apply`), then your `resume` should simply re-run `answer(pending.text)`; the referent now resolves, so nothing is asked twice. Pass `equivalence=gateway_equivalence(gateway)` from `evora.memory.service` into `create_app` once you expose a Gateway factory.
+- [13:05] [M1] → M2: please add `BAAI/bge-small-en-v1.5` to `make models` (fastembed cache under `models/`); M1 loads it local-only and falls back to a hashing embedder when it is missing.
 - [12:10] [M1] → M3: after composing an answer, call `ctx.prerender.schedule([e.id for e in answer.evidence])` (M1 wires this in P1.9 when it relays your `answer` event, so no action needed from you unless you call the router directly).
 - [11:40] [M1] → M3: call `evora.evidence.store.register(db, evidence)` for every `Evidence` you return (including `nearest_miss`). Until then media falls back to scanning stored answers, which only works for answers saved in `query_log`.
 - [11:40] [M1] → M2: expose `blur_faces(jpeg: bytes) -> bytes` from `evora.perception` (or `.clock` / `.pipeline`). Until it exists, media is served unblurred with header `X-Evora-Blur: unavailable`.
@@ -124,3 +126,4 @@ State values: not started · on track · at risk · blocked · done
 - [18:50] [M3] P3.9 + P3.12 done: query/router.py streams plan, clarify|evidence*, answer, verified*, done in the contract order; asks once and stops, resume re-runs the original question; accept threshold (RouterConfig.accept, tune on dev) turns weak matches into a nearest miss; every Evidence incl. nearest_miss is registered with evidence.store; query_log written; 19 tests incl. a real SQLite + LanceDB workspace
 - [18:50] [M3] P3.11 done: query/verify.py (numbered contact sheet, one vision call, streams after the answer). Checked live through the Groq vision fallback. Needs OpenCV in the backend environment (M2's detector stack brings it; M1: please add opencv-python-headless to backend/pyproject.toml if not already).
 - [18:50] [M3] → M1: to wire P1.9 build `Router(db, Planner(gateway, SqlitePlanCache(db)), Retriever(db, store, text_embedder, RetrievalConfig.from_cfg(cfg), gateway), resolver, clarifier, verifier, RouterConfig(), reference_override=lambda: settings['reference_now'])`; `async for ev in router.answer(text, session_id)` and `router.resume(resp)` yield StreamEvent. Protocols you implement (evora/query/router.py): Resolver.resolve(ref) -> object with .status in bound|ambiguous|unknown and .facts (list[MemoryFact]); Clarifier.ask(query_id, text, plan, ref, resolution, options) -> ClarifyRequest (persist the pending query) and Clarifier.resume(resp) -> (text, plan) | None (bind the fact first). Place fact binding {camera_id, zone_id}, time fact {tod_after, tod_before}, object fact {global_id}.
+- [13:05] [M1] P1.8 memory done (a67a0ed, routes 7e5c47a): knowledge base with alias vectors, resolver (exact, embedding >= tau_hi with silent alias, LLM equivalence in the grey band, camera-name safety net), clarify state machine persisted in pending_queries, supersede/correct, DB-backed /api/memory. Restart + paraphrase test green in-process. 438 tests in make check.
