@@ -154,10 +154,14 @@ class Gateway:
             "model": model,
             "messages": messages,
             "temperature": 0,
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {"name": schema.__name__, "schema": schema.model_json_schema()},
-            },
+            "response_format": (
+                {"type": "json_object"}
+                if task in self._cfg.json_object_tasks
+                else {
+                    "type": "json_schema",
+                    "json_schema": {"name": schema.__name__, "schema": schema.model_json_schema()},
+                }
+            ),
         }
         if "gpt-oss" in model:
             body["reasoning_effort"] = self._cfg.reasoning_effort

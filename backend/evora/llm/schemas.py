@@ -24,6 +24,9 @@ class GatewayConfig:
             "hard_plan": "openai/gpt-oss-120b",
         }
     )
+    # Tasks whose prompt already spells out the output shape. They use plain JSON mode: sending the
+    # full JSON schema as well cost about a third more prompt tokens against an 8K tokens-per-minute limit.
+    json_object_tasks: frozenset[str] = frozenset({"planner", "equivalence"})
     groq_vision_model: str = "qwen/qwen3.8-27b"
     groq_whisper_model: str = "whisper-large-v3-turbo"
     local_text_model: str = "qwen3.5:4b"

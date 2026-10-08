@@ -1,6 +1,6 @@
 """Prompt assembly for the query planner.
 
-The system message is built once and never varies between calls (rules, schema,
+The system message is built once and never varies between calls (rules, plan shape,
 examples), so the provider's prefix cache can serve it. Everything that changes per
 request, the camera list and the question, goes in the user message after it.
 """
@@ -9,8 +9,6 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
-
-from contracts.models import QueryPlan
 
 _DIR = Path(__file__).parent
 EXAMPLE_CAMERAS = [
@@ -32,12 +30,12 @@ def load_examples() -> list[dict]:
 @lru_cache(maxsize=1)
 def planner_system_prompt() -> str:
     rules = (_DIR / "planner_system.txt").read_text(encoding="utf-8").strip()
-    schema = _compact(QueryPlan.model_json_schema())
+    shape = (_DIR / "planner_shape.txt").read_text(encoding="utf-8").strip()
     shots = "\n".join(
         f"QUESTION: {_compact(ex['question'])}\nPLAN: {_compact(ex['plan'])}" for ex in load_examples()
     )
     return (
-        f"{rules}\n\nSCHEMA: {schema}\n\n"
+        f"{rules}\n\n{shape}\n\n"
         f"EXAMPLES (in all of them CONTEXT is cameras = {_compact(EXAMPLE_CAMERAS)}):\n{shots}"
     )
 

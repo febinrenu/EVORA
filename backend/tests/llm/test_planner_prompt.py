@@ -61,8 +61,8 @@ def test_camera_list_and_question_are_only_in_the_user_message():
     assert "cam_77" not in msgs[0]["content"] and "any wolves?" not in msgs[0]["content"]
 
 
-def test_system_prompt_carries_rules_schema_and_examples():
+def test_system_prompt_carries_rules_shape_and_examples():
     text = planner_system_prompt()
     assert "Never invent camera ids" in text
-    assert '"QueryPlan"' in text and "unresolved" in text
+    assert "PLAN SHAPE:" in text and '"unresolved"' in text and "$defs" not in text
     assert text.count("QUESTION:") == 12

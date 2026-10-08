@@ -64,7 +64,15 @@ async def test_groq_success_sends_schema_and_low_effort():
     body = rec.bodies("api.groq.com")[0]
     assert body["model"] == "openai/gpt-oss-20b"
     assert body["reasoning_effort"] == "low"
-    assert body["response_format"]["type"] == "json_schema"
+    assert body["response_format"] == {"type": "json_object"}  # the planner prompt carries its own shape
+
+
+@pytest.mark.asyncio
+async def test_other_tasks_send_the_json_schema():
+    rec = Recorder(lambda r: groq_ok('{"a": 1}'), no_ollama)
+    await make(rec).chat_json("describe", [{"role": "user", "content": "x"}], Out)
+    fmt = rec.bodies("api.groq.com")[0]["response_format"]
+    assert fmt["type"] == "json_schema" and fmt["json_schema"]["schema"]["properties"]["a"]["type"] == "integer"
 
 
 @pytest.mark.asyncio
@@ -135,7 +143,7 @@ async def test_model_without_schema_mode_retries_with_json_object():
         return groq_ok('{"a": 5}')
 
     rec = Recorder(groq, no_ollama)
-    out = await make(rec).chat_json("planner", [{"role": "user", "content": "x"}], Out)
+    out = await make(rec).chat_json("describe", [{"role": "user", "content": "x"}], Out)
     assert out.a == 5
     assert rec.bodies("api.groq.com")[-1]["response_format"] == {"type": "json_object"}
 
@@ -182,10 +190,20 @@ async def test_headers_feed_the_pool():
         no_ollama,
     )
     gw = make(rec, keys=("gsk_key_aaaa", "gsk_key_bbbb"))
-    await gw.chat_json("planner", [{"role": "user", "content": "x"}], Out)
-    await gw.chat_json("planner", [{"role": "user", "content": "x"}], Out)
-    # second call must prefer the key that still has headroom
+    big = [{"role": "user", "content": "x" * 8000}]  # about 2000 tokens, more than the 10 the first key has left
+    await gw.chat_json("planner", big, Out)
+    await gw.chat_json("planner", big, Out)
+    # the second call must move to the key that still has headroom
     assert rec.calls[0].headers["authorization"] != rec.calls[1].headers["authorization"]
+
+
+@pytest.mark.asyncio
+async def test_sticks_to_one_key_while_it_has_room_so_the_prompt_cache_can_hit():
+    rec = Recorder(lambda r: groq_ok('{"a": 1}'), no_ollama)
+    gw = make(rec, keys=("gsk_key_aaaa", "gsk_key_bbbb", "gsk_key_cccc"))
+    for _ in range(5):
+        await gw.chat_json("planner", [{"role": "user", "content": "x"}], Out)
+    assert len({c.headers["authorization"] for c in rec.calls}) == 1
 
 
 @pytest.mark.asyncio

@@ -54,6 +54,7 @@ class KeyPool:
         self._keys = [k.strip() for k in keys if k.strip()]
         self._clock = clock
         self._state: dict[tuple[int, str], _State] = {}
+        self._last_good: dict[str, int] = {}
 
     @classmethod
     def from_env(cls, env: Mapping[str, str], clock: Callable[[], float] = time.monotonic) -> KeyPool:
@@ -93,7 +94,15 @@ class KeyPool:
         return now >= st.blocked_until and now >= st.circuit_until
 
     def pick(self, model: str, need_tokens: int = 0) -> int | None:
-        """Key index with the most headroom that can take `need_tokens`, else None."""
+        """Key index to use for `model`, else None.
+
+        Sticks to the last key that worked while it has room: the provider caches a prompt
+        prefix per organization, so rotating keys on every call would never hit the cache.
+        Otherwise picks the key with the most headroom that can take `need_tokens`.
+        """
+        last = self._last_good.get(model)
+        if last is not None and self.available(last, model) and self.headroom(last, model) >= need_tokens:
+            return last
         best: tuple[float, int] | None = None
         for idx in range(len(self._keys)):
             if not self.available(idx, model):
@@ -120,6 +129,7 @@ class KeyPool:
 
     def record_success(self, idx: int, model: str) -> None:
         self._st(idx, model).failures = 0
+        self._last_good[model] = idx
 
     def record_rate_limited(self, idx: int, model: str, retry_after: float | None) -> None:
         st = self._st(idx, model)

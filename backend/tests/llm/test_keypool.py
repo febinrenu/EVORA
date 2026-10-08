@@ -104,3 +104,16 @@ def test_from_env_accepts_comma_list_and_numbered_variables():
     pool = KeyPool.from_env(env)
     assert [pool.key(i) for i in range(len(pool))] == ["k1", "k2", "k3", "k4", "k5"]
     assert len(KeyPool.from_env({})) == 0
+
+
+def test_pick_sticks_to_the_last_good_key_until_it_runs_low_or_is_limited():
+    clock = Clock()
+    pool = KeyPool(["a", "b"], clock)
+    pool.record_success(1, "m")
+    assert pool.pick("m") == 1  # not the first key: the last one that worked
+    pool.update_from_headers(1, "m", {"x-ratelimit-remaining-tokens": "100", "x-ratelimit-reset-tokens": "30s"})
+    assert pool.pick("m", need_tokens=2000) == 0  # no longer has room
+    pool.record_success(0, "m")
+    pool.record_rate_limited(0, "m", retry_after=10)
+    assert pool.pick("m") == 1  # limited keys are skipped
+    assert pool.pick("other-model") == 0  # stickiness is per model
