@@ -1,0 +1,24 @@
+# Format reference (PLAN section 9.3). Files whose name starts with "_" are never loaded.
+# Times need a UTC offset. `split` is dev, test or judge_sim; tune only on dev.
+- id: own_017
+  text: "Did a red car pass through the main gate in the last hour?"
+  workspace: own-campus
+  intent: exists
+  first_time_requires_clarify: ["main gate"]
+  clarify_answer: {camera_id: cam_gate, zone: {kind: line, points: [[0.12, 0.70], [0.88, 0.66]]}}
+  expected:
+    verdict: yes
+    hits:
+      - {camera_id: cam_gate, start: "2026-10-09T09:14:00+05:30", end: "2026-10-09T09:14:10+05:30"}
+  tags: [colour, vehicle, place, relative_time]
+  split: dev
+
+- id: own_018
+  text: "Did a blue truck pass through the main gate in the last hour?"
+  workspace: own-campus
+  intent: exists
+  expected:
+    verdict: "no"          # quote it: bare no is a YAML boolean
+    hits: []
+  tags: [colour, vehicle, place, negative]
+  split: dev
