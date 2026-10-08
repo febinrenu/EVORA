@@ -7,12 +7,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from contracts.models import Zone
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from evora.api import fixtures, routes_cameras, routes_ingest, routes_media, routes_memory, routes_query
+from evora.api import fixtures, routes_cameras, routes_ingest, routes_media, routes_memory, routes_query, routes_zones
 from evora.api.context import AppContext
 from evora.core.config import load_config
 from evora.core.jobs import IngestFn
@@ -51,6 +50,7 @@ def create_app(
     app.include_router(routes_media.make_router(ctx))
     app.include_router(routes_memory.make_router(ctx))
     app.include_router(routes_query.make_router(ctx))
+    app.include_router(routes_zones.make_router(ctx))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cfg["server"]["cors_origins"],
@@ -89,15 +89,6 @@ def create_app(
         return state["workspaces"]
 
     # --- zones, tracks, globals ---
-    @app.get("/api/zones")
-    def zones(camera_id: str | None = None):
-        z = fixtures.load("zone")
-        return [z] if camera_id in (None, z["camera_id"]) else []
-
-    @app.post("/api/zones")
-    def add_zone(zone: Zone):
-        return zone
-
     @app.get("/api/tracks/{track_id}")
     def track(track_id: str):
         ev = fixtures.load("answer")["evidence"][0]

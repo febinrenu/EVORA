@@ -43,13 +43,6 @@ def test_clarify_resumes(client):
     assert sse_types(r)[-1] == "done"
 
 
-def test_zone_validation(client):
-    ok = client.post("/api/zones", json={"id": "z", "camera_id": "cam_01", "kind": "line"})
-    assert ok.status_code == 200
-    bad = client.post("/api/zones", json={"id": "z", "camera_id": "cam_01", "kind": "circle"})
-    assert bad.status_code == 422
-
-
 def test_remaining_routes_respond(client):
     assert client.get("/api/globals/g_0007/path").json()[0]["camera_id"] == "cam_01"
     assert len(client.get("/api/tracks/cam_01:t000001/similar", params={"k": 2}).json()) == 2

@@ -37,6 +37,7 @@ class JobRunner:
         self._pool = ThreadPoolExecutor(max_workers=auto_workers(workers), thread_name_prefix="ingest")
         self._lock = threading.Lock()
         self._wanted: dict[str, set[str]] = {}
+        self.on_done: Callable[[str], None] | None = None  # called when a camera finishes ingesting something
 
     # --- public API ---
     def submit(self, camera_ids: list[str], layers: list[str] | None = None) -> list[IngestJob]:
@@ -118,6 +119,11 @@ class JobRunner:
         log.info("ingest %s done in %.1fs", job.camera_id, time.monotonic() - started)
         cams.set_status(self.db, job.camera_id, "ready")  # camera first, so a finished job never sees a stale camera
         self.bus.publish("camera", {"camera_id": job.camera_id, "status": "ready"})
+        if self.on_done is not None:
+            try:
+                self.on_done(job.camera_id)
+            except Exception:  # noqa: BLE001 - a follow-up step must never turn a finished ingest into a failed one
+                log.exception("post-ingest hook failed for %s", job.camera_id)
         self._update(job_id, state="done", progress=1.0)
 
     def _update(self, job_id: str, **fields: object) -> None:

@@ -56,9 +56,8 @@ def test_clarify_once_survives_a_restart_and_paraphrases(tmp_path, monkeypatch, 
     fact = second.get("/api/memory").json()[0]
     assert fact["binding"]["camera_id"] == "cam_01" and fact["binding"]["zone_id"].startswith("z_")
     assert set(fact["inferred_aliases"]) == {"front gate", "gate at entrance"}, "paraphrases were learned, not asked"
-    with second.app.state.ctx.db.read() as c:  # /api/zones is not wired to the database yet (P1.10)
-        row = c.execute("SELECT kind, fact_id FROM zones WHERE id=?", (fact["binding"]["zone_id"],)).fetchone()
-    assert (row["kind"], row["fact_id"]) == ("line", fact["id"]), "the drawn line survived the restart"
+    zones = second.get("/api/zones", params={"camera_id": "cam_01"}).json()
+    assert [(z["id"], z["kind"]) for z in zones] == [(fact["binding"]["zone_id"], "line")], "the drawn line survived the restart"
 
 
 def test_without_alias_embeddings_a_paraphrase_asks_again(tmp_path, monkeypatch, footage):

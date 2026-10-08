@@ -4,12 +4,13 @@ from __future__ import annotations
 import json
 import re
 import time
-import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from contracts.models import CameraInfo, CameraOption, ClarifyRequest, ClarifyResponse, MemoryFact, QueryPlan, Referent, Zone
 
+from evora.core import zones
 from evora.core.cameras import CameraNotFound, get_camera, list_cameras
 from evora.core.db import Database
 from evora.memory.kb import FactNotFound, KnowledgeBase, normalize
@@ -78,8 +79,9 @@ def parse_camera_text(text: str, cameras: list[CameraInfo]) -> CameraInfo:
 
 
 class Clarifier:
-    def __init__(self, db: Database, kb: KnowledgeBase):
+    def __init__(self, db: Database, kb: KnowledgeBase, on_zone: Callable[[str], object] | None = None):
         self.db, self.kb = db, kb
+        self.on_zone = on_zone  # called with the new zone id so its events are computed at once
 
     # --- ask ---
     def ask(
@@ -165,26 +167,18 @@ class Clarifier:
             binding["zone_id"] = zone_id
         fact = self._remember(ref, binding)
         if zone_id:
-            with self.db.write() as c:
-                c.execute("UPDATE zones SET fact_id=? WHERE id=?", (fact.id, zone_id))
+            zones.link_fact(self.db, zone_id, fact.id)
+            if self.on_zone is not None:
+                self.on_zone(zone_id)
         return fact
 
     def _insert_zone(self, camera_id: str, zone: Zone) -> str:
         if zone.camera_id != camera_id:
             raise ClarifyError("the drawn region belongs to a different camera")
-        if any(not (0.0 <= v <= 1.0) for pt in zone.points for v in pt):
-            raise ClarifyError("region points must be inside the frame")
-        if zone.kind == "line" and len(zone.points) != 2:
-            raise ClarifyError("a line needs exactly two points")
-        if zone.kind == "polygon" and len(zone.points) < 3:
-            raise ClarifyError("a polygon needs at least three points")
-        zone_id = f"z_{uuid.uuid4().hex[:8]}"
-        with self.db.write() as c:
-            c.execute(
-                "INSERT INTO zones(id,camera_id,kind,points,direction,created_at) VALUES(?,?,?,?,?,?)",
-                (zone_id, camera_id, zone.kind, json.dumps(zone.points), zone.direction, time.time()),
-            )
-        return zone_id
+        try:
+            return zones.save(self.db, zone.model_copy(update={"id": zones.new_id()})).id
+        except zones.ZoneError as exc:
+            raise ClarifyError(str(exc)) from None
 
     def _bind_object(self, ref: Referent, resp: ClarifyResponse) -> MemoryFact:
         if not resp.track_id:

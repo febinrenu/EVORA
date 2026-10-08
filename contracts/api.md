@@ -35,3 +35,5 @@ FastAPI on `:8700`, UI dev server on `:5173`.
 **v1.1 notes.** Media responses carry `X-Evora-Blur: applied | off | unavailable`. `unavailable` means blur was requested but the face-blur model is not installed; the UI should warn. Schema adds table `evidence` (see `schema.sql`); M3 registers every `Evidence` it returns via `evora.evidence.store.register`.
 
 **v1.2 notes.** `MemoryFact.inferred_aliases` lists aliases the system learned silently so the Known places ledger can mark them as guesses. `PATCH /api/memory/{id}` accepts `confirm_aliases: string[]` to turn a guess into a confirmed alias. Changing a fact's binding is a correction and drops its guessed aliases.
+
+**v1.3 notes.** `POST /api/zones` saves (or redraws, when the id exists) a zone and recomputes its events at once; the response carries `X-Evora-Events: <n>` or `pending` when the perception pipeline cannot compute them yet. `DELETE /api/zones/{id}` removes a zone, its events and its pointer in any memory fact. Both are additive.

@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from contracts.models import CameraInfo, IngestJob
+from contracts.models import CameraInfo, IngestJob, Zone
 
 from evora.core.media import ProbeResult
 
@@ -89,4 +89,16 @@ def get_query_embedder() -> Any | None:
         return factory()
     except Exception as exc:  # noqa: BLE001 - a model that fails to load means "retrieval not ready", not a crash
         log.warning("query embedder could not be loaded: %s", exc)
+        return None
+
+
+def recompute_events(camera_id: str, zones: list[Zone]) -> int | None:
+    """M2's retroactive event recompute: the number of events written, or None when it is not available."""
+    real = _find("recompute_events")
+    if real is None:
+        return None
+    try:
+        return int(real(camera_id, zones))
+    except Exception as exc:  # noqa: BLE001 - a failed recompute leaves the zone saved and reports "pending"
+        log.warning("recompute_events failed for %s: %s", camera_id, exc)
         return None

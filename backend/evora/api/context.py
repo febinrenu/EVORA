@@ -17,6 +17,7 @@ from evora.core.db import Database, open_db
 from evora.core.jobs import IngestFn, JobRunner
 from evora.core.media_service import BlurFn, MediaService, UnblurTokens
 from evora.core.workspace import Workspace
+from evora.core.zone_service import ZoneService
 from evora.evidence.prerender import Prerenderer
 from evora.llm.gateway import Gateway
 from evora.llm.keypool import KeyPool
@@ -43,6 +44,7 @@ class AppContext:
     http: httpx.AsyncClient | None = None
     clarifier: Any = None
     router: Any = None
+    zones: Any = None
 
     @classmethod
     def build(
@@ -75,6 +77,9 @@ class AppContext:
             equivalence = gateway_equivalence(gateway)
         memory = build_memory(db, ws, cfg, embedder=embedder, equivalence=equivalence)
         ctx = cls(cfg, ws, db, bus, runner, media, UnblurTokens(), prerender, memory, settings, mock, gateway, http)
+        ctx.zones = ZoneService(db, bus, memory.kb)
+        memory.clarifier.on_zone = ctx.zones.recompute_zone
+        runner.on_done = ctx.zones.recompute_camera
         if not mock:
             from evora.api.query_wiring import ClarifierAdapter, build_router
 
