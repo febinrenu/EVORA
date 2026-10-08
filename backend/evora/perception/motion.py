@@ -9,6 +9,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
+from evora.perception.decode import Frame
 from evora.perception.settings import IngestSettings
 
 
@@ -21,15 +22,18 @@ class AdaptiveSampler:
         self._next_t = float("-inf")
         self.activity = 0.0
 
-    def _proxy(self, bgr: np.ndarray) -> np.ndarray:
-        h, w = bgr.shape[:2]
-        scale = self.cfg.motion_proxy_px / max(w, 1)
-        small = cv2.resize(bgr, (self.cfg.motion_proxy_px, max(1, int(round(h * scale)))), interpolation=cv2.INTER_AREA)
-        grey = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+    def _proxy(self, frame: np.ndarray | Frame) -> np.ndarray:
+        if isinstance(frame, Frame):
+            grey = frame.proxy(self.cfg.motion_proxy_px)      # no full-size conversion
+        else:
+            h, w = frame.shape[:2]
+            scale = self.cfg.motion_proxy_px / max(w, 1)
+            small = cv2.resize(frame, (self.cfg.motion_proxy_px, max(1, int(round(h * scale)))), interpolation=cv2.INTER_AREA)
+            grey = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
         return cv2.GaussianBlur(grey, (5, 5), 0)
 
-    def _measure(self, bgr: np.ndarray) -> float:
-        proxy = self._proxy(bgr)
+    def _measure(self, frame: np.ndarray | Frame) -> float:
+        proxy = self._proxy(frame)
         if self._prev is None or self._prev.shape != proxy.shape:
             self._prev = proxy
             return 0.0
@@ -44,9 +48,12 @@ class AdaptiveSampler:
         level = min(1.0, activity / max(cfg.motion_active_frac, 1e-6))
         return cfg.fps_floor + (cfg.fps_ceil - cfg.fps_floor) * level
 
-    def should_process(self, pts_s: float, bgr: np.ndarray) -> bool:
-        """True when this frame is due. Motion is measured on every decoded frame so bursts are not missed."""
-        self.activity = self._measure(bgr) if self.cfg.motion_gate else 0.0
+    def should_process(self, pts_s: float, frame: np.ndarray | Frame) -> bool:
+        """True when this frame is due. Motion is measured on every decoded frame so bursts are not missed.
+
+        Passing a `Frame` keeps the measurement cheap: only a 160 px grey copy is made, never the full image.
+        """
+        self.activity = self._measure(frame) if self.cfg.motion_gate else 0.0
         if pts_s + 1e-9 < self._next_t:
             return False
         period = 1.0 / self.rate_for(self.activity)

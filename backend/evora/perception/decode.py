@@ -32,11 +32,62 @@ class VideoInfo:
     rotation: int         # degrees clockwise to apply for upright display: 0, 90, 180, 270
 
 
-@dataclass(frozen=True)
+def _even(x: float) -> int:
+    return max(2, int(round(x)) // 2 * 2)
+
+
 class Frame:
-    index: int
-    pts_s: float          # seconds from the start of the file
-    image: np.ndarray     # BGR uint8, rotated upright and downscaled to max_width
+    """One decoded frame. Pixels are converted only when `image` is first read.
+
+    Converting to BGR is the most expensive step after decoding, and most frames are skipped by the
+    samplers, so `pts_s` and the cheap grey `proxy()` are available without paying for it.
+    """
+
+    __slots__ = ("index", "pts_s", "_av", "_rotation", "_max_width", "_image")
+
+    def __init__(self, index: int, pts_s: float, av_frame: av.VideoFrame | None, rotation: int, max_width: int,
+                 image: np.ndarray | None = None):
+        self.index, self.pts_s = index, pts_s
+        self._av, self._rotation, self._max_width, self._image = av_frame, rotation, max_width, image
+
+    @classmethod
+    def from_image(cls, index: int, pts_s: float, image: np.ndarray) -> Frame:
+        return cls(index, pts_s, None, 0, image.shape[1], image)
+
+    @property
+    def image(self) -> np.ndarray:
+        """BGR uint8, rotated upright and no wider than `max_width` (scaled during conversion)."""
+        if self._image is None:
+            f = self._av
+            upright_w = f.height if self._rotation in (90, 270) else f.width
+            if upright_w > self._max_width:
+                scale = self._max_width / upright_w
+                arr = f.reformat(width=_even(f.width * scale), height=_even(f.height * scale), format="bgr24",
+                                 interpolation="AREA").to_ndarray()
+            else:
+                arr = f.to_ndarray(format="bgr24")
+            self._image = _apply_rotation(arr, self._rotation)
+            self._av = None   # the decoder buffer is no longer needed
+        return self._image
+
+    def proxy(self, width: int) -> np.ndarray:
+        """Small grey copy (about `width` px wide, not rotated) for motion measurement."""
+        if self._image is not None:
+            img = self._image
+            h, w = img.shape[:2]
+            small = cv2.resize(img, (width, max(1, int(round(h * width / w)))), interpolation=cv2.INTER_AREA)
+            return cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+        f = self._av
+        name = f.format.name
+        if (name.startswith("yuv") or name.startswith("nv")) and not any(t in name for t in ("10", "12", "16")):
+            # 8-bit YUV keeps brightness in plane 0: read it in place and take every n-th pixel (no conversion)
+            plane = f.planes[0]
+            luma = np.frombuffer(plane, dtype=np.uint8).reshape(f.height, plane.line_size)[:, : f.width]
+            step = max(1, f.width // width)
+            small = np.ascontiguousarray(luma[::step, ::step])
+            return cv2.resize(small, (width, max(1, int(round(f.height * width / f.width)))), interpolation=cv2.INTER_AREA)
+        return f.reformat(width=width, height=max(2, int(round(f.height * width / f.width))), format="gray",
+                          interpolation="AREA").to_ndarray()
 
 
 def _clockwise_from_ccw(ccw_degrees: float) -> int:
@@ -102,7 +153,7 @@ def probe_video(path: str | Path) -> VideoInfo:
 
 
 def read_frames(path: str | Path, max_width: int = 1280, *, start_s: float = 0.0, end_s: float | None = None) -> Iterator[Frame]:
-    """Yield decoded frames in presentation order as upright BGR images no wider than `max_width`.
+    """Yield decoded frames in presentation order; `Frame.image` is an upright BGR image no wider than `max_width`.
 
     A corrupted packet is logged and skipped; the generator keeps going until the stream ends.
     """
@@ -119,6 +170,7 @@ def read_frames(path: str | Path, max_width: int = 1280, *, start_s: float = 0.0
         fps = float(stream.average_rate) if stream.average_rate else None
         index = -1
         errors = 0
+        rotation: int | None = None
         packets = container.demux(stream)
         while True:
             try:
@@ -141,7 +193,8 @@ def read_frames(path: str | Path, max_width: int = 1280, *, start_s: float = 0.0
                 continue
             errors = 0
             for frame in decoded:
-                rotation = tag_rotation or _frame_rotation(frame)
+                if rotation is None:
+                    rotation = tag_rotation or _frame_rotation(frame)   # the display matrix is constant for a stream
                 index += 1
                 if frame.time is not None:
                     pts = float(frame.time)
@@ -153,10 +206,4 @@ def read_frames(path: str | Path, max_width: int = 1280, *, start_s: float = 0.0
                     continue
                 if end_s is not None and pts > end_s:
                     return
-                img = frame.to_ndarray(format="bgr24")
-                img = _apply_rotation(img, rotation)
-                h, w = img.shape[:2]
-                if w > max_width:
-                    scale = max_width / w
-                    img = cv2.resize(img, (max_width, int(round(h * scale)) // 2 * 2), interpolation=cv2.INTER_AREA)
-                yield Frame(index=index, pts_s=pts, image=img)
+                yield Frame(index, pts, frame, rotation, max_width)

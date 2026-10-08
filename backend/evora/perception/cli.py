@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
@@ -62,6 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--layers", nargs="*", default=["L0", "L1"], choices=["L0", "L1", "L2", "L3"])
     p.add_argument("--t0", help="ISO start time for every file, e.g. 2026-10-01T09:00:00+05:30")
     p.add_argument("--names", nargs="*", help="camera names, one per file")
+    p.add_argument("--workers", type=int, default=1, help="cameras ingested at the same time (default 1)")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
@@ -71,28 +73,36 @@ def main(argv: list[str] | None = None) -> int:
     ws = resolve_workspace(args.workspace)
     db = open_db(ws.db_path)
     rc = 0
-    last: dict[str, float] = {}
-    for i, f in enumerate(args.files):
+    registered: list[tuple[Path, CameraInfo]] = []
+    for i, f in enumerate(args.files):          # registered in command-line order, so camera ids are predictable
         if not f.is_file():
             log.error("not a file: %s", f)
             rc = 1
             continue
-        cam = _register(db, f, args.names[i] if args.names else None, t0_override)
-        def show(job: IngestJob, cam_id: str = cam.id) -> None:
-            key = f"{cam_id}:{job.layer}"
+        registered.append((f, _register(db, f, args.names[i] if args.names else None, t0_override)))
+    last: dict[str, float] = {}
+
+    def run(item: tuple[Path, CameraInfo]) -> int:
+        f, cam = item
+
+        def show(job: IngestJob) -> None:
+            key = f"{cam.id}:{job.layer}"
             if job.progress >= 1.0 or job.progress - last.get(key, -1.0) >= 0.1:
                 last[key] = job.progress
                 rate = f" {job.video_s_per_s:.1f} video-s/s" if job.video_s_per_s else ""
-                print(f"{cam_id} {job.layer} {job.progress * 100:5.1f}%{rate}", flush=True)
+                print(f"{cam.id} {job.layer} {job.progress * 100:5.1f}%{rate}", flush=True)
 
         try:
             ingest(cam, args.profile, set(args.layers), show, ws=ws)
         except Exception:  # noqa: BLE001 - report which file failed, keep going with the rest
             log.exception("ingest failed for %s", f)
-            rc = 1
-            continue
-        cams.add_layers(db, cam.id, [ly for ly in args.layers if ly in ("L0", "L1")])
+            return 1
+        cams.add_layers(db, cam.id, [ly for ly in args.layers if ly in ("L0", "L1", "L2")])
         cams.set_status(db, cam.id, "ready")
+        return 0
+
+    with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
+        rc |= max(pool.map(run, registered), default=0)
     print(_summary(db, ws))
     return rc
 

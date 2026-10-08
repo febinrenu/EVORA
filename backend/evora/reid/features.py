@@ -21,6 +21,7 @@ from evora.core.db import Database
 from evora.core.vectors import dims_from_meta, ensure_tables
 from evora.core.workspace import Workspace
 from evora.perception.detect import resolve_device
+from evora.perception.locks import STORE_SETUP
 from evora.perception.settings import IngestSettings
 
 log = logging.getLogger("evora.reid.features")
@@ -79,9 +80,10 @@ def track_feature(crop_features: np.ndarray) -> np.ndarray:
 def compute_reid(cam_id: str, ws: Workspace, db: Database, store, st: IngestSettings, encoder: ReidEncoder | None = None) -> int:
     """Write one ReID vector per track of a camera; returns the number of tracks embedded."""
     enc = encoder or get_encoder(st)
-    db.set_meta("embed_dim_reid", str(enc.dim))
-    db.set_meta("embed_model_reid", st.reid_weights)
-    ensure_tables(store, dims_from_meta(db), only={"reid"})
+    with STORE_SETUP:
+        db.set_meta("embed_dim_reid", str(enc.dim))
+        db.set_meta("embed_model_reid", st.reid_weights)
+        ensure_tables(store, dims_from_meta(db), only={"reid"})
     table = store.open_table("reid")
     table.delete(f"camera_id = '{cam_id}'")
     with db.read() as c:

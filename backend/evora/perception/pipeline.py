@@ -32,6 +32,7 @@ from evora.perception.decode import DecodeError, probe_video, read_frames
 from evora.perception.detect import load_detector
 from evora.perception.embed import SigLIP2Embedder, get_embedder
 from evora.perception.l2 import run_l2
+from evora.perception.locks import STORE_SETUP
 from evora.perception.motion import AdaptiveSampler
 from evora.perception.settings import IngestSettings, load_settings
 from evora.perception.track import FrameTracker
@@ -78,6 +79,24 @@ class _Reporter:
         ))
 
 
+class _RowBuffer:
+    """Collects vector rows and writes them in few large commits: every LanceDB add creates a new table version,
+    and many small adds from several cameras at once contend on the version files."""
+
+    def __init__(self, table, limit: int = 4000):
+        self.table, self.limit, self.rows = table, limit, []
+
+    def add(self, rows: list[dict]) -> None:
+        self.rows += rows
+        if len(self.rows) >= self.limit:
+            self.flush()
+
+    def flush(self) -> None:
+        if self.rows:
+            self.table.add(self.rows)
+            self.rows = []
+
+
 def _check_id(cam_id: str) -> str:
     if not _SAFE_ID.match(cam_id):
         raise ValueError(f"unsafe camera id: {cam_id!r}")
@@ -109,6 +128,7 @@ def _run_l0(cam: CameraInfo, path: Path, ws: Workspace, store, st: IngestSetting
     cid = _check_id(cam.id)
     table = store.open_table("scenes")
     table.delete(f"camera_id = '{cid}'")
+    buffer = _RowBuffer(table)
     shutil.rmtree(ws.media_dir / "scenes" / cid, ignore_errors=True)
     rep = _Reporter(cam, "L0", duration, on_progress)
     pending: list[tuple[float, str, dict[str, np.ndarray]]] = []
@@ -125,7 +145,7 @@ def _run_l0(cam: CameraInfo, path: Path, ws: Workspace, store, st: IngestSetting
                 imgs.append(tile)
                 meta.append((t, name, frame_path))
         vecs = embedder.embed_images(imgs)
-        table.add([
+        buffer.add([
             {"vector": v.tolist(), "camera_id": cid, "t": cam.t0 + t, "tile": name, "frame_path": fp}
             for v, (t, name, fp) in zip(vecs, meta, strict=True)
         ])
@@ -145,6 +165,7 @@ def _run_l0(cam: CameraInfo, path: Path, ws: Workspace, store, st: IngestSetting
             written += flush()
         rep.tick(frame.pts_s)
     written += flush()
+    buffer.flush()
     rep.done(last_pts)
     return written
 
@@ -157,7 +178,7 @@ def _delete_l1(db: Database, store, ws: Workspace, cid: str) -> None:
     shutil.rmtree(ws.media_dir / "crops" / cid, ignore_errors=True)
 
 
-def _persist(db: Database, crops_table, ws: Workspace, cam: CameraInfo, tracks: list[FinishedTrack],
+def _persist(db: Database, buffer: _RowBuffer, ws: Workspace, cam: CameraInfo, tracks: list[FinishedTrack],
              st: IngestSettings, embedder: SigLIP2Embedder) -> int:
     if not tracks:
         return 0
@@ -189,7 +210,7 @@ def _persist(db: Database, crops_table, ws: Workspace, cam: CameraInfo, tracks: 
                 "INSERT INTO track_points(track_id,t,x1,y1,x2,y2,conf) VALUES(?,?,?,?,?,?,?)",
                 [(tid, cam.t0 + p[0], p[1], p[2], p[3], p[4], p[5]) for p in trk.points],
             )
-    crops_table.add(crop_rows)
+    buffer.add(crop_rows)
     return len(tracks)
 
 
@@ -197,7 +218,7 @@ def _run_l1(cam: CameraInfo, path: Path, ws: Workspace, db: Database, store, st:
             embedder: SigLIP2Embedder, duration: float | None, on_progress: ProgressFn) -> tuple[int, int]:
     cid = _check_id(cam.id)
     _delete_l1(db, store, ws, cid)
-    crops_table = store.open_table("crops")
+    buffer = _RowBuffer(store.open_table("crops"))
     det = load_detector(st)
     tracker, book, sampler = FrameTracker(det, st), TrackBook(st), AdaptiveSampler(st)
     rep = _Reporter(cam, "L1", duration, on_progress)
@@ -205,13 +226,14 @@ def _run_l1(cam: CameraInfo, path: Path, ws: Workspace, db: Database, store, st:
     last_pts = 0.0
     for frame in read_frames(path, st.max_width):
         last_pts = frame.pts_s
-        if not sampler.should_process(frame.pts_s, frame.image):
+        if not sampler.should_process(frame.pts_s, frame):
             continue
         n_frames += 1
         book.observe(frame.pts_s, tracker.update(frame.image), frame.image)
-        n_tracks += _persist(db, crops_table, ws, cam, book.finalize_stale(frame.pts_s), st, embedder)
+        n_tracks += _persist(db, buffer, ws, cam, book.finalize_stale(frame.pts_s), st, embedder)
         rep.tick(frame.pts_s)
-    n_tracks += _persist(db, crops_table, ws, cam, book.finalize_all(), st, embedder)
+    n_tracks += _persist(db, buffer, ws, cam, book.finalize_all(), st, embedder)
+    buffer.flush()
     rep.done(last_pts)
     return n_tracks, n_frames
 
@@ -242,10 +264,11 @@ def ingest(
     duration = cam.duration_s or probe_video(path).duration_s
     db = open_db(ws.db_path)
     embedder = get_embedder(st)
-    db.set_meta("embed_dim_image", str(embedder.dim))
-    db.set_meta("embed_model_image", st.image_model)
     store = open_store(ws.vectors_dir)
-    ensure_tables(store, dims_from_meta(db), only={"crops", "scenes"})
+    with STORE_SETUP:
+        db.set_meta("embed_dim_image", str(embedder.dim))
+        db.set_meta("embed_model_image", st.image_model)
+        ensure_tables(store, dims_from_meta(db), only={"crops", "scenes"})
     started = time.monotonic()
     if "L0" in todo:
         n = _run_l0(cam, path, ws, store, st, embedder, duration, on_progress)
