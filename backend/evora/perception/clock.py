@@ -47,6 +47,15 @@ def _tz(name: str) -> tzinfo:
         return timezone(timedelta(hours=5, minutes=30))
 
 
+def default_tz_offset(when: float | None = None, tz_name: str = DEFAULT_TZ) -> str:
+    """The clock zone as a fixed offset such as '+05:30', which every reader of `meta.tz` can parse without tzdata."""
+    moment = datetime.fromtimestamp(when if when is not None else 0.0, tz=_tz(tz_name))
+    offset = moment.utcoffset() or timedelta(0)
+    minutes = int(offset.total_seconds() // 60)
+    sign = "+" if minutes >= 0 else "-"
+    return f"{sign}{abs(minutes) // 60:02d}:{abs(minutes) % 60:02d}"
+
+
 def parse_filename(name: str, tz_name: str = DEFAULT_TZ) -> float | None:
     """Epoch seconds from a timestamp embedded in a file name, or None."""
     for _, pat in _PATTERNS:

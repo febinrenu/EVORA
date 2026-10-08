@@ -21,7 +21,7 @@ def path_for(global_id: str, workspace: Workspace | None = None, *, db: Database
     with db.read() as c:
         rows = c.execute(
             "SELECT t.id, t.camera_id, t.t_start, t.t_end, t.quality, c.name FROM tracks t "
-            "JOIN cameras c ON c.id = t.camera_id WHERE t.global_id=? ORDER BY t.t_start", (global_id,),
+            "JOIN cameras c ON c.id = t.camera_id WHERE t.global_id=? ORDER BY t.t_start, t.id", (global_id,),
         ).fetchall()
     hops: list[dict] = []
     for r in rows:

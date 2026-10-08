@@ -1,6 +1,6 @@
 """Download every local model artifact into ./models (used by `make models`).
 
-Usage: python scripts/models_download.py [--only yolo siglip2 bge fastembed boxmot yunet ollama] [--gpu]
+Usage: python scripts/models_download.py [--only yolo yoloe siglip2 bge fastembed boxmot yunet ollama] [--gpu]
 
 Heavy imports happen inside each step, so one missing package only fails its own step.
 Ollama pulls are skipped with a warning when Ollama is not installed.
@@ -25,7 +25,7 @@ YUNET_URL = ("https://github.com/opencv/opencv_zoo/raw/main/models/face_detectio
 # Exact YOLO26 / YOLOE-26 checkpoint names must be confirmed against the Ultralytics docs (spike P2.3).
 YOLO_WEIGHTS = ["yolo26n.pt", "yolo26s.pt", "yoloe-26n-seg.pt", "yoloe-26n-seg-pf.pt"]
 BOXMOT_WEIGHTS = {"osnet_x0_25_msmt17.pt": "1sSwXSUlj4_tHZequ_iZ8w_Jh0VaRQMqF"}
-ALL_STEPS = ["yolo", "siglip2", "bge", "fastembed", "boxmot", "yunet", "ollama"]
+ALL_STEPS = ["yolo", "yoloe", "siglip2", "bge", "fastembed", "boxmot", "yunet", "ollama"]
 
 
 def step_yolo() -> None:
@@ -43,6 +43,20 @@ def step_yolo() -> None:
             log.error("yolo %s not available", name)
     if missing:
         raise RuntimeError(f"missing weights: {', '.join(missing)}")
+
+
+YOLOE_TEXT_URL = "https://github.com/ultralytics/assets/releases/download/v8.4.0/mobileclip2_b.ts"
+
+
+def step_yoloe() -> None:
+    """Text encoder for YOLOE text prompts (242 MB). The `clip` package is a separate pip install, see openvocab.py."""
+    dest = ROOT / "ultralytics" / "mobileclip2_b.ts"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.is_file() and dest.stat().st_size > 0:
+        log.info("yoloe text encoder present")
+        return
+    urllib.request.urlretrieve(YOLOE_TEXT_URL, dest)
+    log.info("yoloe text encoder -> %s", dest)
 
 
 def step_hf(repo: str) -> None:
@@ -116,6 +130,7 @@ def main(argv: list[str] | None = None) -> int:
 
     steps = {
         "yolo": step_yolo,
+        "yoloe": step_yoloe,
         "siglip2": lambda: step_hf(SIGLIP2),
         "bge": lambda: step_hf(BGE),
         "fastembed": step_fastembed,

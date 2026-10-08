@@ -66,3 +66,8 @@ def test_osd_failure_falls_back_to_manual(tmp_path):
 def test_missing_file_never_raises(tmp_path):
     t0, source = clock.detect_clock(tmp_path / "gone.mp4")
     assert source == "manual" and t0 > 0
+
+
+def test_default_tz_offset_is_a_plain_offset_string():
+    assert clock.default_tz_offset(1_790_000_000.0) == "+05:30"
+    assert clock.default_tz_offset(1_790_000_000.0, "UTC") == "+00:00"

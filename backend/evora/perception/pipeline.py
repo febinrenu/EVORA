@@ -27,6 +27,7 @@ from evora.core.db import Database, open_db
 from evora.core.vectors import dims_from_meta, ensure_tables, open_store
 from evora.core.workspace import Workspace
 from evora.core.workspace import create as create_workspace
+from evora.perception.clock import default_tz_offset
 from evora.perception.crops import FinishedTrack, TrackBook, save_jpeg
 from evora.perception.decode import DecodeError, probe_video, read_frames
 from evora.perception.detect import load_detector
@@ -269,6 +270,8 @@ def ingest(
         db.set_meta("embed_dim_image", str(embedder.dim))
         db.set_meta("embed_model_image", st.image_model)
         ensure_tables(store, dims_from_meta(db), only={"crops", "scenes"})
+        if db.get_meta("tz") is None:   # the zone the clock reader assumed for file-name times; the planner needs it
+            db.set_meta("tz", default_tz_offset(cam.t0))
     started = time.monotonic()
     if "L0" in todo:
         n = _run_l0(cam, path, ws, store, st, embedder, duration, on_progress)

@@ -184,3 +184,12 @@ def test_infrared_footage_suppresses_colours_and_is_flagged(env, tmp_path):
         ir = c.execute("SELECT ir_fraction FROM cameras WHERE id=?", (grey_cam.id,)).fetchone()[0]
     assert ir == 1.0 and attrs
     assert all(a["is_ir"] is True and "upper_color" not in a and "color" not in a for a in attrs)
+
+
+def test_ingest_records_the_clock_zone_once(env):
+    ws, db, cam = env
+    pipeline.ingest(cam, "cpu", {"L0"}, lambda e: None, ws=ws, settings=_settings())
+    assert db.get_meta("tz") == "+05:30"
+    db.set_meta("tz", "-04:00")                                  # an operator's choice is never overwritten
+    pipeline.ingest(cam, "cpu", {"L0"}, lambda e: None, ws=ws, settings=_settings())
+    assert db.get_meta("tz") == "-04:00"
