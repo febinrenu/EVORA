@@ -126,12 +126,14 @@ class ReplayManager:
         self, db: Database, live_dir: Path, *, mediamtx_path: str | None = None, port: int = 8554,
         max_streams: int = 16, default_speed: float = 1.0, spawn: Spawn | None = None,
         on_state: Callable[[str, str], None] | None = None, ffmpeg: str | None = None,
+        on_launch: Callable[[str, float, float], None] | None = None, on_end: Callable[[str], None] | None = None,
     ) -> None:
         self.db, self.live_dir, self.port = db, live_dir, port
         self.max_streams, self.default_speed = max_streams, default_speed
         self._configured = mediamtx_path
         self._spawn: Spawn = spawn or self._popen
         self._on_state = on_state
+        self._on_launch, self._on_end = on_launch, on_end  # live sessions: when the loop starts and stops
         self._ffmpeg = ffmpeg
         self._lock = threading.RLock()
         self._streams: dict[str, Stream] = {}
@@ -160,8 +162,19 @@ class ReplayManager:
         except (subprocess.TimeoutExpired, OSError):
             proc.kill()
 
+    @staticmethod
+    def _call(fn: Callable[..., None] | None, *args: Any) -> None:
+        if fn is None:
+            return
+        try:
+            fn(*args)
+        except Exception:  # noqa: BLE001 - bookkeeping must never break streaming
+            log.exception("live callback failed")
+
     def _announce(self, stream: Stream, state: str) -> None:
         stream.state = state
+        if state in ("stopped", "failed"):
+            self._call(self._on_end, stream.camera_id)
         if self._on_state is not None:
             try:
                 self._on_state(stream.camera_id, state)
@@ -205,6 +218,7 @@ class ReplayManager:
         args = ffmpeg_command(ffmpeg, stream.source, stream.url, stream.speed, stream.transcode)
         stream.proc = self._spawn(args, self.live_dir / f"{stream.camera_id}.log")
         stream.started_at = time.time()
+        self._call(self._on_launch, stream.camera_id, stream.started_at, stream.speed)
 
     def _watch(self, stream: Stream) -> None:
         """Restart a stream that dies on its own: once as a transcode if it died instantly, then a few more times."""

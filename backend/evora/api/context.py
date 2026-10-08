@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,7 +13,7 @@ import httpx
 from evora.alerts.compiler import StandingCompiler
 from evora.alerts.engine import AlertEngine
 from evora.alerts.notify import Notifier
-from evora.core import perception_adapter
+from evora.core import live_sessions, perception_adapter
 from evora.core import settings as app_settings
 from evora.core import workspace as wsmod
 from evora.core.bus import Bus
@@ -24,6 +25,8 @@ from evora.core.privacy_guard import guard
 from evora.core.workspace import Workspace
 from evora.core.zone_service import ZoneService
 from evora.evidence.prerender import Prerenderer
+from evora.live.live_runner import LiveRunner
+from evora.live.mjpeg import TileLimiter
 from evora.live.restream import ReplayManager
 from evora.llm.gateway import Gateway
 from evora.llm.keypool import KeyPool
@@ -57,6 +60,8 @@ class AppContext:
     planner: Any = None
     compiler: Any = None
     live: Any = None
+    live_runner: Any = None
+    tiles: Any = None
 
     @classmethod
     def build(
@@ -77,7 +82,10 @@ class AppContext:
         defaults = {"onprem": bool(cfg["llm"]["onprem"]), "blur_faces": bool(cfg["media"]["blur_faces"]), "reference_now": None}
         settings = app_settings.load(db, defaults, force_onprem=os.environ.get("evora_ONPREM") == "1")
         guard.install(lambda: bool(settings["onprem"]), cfg.get("privacy", {}).get("allow_hosts", []))
-        media = MediaService(ws, cfg, blur_provider or perception_adapter.get_blur_faces)
+        media = MediaService(
+            ws, cfg, blur_provider or perception_adapter.get_blur_faces,
+            offset_fn=lambda cam, t: live_sessions.file_offset(db, cam.id, cam.duration_s, t),
+        )
         prerender = Prerenderer(db, media, lambda: bool(settings["blur_faces"]), top=int(cfg["media"]["prerender_top"]))
         mock = bool(os.environ.get("evora_MOCK") == "1") if mock is None else mock
         http: httpx.AsyncClient | None = None
@@ -98,9 +106,16 @@ class AppContext:
             db, ws.root / "live", mediamtx_path=live_cfg["mediamtx_path"], port=int(live_cfg["rtsp_port"]),
             max_streams=int(live_cfg["max_streams"]), default_speed=float(live_cfg["default_speed"]),
             on_state=lambda camera_id, state: bus.publish("live", {"camera_id": camera_id, "state": state}),
+            on_launch=lambda camera_id, started_at, speed: live_sessions.begin(db, camera_id, started_at, speed),
+            on_end=lambda camera_id: live_sessions.end(db, camera_id, time.time()),
         )
         ctx.notifier = Notifier(gateway, lambda: bool(settings["onprem"]))
         ctx.alerts = AlertEngine(db, bus, memory.kb, ctx.notifier)
+        ctx.live_runner = LiveRunner(
+            db, ws, bus, ctx.alerts, ctx.live, profile=os.environ.get("evora_PROFILE", "cpu"),
+            onprem=lambda: bool(settings["onprem"]), allows=guard.allows,
+        )
+        ctx.tiles = TileLimiter(int(live_cfg.get("max_tiles", 8)))
 
         def after_ingest(camera_id: str) -> None:
             ctx.zones.recompute_camera(camera_id)

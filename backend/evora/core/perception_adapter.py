@@ -28,7 +28,7 @@ ProgressFn = Callable[[IngestJob], None]
 
 MODULES = (
     "evora.perception", "evora.perception.clock", "evora.perception.pipeline", "evora.perception.embed",
-    "evora.perception.events", "evora.reid",
+    "evora.perception.events", "evora.perception.live", "evora.reid",
 )
 
 
@@ -172,3 +172,8 @@ def path_for(global_id: str, workspace: Any | None = None, db: Any | None = None
     except Exception as exc:  # noqa: BLE001
         log.warning("path_for failed for %s: %s", global_id, exc)
         return None
+
+
+def get_live_ingest() -> Callable[..., None] | None:
+    """M2's live RTSP ingestion, or None when the perception stack is not installed."""
+    return _find("live_ingest")

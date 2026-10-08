@@ -57,6 +57,7 @@ def create_app(
         ctx.notifier.loop = asyncio.get_running_loop()
         yield
         ctx.runner.shutdown(wait=False)
+        ctx.live_runner.shutdown()
         ctx.live.shutdown()
         ctx.prerender.shutdown()
         if ctx.http is not None:
@@ -73,6 +74,7 @@ def create_app(
     app.include_router(routes_alerts.make_router(ctx))
     app.include_router(routes_evidence.make_router(ctx))
     app.include_router(routes_live.make_router(ctx))
+    app.include_router(routes_live.make_tile_router(ctx))
     app.include_router(routes_tracks.make_router(ctx))
     app.add_middleware(
         CORSMiddleware,

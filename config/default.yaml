@@ -39,6 +39,7 @@ live:
   rtsp_port: 8554
   max_streams: 16
   default_speed: 1.0
+  max_tiles: 8          # simultaneous live tiles (each is one decoder)
 doctor:
   min_free_gb: 20
 up:

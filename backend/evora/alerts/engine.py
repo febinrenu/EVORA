@@ -14,7 +14,7 @@ from evora.alerts import store as alert_store
 from evora.alerts.notify import Notifier
 from evora.alerts.store import StandingRule
 from evora.core import cameras as cams
-from evora.core import zones
+from evora.core import live_sessions, zones
 from evora.core.bus import Bus
 from evora.core.db import Database
 from evora.evidence import store as evidence_store
@@ -131,13 +131,17 @@ class AlertEngine:
             why.append("found in earlier footage")
         evidence = Evidence(
             id=f"ev_al_{digest}", camera_id=cam.id, camera_name=cam.name, t_start=ev.t - EVIDENCE_PAD_S,
-            t_end=ev.t + EVIDENCE_PAD_S, t_peak=ev.t, offset_s=max(ev.t - cam.t0, 0.0), track_id=ev.track_id,
+            t_end=ev.t + EVIDENCE_PAD_S, t_peak=ev.t, offset_s=self._offset(cam, ev.t), track_id=ev.track_id,
             global_id=track["global_id"] if track else None, bbox=bbox,  # type: ignore[arg-type]
             thumb_url=f"/api/media/thumb/ev_al_{digest}.jpg", clip_url=f"/api/media/clip/ev_al_{digest}.mp4",
             score=1.0, why=why,
         )
         evidence_store.register(self.db, evidence)
         return Alert(id=f"al_{digest}", standing_query_id=sq.id, t=ev.t, camera_id=cam.id, evidence=evidence)
+
+    def _offset(self, cam, t: float) -> float:  # noqa: ANN001
+        mapped = live_sessions.file_offset(self.db, cam.id, cam.duration_s, t)
+        return mapped if mapped is not None else max(t - cam.t0, 0.0)
 
     def _clock(self, t: float) -> str:
         return datetime.fromtimestamp(t, workspace_tz(self.db)).strftime("%H:%M")

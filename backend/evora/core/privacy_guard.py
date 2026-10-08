@@ -62,6 +62,10 @@ class PrivacyGuard:
         name = host.decode("ascii", "ignore") if isinstance(host, bytes) else str(host)
         return name.strip().strip("[]").lower() in self.allow_hosts
 
+    def allows(self, host: str | bytes | None) -> bool:
+        """Would a connection to `host` be allowed right now? (Used for subprocesses the guard cannot intercept.)"""
+        return (not self.active()) or self._allowed(host)
+
     def check(self, kind: str, host: str | bytes | None, port: int | None) -> None:
         allowed = self._allowed(host)
         shown = host.decode("ascii", "ignore") if isinstance(host, bytes) else str(host)

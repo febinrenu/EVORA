@@ -27,7 +27,7 @@ Numbers quoted on stage come from `make eval` on the tagged commit, never from m
 | 2 | 0:40 | Ask "Did a red car pass through the main gate in the last hour?" (`POST /api/query`). A clarify card appears; choose the camera and draw the line (`POST /api/clarify`). Play the clip. | "It asks once, because it has never heard of the main gate." | Evidence has `t_peak` and `offset_s` (wall clock and time into the file), the circled object, a clip that plays at `/api/media/clip/{evidence_id}.mp4`. |
 | 3 | 1:50 | Stop the server (Ctrl-C) and run `make up` again. Ask "any red vehicles through the main entrance after nine?" | "Nothing is asked twice, even after a restart." | No `clarify` event. `GET /api/memory` shows the place with the new alias marked as learned. |
 | 4 | 2:40 | Ask "Where did the person with the large black bag go?" Open the path (`GET /api/globals/{gid}/path`). Click a frame and find similar (`GET /api/tracks/{id}/similar`). | "Identity across cameras, with the time it took to walk between them." | Hops in order with times; every hop plays. |
-| 5 | 3:40 | `POST /api/standing` with "Notify me if anyone enters the parking zone after 8 pm". Start the replay (`POST /api/live/replay`). | "A standing question, running over replayed footage." | An alert note (`kind=alert`) on `/api/events`, the alert drawer, and the phone. |
+| 5 | 3:40 | `POST /api/standing` with "Notify me if anyone enters the parking zone after 8 pm". Start the replay with analysis (`POST /api/live/replay` with `"analyze": true`). | "A standing question, running over replayed footage." | An alert note (`kind=alert`) on `/api/events`, the alert drawer, and the phone. |
 | 6 | 4:30 | Switch on-prem (`POST /api/settings {"onprem": true}`), turn Wi-Fi off, ask again. Export an evidence pack (`POST /api/evidence/{id}/pack`), unzip, run `sha256sum -c SHA256SUMS`. | "Nothing leaves this machine. Faces are blurred. Every export is checkable." | `/api/health` shows `onprem` and `egress_blocked`; `X-Evora-Blur: applied`; the checksum command prints OK for every file. |
 | 7 | 5:10 | Open the report page. | One sentence per contribution; quote the table. | `GET /api/report`. |
 
@@ -36,9 +36,9 @@ Numbers quoted on stage come from `make eval` on the tagged commit, never from m
 - 1, 2, 3, 6: ready on the API. The interface for upload, clarify card and evidence sheet belongs to M4.
 - 4: ready when re-identification has run (`make setup-perception`, models downloaded). Without it the path and similar
   routes answer an empty list with `X-Evora-Reid: pending`.
-- 5: standing queries, alerts and the replay stream are ready. The live runner that consumes the replay stream waits for
-  the perception team's live ingestion, so today alerts come from already processed footage (marked "found in earlier
-  footage"). Say "replay of recorded footage" and do not claim live camera processing until the runner exists.
+- 5: standing queries, alerts, the replay stream and the live runner are ready; the live tile is `GET /api/cameras/{id}/live.mjpg`.
+  Live analysis needs the perception stack (`make setup-perception`); without it `POST /api/live/analyze` says so (503). Say
+  "replay of recorded footage": it is a loop of a file standing in for a camera, not a physical camera.
 - 7: the report depends on M3's `make eval` output.
 
 ## 3. When something breaks

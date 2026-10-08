@@ -82,8 +82,10 @@ class UnblurTokens:
 class MediaService:
     def __init__(
         self, ws: Workspace, cfg: dict, blur_provider: Callable[[], BlurFn | None],
+        offset_fn: Callable[[CameraInfo, float], float | None] | None = None,
     ):
         self.ws = ws
+        self._offset_fn = offset_fn  # wall-clock time -> position in the file, for footage replayed as live
         self.pre_roll = float(cfg["media"]["pre_roll_s"])
         self.post_roll = float(cfg["media"]["post_roll_s"])
         self._blur_provider = blur_provider
@@ -157,10 +159,29 @@ class MediaService:
             return None, "unavailable"
         return fn, "applied"
 
-    @staticmethod
-    def _rel(cam: CameraInfo, t: float) -> float:
+    def _mapped(self, cam: CameraInfo, t: float) -> float | None:
+        return self._offset_fn(cam, t) if self._offset_fn is not None else None
+
+    def _rel(self, cam: CameraInfo, t: float) -> float:
         top = max((cam.duration_s or 0) - 1.5 / (cam.fps or 25.0), 0.0)  # a seek past the last frame yields nothing
-        return min(max(t - cam.t0, 0.0), top)
+        mapped = self._mapped(cam, t)
+        return min(max(mapped if mapped is not None else t - cam.t0, 0.0), top)
+
+    def _clip_window(self, cam: CameraInfo, rec: EvidenceRecord) -> tuple[float, float]:
+        """(start, end) in file seconds. Replayed-as-live evidence maps through its session and may cross the loop seam."""
+        duration = cam.duration_s or 0.0
+        lo, hi = rec.t_start - self.pre_roll, rec.t_end + self.post_roll
+        peak = self._mapped(cam, rec.t_peak)
+        if peak is None:  # recorded footage
+            return max(lo - cam.t0, 0.0), min(hi - cam.t0, duration)
+        start, end = self._mapped(cam, lo), self._mapped(cam, hi)
+        if start is None:
+            start = max(peak - (rec.t_peak - lo), 0.0)
+        if end is None:
+            end = min(peak + (hi - rec.t_peak), duration)
+        if end <= start:  # the window crosses the loop seam: cut it at the end of the loop
+            end = duration
+        return start, end
 
     # --- frames and thumbnails ---
     def frame(
@@ -231,9 +252,7 @@ class MediaService:
 
     def _render_clip(self, cam: CameraInfo, rec: EvidenceRecord, out: Path) -> None:
         src = self.source_of(cam)
-        duration = cam.duration_s or 0.0
-        start = max(rec.t_start - self.pre_roll - cam.t0, 0.0)
-        end = min(rec.t_end + self.post_roll - cam.t0, duration)
+        start, end = self._clip_window(cam, rec)
         if end - start <= 0.05:
             raise MediaError(422, "that moment is outside the recorded footage")
         tmp = out.with_name(f"{out.stem}.{uuid.uuid4().hex[:6]}.tmp.mp4")

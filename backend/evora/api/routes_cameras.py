@@ -1,14 +1,13 @@
 """Camera routes: list, upload (files or rtsp uri), patch, frame, live tile."""
 from __future__ import annotations
 
-import asyncio
 import base64
 import json
 
 from contracts.models import CameraInfo
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 from starlette.datastructures import UploadFile
 
 from evora.api.context import AppContext
@@ -135,16 +134,5 @@ def make_router(ctx: AppContext) -> APIRouter:
         if t0 is not None and not isinstance(t0, int | float):
             raise HTTPException(422, "t0 must be epoch seconds")
         return cams.update_camera(ctx.db, cid, name=name, t0=t0, site_xy=tuple(site) if site else None)
-
-    @router.get("/{cid}/live.mjpg")
-    async def live(cid: str):
-        _require(cid)
-
-        async def gen():
-            for _ in range(3):
-                yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + PLACEHOLDER_JPEG + b"\r\n"
-                await asyncio.sleep(0.5)
-
-        return StreamingResponse(gen(), media_type="multipart/x-mixed-replace; boundary=frame")
 
     return router
