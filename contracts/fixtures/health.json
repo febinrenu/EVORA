@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "version": "0.1.0",
+  "workspace": "own-campus",
+  "profile": "cpu",
+  "onprem": false,
+  "layers_ready": [
+    "L0",
+    "L1"
+  ]
+}

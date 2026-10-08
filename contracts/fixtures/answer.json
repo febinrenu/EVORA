@@ -1,0 +1,137 @@
+{
+  "query_id": "q_001",
+  "text": "Found 3 people in a red jacket passing the Main gate. Best match: Main gate at 09:14:03.",
+  "verdict": "found",
+  "count": 3,
+  "evidence": [
+    {
+      "id": "ev_001",
+      "camera_id": "cam_01",
+      "camera_name": "Main gate",
+      "t_start": 1790000123.0,
+      "t_end": 1790000129.0,
+      "t_peak": 1790000125.0,
+      "offset_s": 125.0,
+      "track_id": "cam_01:t000001",
+      "global_id": "g_0007",
+      "bbox": [
+        0.3,
+        0.2,
+        0.45,
+        0.7
+      ],
+      "thumb_url": "/api/media/thumb/ev_001.jpg",
+      "clip_url": "/api/media/clip/ev_001.mp4",
+      "score": 0.91,
+      "verified": true,
+      "why": [
+        "siglip 0.31",
+        "colour red 0.92",
+        "crossed Main gate 09:14:03"
+      ]
+    },
+    {
+      "id": "ev_002",
+      "camera_id": "cam_02",
+      "camera_name": "Lobby",
+      "t_start": 1790000188.0,
+      "t_end": 1790000194.0,
+      "t_peak": 1790000190.0,
+      "offset_s": 190.0,
+      "track_id": "cam_02:t000002",
+      "global_id": "g_0007",
+      "bbox": [
+        0.3,
+        0.2,
+        0.45,
+        0.7
+      ],
+      "thumb_url": "/api/media/thumb/ev_002.jpg",
+      "clip_url": "/api/media/clip/ev_002.mp4",
+      "score": 0.78,
+      "verified": null,
+      "why": [
+        "siglip 0.28",
+        "colour red 0.81"
+      ]
+    },
+    {
+      "id": "ev_003",
+      "camera_id": "cam_01",
+      "camera_name": "Main gate",
+      "t_start": 1790000400.0,
+      "t_end": 1790000406.0,
+      "t_peak": 1790000402.0,
+      "offset_s": 402.0,
+      "track_id": "cam_01:t000003",
+      "global_id": null,
+      "bbox": [
+        0.3,
+        0.2,
+        0.45,
+        0.7
+      ],
+      "thumb_url": "/api/media/thumb/ev_003.jpg",
+      "clip_url": "/api/media/clip/ev_003.mp4",
+      "score": 0.55,
+      "verified": false,
+      "why": [
+        "siglip 0.22",
+        "colour red 0.60"
+      ]
+    }
+  ],
+  "path": [
+    {
+      "camera_id": "cam_01",
+      "camera_name": "Main gate",
+      "t_in": 1790000120.0,
+      "t_out": 1790000130.0,
+      "evidence_id": "ev_001"
+    },
+    {
+      "camera_id": "cam_02",
+      "camera_name": "Lobby",
+      "t_in": 1790000185.0,
+      "t_out": 1790000196.0,
+      "evidence_id": "ev_002"
+    }
+  ],
+  "nearest_miss": null,
+  "confidence": 0.86,
+  "plan": {
+    "intent": "list",
+    "targets": [
+      {
+        "noun": "person",
+        "cls": [
+          "person"
+        ],
+        "attributes": [
+          "red jacket"
+        ],
+        "embed_text": "a person in a red jacket"
+      }
+    ],
+    "place": {
+      "text": "main gate",
+      "role": "place"
+    },
+    "action": "pass_through",
+    "time": {
+      "start": 1790000000.0,
+      "end": 1790000600.0,
+      "phrase": "this morning"
+    },
+    "camera_ids": [],
+    "limit": 10,
+    "unresolved": [],
+    "source": "fastpath"
+  },
+  "timings_ms": {
+    "plan": 4.0,
+    "retrieve": 38.0,
+    "compose": 2.0
+  },
+  "notes": []
+}

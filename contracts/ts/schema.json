@@ -1,0 +1,1196 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EvoraContracts",
+  "type": "object",
+  "properties": {
+    "Evidence": {
+      "$ref": "#/$defs/Evidence"
+    },
+    "Alert": {
+      "$ref": "#/$defs/Alert"
+    },
+    "PathHop": {
+      "$ref": "#/$defs/PathHop"
+    },
+    "QueryPlan": {
+      "$ref": "#/$defs/QueryPlan"
+    },
+    "Referent": {
+      "$ref": "#/$defs/Referent"
+    },
+    "Target": {
+      "$ref": "#/$defs/Target"
+    },
+    "TimeWindow": {
+      "$ref": "#/$defs/TimeWindow"
+    },
+    "Answer": {
+      "$ref": "#/$defs/Answer"
+    },
+    "CameraInfo": {
+      "$ref": "#/$defs/CameraInfo"
+    },
+    "CameraOption": {
+      "$ref": "#/$defs/CameraOption"
+    },
+    "ClarifyRequest": {
+      "$ref": "#/$defs/ClarifyRequest"
+    },
+    "Zone": {
+      "$ref": "#/$defs/Zone"
+    },
+    "ClarifyResponse": {
+      "$ref": "#/$defs/ClarifyResponse"
+    },
+    "IngestJob": {
+      "$ref": "#/$defs/IngestJob"
+    },
+    "MemoryFact": {
+      "$ref": "#/$defs/MemoryFact"
+    },
+    "StandingQuery": {
+      "$ref": "#/$defs/StandingQuery"
+    },
+    "StreamEvent": {
+      "$ref": "#/$defs/StreamEvent"
+    },
+    "TrackAttrs": {
+      "$ref": "#/$defs/TrackAttrs"
+    }
+  },
+  "required": [
+    "Evidence",
+    "Alert",
+    "PathHop",
+    "QueryPlan",
+    "Referent",
+    "Target",
+    "TimeWindow",
+    "Answer",
+    "CameraInfo",
+    "CameraOption",
+    "ClarifyRequest",
+    "Zone",
+    "ClarifyResponse",
+    "IngestJob",
+    "MemoryFact",
+    "StandingQuery",
+    "StreamEvent",
+    "TrackAttrs"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "Evidence": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "camera_id": {
+          "type": "string"
+        },
+        "camera_name": {
+          "type": "string"
+        },
+        "t_start": {
+          "type": "number"
+        },
+        "t_end": {
+          "type": "number"
+        },
+        "t_peak": {
+          "type": "number"
+        },
+        "offset_s": {
+          "type": "number"
+        },
+        "track_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "global_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array",
+              "items": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "thumb_url": {
+          "type": "string"
+        },
+        "clip_url": {
+          "type": "string"
+        },
+        "score": {
+          "type": "number"
+        },
+        "verified": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "why": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "camera_id",
+        "camera_name",
+        "t_start",
+        "t_end",
+        "t_peak",
+        "offset_s",
+        "thumb_url",
+        "clip_url",
+        "score"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "Alert": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "standing_query_id": {
+          "type": "string"
+        },
+        "t": {
+          "type": "number"
+        },
+        "camera_id": {
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        },
+        "acknowledged": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "standing_query_id",
+        "t",
+        "camera_id",
+        "evidence"
+      ],
+      "title": "Alert",
+      "type": "object"
+    },
+    "PathHop": {
+      "properties": {
+        "camera_id": {
+          "type": "string"
+        },
+        "camera_name": {
+          "type": "string"
+        },
+        "t_in": {
+          "type": "number"
+        },
+        "t_out": {
+          "type": "number"
+        },
+        "evidence_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "camera_id",
+        "camera_name",
+        "t_in",
+        "t_out",
+        "evidence_id"
+      ],
+      "title": "PathHop",
+      "type": "object"
+    },
+    "QueryPlan": {
+      "properties": {
+        "intent": {
+          "enum": [
+            "exists",
+            "list",
+            "count",
+            "first",
+            "last",
+            "path",
+            "describe",
+            "standing"
+          ],
+          "type": "string"
+        },
+        "targets": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Target"
+          },
+          "type": "array"
+        },
+        "place": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Referent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "action": {
+          "default": "any",
+          "enum": [
+            "any",
+            "pass_through",
+            "enter",
+            "exit",
+            "dwell",
+            "appear"
+          ],
+          "type": "string"
+        },
+        "time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeWindow"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "camera_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "limit": {
+          "default": 10,
+          "type": "integer"
+        },
+        "unresolved": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Referent"
+          },
+          "type": "array"
+        },
+        "source": {
+          "default": "llm",
+          "enum": [
+            "fastpath",
+            "llm",
+            "local_llm",
+            "cache"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "intent"
+      ],
+      "title": "QueryPlan",
+      "type": "object"
+    },
+    "Referent": {
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "place",
+            "object",
+            "time"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "role"
+      ],
+      "title": "Referent",
+      "type": "object"
+    },
+    "Target": {
+      "properties": {
+        "noun": {
+          "type": "string"
+        },
+        "cls": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "attributes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "embed_text": {
+          "type": "string"
+        },
+        "example_track_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "noun",
+        "embed_text"
+      ],
+      "title": "Target",
+      "type": "object"
+    },
+    "TimeWindow": {
+      "properties": {
+        "start": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "end": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "phrase": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tod_after": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tod_before": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "TimeWindow",
+      "type": "object"
+    },
+    "Answer": {
+      "properties": {
+        "query_id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "yes",
+            "no",
+            "found",
+            "not_found",
+            "partial",
+            "count"
+          ],
+          "type": "string"
+        },
+        "count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "type": "array"
+        },
+        "path": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PathHop"
+          },
+          "type": "array"
+        },
+        "nearest_miss": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Evidence"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "plan": {
+          "$ref": "#/$defs/QueryPlan"
+        },
+        "timings_ms": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "notes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "query_id",
+        "text",
+        "verdict",
+        "confidence",
+        "plan"
+      ],
+      "title": "Answer",
+      "type": "object"
+    },
+    "CameraInfo": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "file",
+            "rtsp"
+          ],
+          "type": "string"
+        },
+        "source_uri": {
+          "type": "string"
+        },
+        "fps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "height": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "t0": {
+          "type": "number"
+        },
+        "t0_source": {
+          "enum": [
+            "filename",
+            "metadata",
+            "osd",
+            "slate",
+            "manual",
+            "live"
+          ],
+          "type": "string"
+        },
+        "duration_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "site_xy": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array",
+              "items": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "default": "pending",
+          "enum": [
+            "pending",
+            "ingesting",
+            "ready",
+            "live",
+            "error"
+          ],
+          "type": "string"
+        },
+        "layers": {
+          "default": [],
+          "items": {
+            "enum": [
+              "L0",
+              "L1",
+              "L2",
+              "L3"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ir_fraction": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "source_uri",
+        "t0",
+        "t0_source"
+      ],
+      "title": "CameraInfo",
+      "type": "object"
+    },
+    "CameraOption": {
+      "properties": {
+        "camera_id": {
+          "type": "string"
+        },
+        "camera_name": {
+          "type": "string"
+        },
+        "thumb_url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "camera_id",
+        "camera_name",
+        "thumb_url"
+      ],
+      "title": "CameraOption",
+      "type": "object"
+    },
+    "ClarifyRequest": {
+      "properties": {
+        "query_id": {
+          "type": "string"
+        },
+        "referent": {
+          "$ref": "#/$defs/Referent"
+        },
+        "question": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "choose_camera",
+            "choose_known",
+            "choose_track",
+            "time_range"
+          ],
+          "type": "string"
+        },
+        "options": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CameraOption"
+          },
+          "type": "array"
+        },
+        "known_candidates": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "allow_region": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "query_id",
+        "referent",
+        "question",
+        "kind"
+      ],
+      "title": "ClarifyRequest",
+      "type": "object"
+    },
+    "Zone": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "camera_id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "line",
+            "polygon",
+            "frame"
+          ],
+          "type": "string"
+        },
+        "points": {
+          "default": [],
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array",
+            "items": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "type": "array"
+        },
+        "direction": {
+          "default": "any",
+          "enum": [
+            "any",
+            "a_to_b",
+            "b_to_a"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "camera_id",
+        "kind"
+      ],
+      "title": "Zone",
+      "type": "object"
+    },
+    "ClarifyResponse": {
+      "properties": {
+        "query_id": {
+          "type": "string"
+        },
+        "camera_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "zone": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Zone"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fact_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "track_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tod_after": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tod_before": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "query_id"
+      ],
+      "title": "ClarifyResponse",
+      "type": "object"
+    },
+    "IngestJob": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "camera_id": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "running",
+            "done",
+            "error"
+          ],
+          "type": "string"
+        },
+        "layer": {
+          "anyOf": [
+            {
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "progress": {
+          "default": 0.0,
+          "type": "number"
+        },
+        "video_s_per_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "camera_id",
+        "state"
+      ],
+      "title": "IngestJob",
+      "type": "object"
+    },
+    "MemoryFact": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "place",
+            "object",
+            "time"
+          ],
+          "type": "string"
+        },
+        "canonical": {
+          "type": "string"
+        },
+        "aliases": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "binding": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "source": {
+          "enum": [
+            "clarification",
+            "statement",
+            "correction",
+            "import"
+          ],
+          "type": "string"
+        },
+        "created_at": {
+          "type": "number"
+        },
+        "last_used_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "use_count": {
+          "default": 0,
+          "type": "integer"
+        },
+        "superseded_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "canonical",
+        "binding",
+        "source",
+        "created_at"
+      ],
+      "title": "MemoryFact",
+      "type": "object"
+    },
+    "StandingQuery": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "rule": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "active": {
+          "default": true,
+          "type": "boolean"
+        },
+        "created_at": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "rule",
+        "created_at"
+      ],
+      "title": "StandingQuery",
+      "type": "object"
+    },
+    "StreamEvent": {
+      "properties": {
+        "type": {
+          "enum": [
+            "plan",
+            "clarify",
+            "evidence",
+            "answer",
+            "verified",
+            "note",
+            "error",
+            "done"
+          ],
+          "type": "string"
+        },
+        "data": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ],
+      "title": "StreamEvent",
+      "type": "object"
+    },
+    "TrackAttrs": {
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "color_conf": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "upper_color": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "lower_color": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "vehicle_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "carrying": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "size_rel": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "is_ir": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "title": "TrackAttrs",
+      "type": "object"
+    }
+  }
+}

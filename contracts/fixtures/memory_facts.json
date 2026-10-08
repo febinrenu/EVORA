@@ -1,0 +1,37 @@
+[
+  {
+    "id": "mf_001",
+    "kind": "place",
+    "canonical": "main gate",
+    "aliases": [
+      "front gate",
+      "entrance gate"
+    ],
+    "binding": {
+      "camera_id": "cam_01",
+      "zone_id": "z_001"
+    },
+    "source": "clarification",
+    "created_at": 1790000300.0,
+    "last_used_at": 1790000420.0,
+    "use_count": 3,
+    "superseded_by": null
+  },
+  {
+    "id": "mf_002",
+    "kind": "time",
+    "canonical": "after hours",
+    "aliases": [
+      "night shift"
+    ],
+    "binding": {
+      "tod_after": "20:00",
+      "tod_before": "06:00"
+    },
+    "source": "statement",
+    "created_at": 1790000310.0,
+    "last_used_at": null,
+    "use_count": 0,
+    "superseded_by": null
+  }
+]

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "cam_01",
+    "name": "Main gate",
+    "kind": "file",
+    "source_uri": "data/own/main_gate.mp4",
+    "fps": 25.0,
+    "width": 1920,
+    "height": 1080,
+    "t0": 1790000000.0,
+    "t0_source": "metadata",
+    "duration_s": 600.0,
+    "site_xy": [
+      0.2,
+      0.5
+    ],
+    "status": "ready",
+    "layers": [
+      "L0",
+      "L1",
+      "L2"
+    ],
+    "ir_fraction": 0.0
+  },
+  {
+    "id": "cam_02",
+    "name": "Lobby",
+    "kind": "file",
+    "source_uri": "data/own/lobby.mp4",
+    "fps": 25.0,
+    "width": 1920,
+    "height": 1080,
+    "t0": 1790000004.0,
+    "t0_source": "slate",
+    "duration_s": 600.0,
+    "site_xy": [
+      0.6,
+      0.4
+    ],
+    "status": "ingesting",
+    "layers": [
+      "L0"
+    ],
+    "ir_fraction": 0.0
+  },
+  {
+    "id": "cam_03",
+    "name": "Parking",
+    "kind": "file",
+    "source_uri": "data/own/parking.mp4",
+    "fps": 30.0,
+    "width": 1280,
+    "height": 720,
+    "t0": 1790000011.0,
+    "t0_source": "manual",
+    "duration_s": 540.0,
+    "site_xy": null,
+    "status": "pending",
+    "layers": [],
+    "ir_fraction": null
+  }
+]

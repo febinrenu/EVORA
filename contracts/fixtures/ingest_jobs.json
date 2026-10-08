@@ -1,0 +1,11 @@
+[
+  {
+    "id": "job_01",
+    "camera_id": "cam_02",
+    "state": "running",
+    "layer": "L1",
+    "progress": 0.42,
+    "video_s_per_s": 18.5,
+    "error": null
+  }
+]

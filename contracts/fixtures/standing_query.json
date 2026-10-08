@@ -1,0 +1,16 @@
+{
+  "id": "sq_001",
+  "text": "tell me when someone enters the main gate after 8pm",
+  "rule": {
+    "targets": [
+      "person"
+    ],
+    "zone_id": "z_001",
+    "event": "enter_zone",
+    "tod_after": "20:00",
+    "tod_before": "06:00",
+    "cooldown_s": 30
+  },
+  "active": true,
+  "created_at": 1790000310.0
+}

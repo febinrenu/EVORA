@@ -1,0 +1,70 @@
+[
+  {
+    "type": "plan",
+    "data": {
+      "intent": "list",
+      "targets": [
+        {
+          "noun": "person",
+          "cls": [
+            "person"
+          ],
+          "attributes": [
+            "red jacket"
+          ],
+          "embed_text": "a person in a red jacket"
+        }
+      ],
+      "place": {
+        "text": "main gate",
+        "role": "place"
+      },
+      "action": "pass_through",
+      "time": {
+        "start": 1790000000.0,
+        "end": 1790000600.0,
+        "phrase": "this morning"
+      },
+      "camera_ids": [],
+      "limit": 10,
+      "unresolved": [
+        {
+          "text": "the back entrance",
+          "role": "place"
+        }
+      ],
+      "source": "fastpath"
+    }
+  },
+  {
+    "type": "clarify",
+    "data": {
+      "query_id": "q_002",
+      "referent": {
+        "text": "the back entrance",
+        "role": "place"
+      },
+      "question": "Which camera shows the back entrance?",
+      "kind": "choose_camera",
+      "options": [
+        {
+          "camera_id": "cam_01",
+          "camera_name": "Main gate",
+          "thumb_url": "/api/cameras/cam_01/frame?t=1790000005.0"
+        },
+        {
+          "camera_id": "cam_02",
+          "camera_name": "Lobby",
+          "thumb_url": "/api/cameras/cam_02/frame?t=1790000009.0"
+        },
+        {
+          "camera_id": "cam_03",
+          "camera_name": "Parking",
+          "thumb_url": "/api/cameras/cam_03/frame?t=1790000016.0"
+        }
+      ],
+      "known_candidates": [],
+      "allow_region": true
+    }
+  }
+]

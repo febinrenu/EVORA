@@ -1,0 +1,16 @@
+[
+  {
+    "camera_id": "cam_01",
+    "camera_name": "Main gate",
+    "t_in": 1790000120.0,
+    "t_out": 1790000130.0,
+    "evidence_id": "ev_001"
+  },
+  {
+    "camera_id": "cam_02",
+    "camera_name": "Lobby",
+    "t_in": 1790000185.0,
+    "t_out": 1790000196.0,
+    "evidence_id": "ev_002"
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "id": "z_001",
+  "camera_id": "cam_01",
+  "kind": "line",
+  "points": [
+    [
+      0.1,
+      0.6
+    ],
+    [
+      0.9,
+      0.6
+    ]
+  ],
+  "direction": "any"
+}

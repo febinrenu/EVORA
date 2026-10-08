@@ -1,0 +1,33 @@
+{
+  "id": "al_001",
+  "standing_query_id": "sq_001",
+  "t": 1790000402.0,
+  "camera_id": "cam_01",
+  "evidence": {
+    "id": "ev_001",
+    "camera_id": "cam_01",
+    "camera_name": "Main gate",
+    "t_start": 1790000123.0,
+    "t_end": 1790000129.0,
+    "t_peak": 1790000125.0,
+    "offset_s": 125.0,
+    "track_id": "cam_01:t000001",
+    "global_id": "g_0007",
+    "bbox": [
+      0.3,
+      0.2,
+      0.45,
+      0.7
+    ],
+    "thumb_url": "/api/media/thumb/ev_001.jpg",
+    "clip_url": "/api/media/clip/ev_001.mp4",
+    "score": 0.91,
+    "verified": true,
+    "why": [
+      "siglip 0.31",
+      "colour red 0.92",
+      "crossed Main gate 09:14:03"
+    ]
+  },
+  "acknowledged": false
+}
