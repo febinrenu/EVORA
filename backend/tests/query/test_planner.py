@@ -6,6 +6,7 @@ from contracts.models import QueryPlan, Referent, Target, TimeWindow
 
 from evora.core.db import close_all, open_db
 from evora.llm.schemas import LLMError
+from evora.query import planner as planner_mod
 from evora.query.planner import (
     MemoryPlanCache,
     Planner,
@@ -351,3 +352,55 @@ async def test_a_model_plan_with_the_same_time_twice_means_that_minute():
     plan = model_plan(time=TimeWindow(phrase="at 00:13:53", tod_after="00:13:53", tod_before="00:13:53"))
     res = await Planner(FakeGateway(plan, backend="local")).plan("where was the guy at 00:13:53", CAMS, REF, IST)
     assert (res.plan.time.tod_after, res.plan.time.tod_before) == ("00:13", "00:14")
+
+
+# ------------------------------------------------- clock times said outright, and what is not one
+@pytest.mark.parametrize("phrase,expected", [
+    ("at 13:53", ("13:53", "13:54")),
+    ("at 00:13:53", ("00:13", "00:14")),
+    ("at 23:59", ("23:59", "00:00")),
+    ("from 4pm to 5pm", ("16:00", "17:00")),
+    ("8am to 6pm", ("08:00", "18:00")),
+    ("13:24 to 13:27", ("13:24", "13:27")),
+    ("between 10:12 and 10:13", ("10:12", "10:13")),
+    ("at 8pm", ("20:00", "20:01")),
+    ("between 8 and 9 pm", ("20:00", "21:00")),          # the 8 takes the pm of the 9
+    ("between 8 and 9pm", ("20:00", "21:00")),
+    ("8 to 9 am", ("08:00", "09:00")),
+    ("2018-03-09 10:12", ("10:12", "10:13")),            # the digits of a date are not times
+    ("on 3/9 at 10:12", ("10:12", "10:13")),
+])
+def test_clock_times_said_outright_are_read_exactly(phrase, expected):
+    assert planner_mod._clock_bounds(phrase) == expected
+
+
+@pytest.mark.parametrize("phrase", [
+    "after 8 pm", "before 6 am", "around 9:30", "until 5pm",     # open-ended or approximate: not a minute
+    "in 3 days", "9", "between 8 and 9",                           # numbers that are not clock times
+    "between 11 and 1 pm",                                         # could cross noon: ask rather than guess
+    "13:99", "25:10", "0pm",                                       # impossible times
+])
+def test_what_is_not_an_exact_clock_time_is_left_to_be_asked_about(phrase):
+    assert planner_mod._clock_bounds(phrase) is None
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("at what time did he enter", True), ("what time", True), ("which day was it", True),
+    ("when", True), ("when did the red car arrive", True), ("when was it", True),
+    ("when it was dark", False), ("when the lights were off", False), ("after 8pm", False),
+])
+def test_only_a_question_for_the_time_is_dropped_from_the_plan(text, expected):
+    assert planner_mod._is_time_question(text) is expected
+
+
+def test_a_carried_item_becomes_a_carrying_attribute_of_the_person():
+    person = Target(noun="person", cls=["person"], embed_text="a photo of a person")
+    bag = Target(noun="backpack", cls=[], embed_text="a photo of a backpack")
+    merged = planner_mod._repair_targets([person, bag])
+    assert len(merged) == 1 and merged[0].noun == "person"
+    assert merged[0].attributes == ["backpack"]                     # so attribute matching can use it
+    assert merged[0].embed_text == "a photo of a person carrying backpack"
+    shirt = planner_mod._repair_targets([
+        Target(noun="person", cls=["person"], embed_text="a photo of a person"),
+        Target(noun="red jacket", cls=[], attributes=["red"], embed_text="a photo of a red jacket")])
+    assert shirt[0].attributes == ["red"] and shirt[0].embed_text == "a photo of a person wearing red jacket"

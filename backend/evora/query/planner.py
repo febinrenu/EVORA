@@ -128,7 +128,11 @@ _REMEMBERED_OBJECT = re.compile(r"^(my|our|mine|that|this|these|those|his|her|th
 
 
 # "when did it happen" asks for a time; it is not a time of day to look up
-_ASKS_FOR_TIME = re.compile(r"^(?:at |on |in )?(?:what|which)\s+(?:time|hour|day|date|moment)s?\b|^when\b", re.IGNORECASE)
+_ASKS_FOR_TIME = re.compile(
+    r"^(?:at |on |in )?(?:what|which)\s+(?:time|hour|day|date|moment)s?\b"
+    r"|^when(?:$|\s+(?:did|does|do|was|were|is|are|will|can|could|has|have)\b)",  # a question, not "when it was dark"
+    re.IGNORECASE,
+)
 
 
 def _is_time_question(text: str) -> bool:
@@ -136,28 +140,45 @@ def _is_time_question(text: str) -> bool:
 
 
 _CLOCK_TIME = re.compile(r"\b(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*(am|pm)?\b", re.IGNORECASE)
+_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b")
+_OPEN_ENDED = re.compile(r"\b(after|before|since|until|till|by|around|about|early|late)\b", re.IGNORECASE)
+_BARE_RANGE = re.compile(r"^\D*\d{1,2}\s*(?:and|to|-|–|until|till)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)\b", re.IGNORECASE)
 
 
 def _clock_bounds(phrase: str) -> tuple[str, str] | None:
     """Times of day named outright: "at 13:53", "at 00:13:53", "from 4pm to 5pm", "13:24 to 13:27" -> ("HH:MM", "HH:MM").
 
-    One time means the minute it falls in. Numbers without a colon or am/pm ("in 3 days") are not clock times.
+    One time means the minute it falls in. "between 8 and 9 pm" gives the first number the second one's am or pm.
+    Whatever cannot be read exactly (a lone bare number, "after 8 pm", "11 and 1 pm") returns None, so it is asked
+    about, rather than being turned into a window nobody said.
     """
-    found: list[int] = []
+    found = []  # (hour, minute, meridiem, written with a colon or am/pm)
+    phrase = _DATE.sub(" ", phrase)  # the digits of a date are not times
     for m in _CLOCK_TIME.finditer(phrase):
-        hour, minute, meridiem = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or "").lower()
-        if m.group(2) is None and not meridiem:
-            continue
+        meridiem = (m.group(3) or "").lower()
+        found.append((int(m.group(1)), int(m.group(2) or 0), meridiem, m.group(2) is not None or bool(meridiem)))
+    if any(not explicit for *_, explicit in found):
+        # the only bare number allowed is the start of "8 and 9 pm", which takes the end's am or pm
+        if len(found) != 2 or found[0][3] or not found[1][3] or not found[1][2] or not _BARE_RANGE.match(phrase):
+            return None
+        start_hour, end_hour = found[0][0], found[1][0]
+        if not (1 <= start_hour <= 12 and 1 <= end_hour <= 12) or start_hour % 12 > end_hour % 12:
+            return None  # "11 and 1 pm" may cross noon: ask
+        found[0] = (start_hour, found[0][1], found[1][2], True)
+    elif len(found) == 1 and _OPEN_ENDED.search(phrase):
+        return None  # "after 8 pm" is open-ended, not a minute
+    minutes: list[int] = []
+    for hour, minute, meridiem, _ in found:
         if meridiem:
             if not 1 <= hour <= 12:
                 return None
             hour = hour % 12 + (12 if meridiem == "pm" else 0)
         if hour > 23 or minute > 59:
             return None
-        found.append(hour * 60 + minute)
-    if not found or len(found) > 2:
+        minutes.append(hour * 60 + minute)
+    if not minutes or len(minutes) > 2:
         return None
-    start, end = found[0], found[-1] if len(found) == 2 else found[0] + 1
+    start, end = minutes[0], minutes[-1] if len(minutes) == 2 else minutes[0] + 1
     return f"{start // 60:02d}:{start % 60:02d}", f"{end // 60 % 24:02d}:{end % 60:02d}"
 
 
@@ -178,10 +199,12 @@ def _repair_targets(targets: list[Target]) -> list[Target]:
             continue  # a colour is an attribute, not an object
         if anchor is not None and t is not anchor and _worn_or_carried(noun):
             words = re.findall(r"[a-z_]+", f"{noun} {t.embed_text}".lower())
-            colours = (fastpath.COLOURS[w] for w in words if w in fastpath.COLOURS)
-            anchor.attributes = list(dict.fromkeys([*anchor.attributes, *colours]))
+            colours = [fastpath.COLOURS[w] for w in words if w in fastpath.COLOURS]
+            carried = [fastpath.CARRY[w] for w in words if w in fastpath.CARRY]  # "backpack" is an attribute too
+            anchor.attributes = list(dict.fromkeys([*anchor.attributes, *colours, *carried]))
             if noun not in anchor.embed_text.lower():
-                anchor.embed_text = f"{anchor.embed_text} wearing {noun}".strip()
+                verb = "carrying" if noun.split()[-1] in CARRIED else "wearing"
+                anchor.embed_text = f"{anchor.embed_text} {verb} {noun}".strip()
             continue
         t.cls = [c for c in t.cls if c in DETECTOR_CLASSES]
         if not t.cls:
