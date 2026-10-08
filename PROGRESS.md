@@ -17,8 +17,8 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M1 — Platform, Memory & Integration
 - State: on track
-- Doing: P1.9 + P1.11 done; starting P1.10 zones + recompute
-- Next: P1.10, P1.12 corrections by text, P1.13 standing queries
+- Doing: P1.10 done; starting P1.13 standing queries
+- Next: P1.13, P1.14 privacy guard, P1.15 evidence pack
 - Blockers:
 
 ### M2 — Perception & Identity
@@ -72,11 +72,14 @@ State values: not started · on track · at risk · blocked · done
 - [17:14] [M2] DECISION: detector yolo26n.pt, profile gpu on the RTX 4060 laptop. Why: n and s both run about 85 fps detect+track on 360x288 (bound by per-frame tracker overhead, not the network), so n is enough. Impact: ingest speed; set `ingest.detector` to change.
 
 ## Contract change requests (append only)
+- [21:30] [M1] REQUEST (self-approved, additive): `DELETE /api/zones/{id}` and response header `X-Evora-Events` on `POST /api/zones`. Why: redraw/remove zones and tell the UI whether crossings were computed. Affects: M4. → [21:30] [M1] APPROVED v1.3 (d9a9358)
 - [19:30] [M1] REQUEST (self-approved, additive): `MemoryFact.inferred_aliases: list[str] = []` and table `memory_inferred`; `PATCH /api/memory/{id}` takes `confirm_aliases`. Why: the Known places ledger should show which aliases are guesses, and a correction must drop wrong guesses. Affects: M4 (types regenerated). → [19:30] [M1] APPROVED v1.2 (f15509a)
 - [11:40] [M1] REQUEST (self-approved, additive): table `evidence` in schema.sql and `POST /api/media/unblur`; media routes accept `?unblur=<token>` and answer with header `X-Evora-Blur`. Why: media routes must resolve an evidence id; unblur must be audited. Affects: M3 (register evidence), M4 (blur header). → [11:40] [M1] APPROVED v1.1 (07c7e79)
 <!-- - [HH:MM] [M3] REQUEST: add optional `Answer.followups: list[str]`. Why: UI suggestions. Affects: M1, M4. → [HH:MM] [M1] APPROVED v1.1 -->
 
 ## Requests to other areas (append only)
+- [21:30] [M1] → M2 (P2.12 contract): expose `recompute_events(camera_id: str, zones: list[Zone]) -> int` from `evora.perception` (or `.clock`/`.pipeline`/`.events` is not searched: please re-export it from `evora.perception`). M1 deletes the old events of each zone first, calls you once per save with only line and polygon zones, and reports your return value to the UI. Events you write must use `zone_id` = the zone id, `cross_line` with `payload.direction` of `a_to_b` or `b_to_a` (side of the line the object moved to, a_to_b = inwards), polygon `enter_zone` / `exit_zone`, `dwell` with `payload.seconds`. That is exactly what M3's `query/logic.py` reads. M1 also calls it for a camera's zones whenever one of its ingest jobs finishes.
+- [21:30] [M1] → M4: zones are real: `GET /api/zones?camera_id=`, `POST /api/zones` (draw or redraw with the same id; read header `X-Evora-Events`: a number, or `pending` while perception cannot compute yet, show "crossings will appear once footage is indexed"), `DELETE /api/zones/{id}`. A bus note `kind=zone` {zone_id, camera_id, events} arrives on `/api/events` after each recompute so the timeline can refresh.
 - [20:40] [M1] → M3: I made a ONE-LINE edit in your file `backend/evora/query/router.py` (`_run`): `resolution = self._resolver.resolve(ref)` is now awaited when it is awaitable (`inspect.isawaitable`), because memory's resolver is async. Your sync fakes still work. Everything else of the router is untouched. /api/query, /api/clarify and /api/voice now run your Router with real memory; set `evora_MOCK=1` for the fixture streams.
 - [20:40] [M1] → M2: media paths relative to `<workspace>/media/` are exactly what the media service and the verifier crop source expect (checked: they cannot escape that folder). I added your `ingest:` block to config/default.yaml and `av` + `opencv-python-headless` + `pillow` as core deps; the heavy stack (torch, ultralytics, transformers, boxmot, tzdata) is the optional extra `make setup-perception`. Retrieval is disabled (honest "still being indexed" note) until `evora.perception.embed` exposes `query_embedder()` returning an object with `embed_text(str) -> ndarray`; please add it. jobs.py now records only layers you report finished (progress 1.0) and fails a job that finishes none.
 - [20:40] [M1] → M4: mock mode for UI development is `evora_MOCK=1 make dev` (fixture streams). Without it /api/query needs `GROQ_KEYS` in `.env` or a running Ollama; the question bar can show the `error` event message as is.
@@ -145,3 +148,4 @@ State values: not started · on track · at risk · blocked · done
 - [20:40] [M1] P1.11 done early (4d6ee85): `tests/e2e/test_clarify_once.py` over HTTP: ask, answer once, restart every object, original and two paraphrases ask nothing and the line survives; with alias embeddings off the paraphrase asks again (C4 ablation). 618 tests in make check.
 - [17:14] [M2] P2.3 done: detector spike on the RTX 4060 (yolo26n 85 fps, yolo26s 86 fps with ByteTrack; CPU yolo26n 34 fps) (302926c).
 - [17:14] [M2] P2.4-P2.10 done: decode, clock, motion gate, detect, track, crops, SigLIP2 embeddings, layered pipeline and CLI. detect_clock and ingest are live for M1; 36 tests (785d5e7, 302926c, 841ad11). Golden mini index built locally (see Datasets).
+- [21:30] [M1] P1.10 done (d9a9358): zone CRUD with shared validation, ZoneService (save, clear stale events, recompute through the perception adapter, announce on the bus), recompute also after a clarification draws a line and when a camera's ingest finishes; the recompute itself waits for M2's P2.12 (`pending` until then, by decision). CONTRACT v1.3. 644 tests in make check.
