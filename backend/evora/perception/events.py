@@ -8,7 +8,7 @@ Geometry conventions (normalised image coordinates, y grows downwards):
   * for a line from a to b, "left" is the side where dx*(py-ay) - dy*(px-ax) > 0 with (dx, dy) = b - a
   * crossing from left to right is `a_to_b`, right to left is `b_to_a` (this is what Zone.direction means)
 Event kinds and `payload` follow contracts/schema.sql: cross_line (direction), enter_zone, exit_zone,
-dwell (duration_s), appear and disappear (x, y; zone_id NULL).
+dwell (seconds, and duration_s as an alias), appear and disappear (x, y; zone_id NULL).
 """
 from __future__ import annotations
 
@@ -142,9 +142,11 @@ def track_events(track_id: str, camera_id: str, samples: Sequence[Sample], zones
                     add("exit_zone", z.id, span.t_out, {})
                 last = span.t_out if span.t_out is not None else t_end
                 if last - span.t_in >= dwell_s:
-                    add("dwell", z.id, span.t_in + dwell_s, {"duration_s": round(last - span.t_in, 2)})
+                    seconds = round(last - span.t_in, 2)
+                    add("dwell", z.id, span.t_in + dwell_s, {"seconds": seconds, "duration_s": seconds})
         elif z.kind == "frame" and samples and samples[-1].t - samples[0].t >= dwell_s:
-            add("dwell", z.id, samples[0].t + dwell_s, {"duration_s": round(samples[-1].t - samples[0].t, 2)})
+            seconds = round(samples[-1].t - samples[0].t, 2)
+            add("dwell", z.id, samples[0].t + dwell_s, {"seconds": seconds, "duration_s": seconds})
     return rows
 
 

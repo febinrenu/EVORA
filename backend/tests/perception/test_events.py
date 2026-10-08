@@ -130,3 +130,16 @@ def test_zones_of_reads_stored_zones(db_with_tracks):
                   ("z9", cam.id, "line", "[[0.1,0.2],[0.8,0.2]]", "a_to_b", 1.0))
     [z] = ev.zones_of(db, cam.id)
     assert z.id == "z9" and z.points == [(0.1, 0.2), (0.8, 0.2)] and z.direction == "a_to_b"
+
+
+def test_dwell_payload_carries_seconds_and_the_platform_adapter_finds_recompute_events(db_with_tracks):
+    from evora.core import perception_adapter
+
+    db, cam, add_track = db_with_tracks
+    add_track("t1", [(0.1, 0.5)] + [(0.5, 0.5)] * 8 + [(0.9, 0.5)] * 2)
+    poly = Zone(id="z_poly", camera_id=cam.id, kind="polygon", points=SQUARE)
+    ev.recompute_events(cam.id, [poly], db=db, settings=IngestSettings(dwell_s=1.0))
+    with db.read() as c:
+        payload = json.loads(c.execute("SELECT payload FROM events WHERE kind='dwell'").fetchone()["payload"])
+    assert payload["seconds"] == payload["duration_s"] and payload["seconds"] >= 1.0
+    assert perception_adapter._find("recompute_events") is ev.recompute_events   # M1's adapter searches evora.perception
