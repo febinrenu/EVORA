@@ -34,9 +34,11 @@ class AlertEngine:
     def __init__(
         self, db: Database, bus: Bus, kb: KnowledgeBase, notifier: Notifier | None = None, *,
         push_cap: int = 0, push_window_s: float = 60.0, clock: Callable[[], float] = time.monotonic,
+        on_alert: Callable[[Alert, bool], None] | None = None,
     ) -> None:
         self.db, self.bus, self.kb, self.notifier = db, bus, kb, notifier
         self._push_cap, self._push_window, self._now = push_cap, push_window_s, clock  # a cap of 0 means no cap
+        self.on_alert = on_alert  # told about every alert that is raised: (alert, historical)
         self._pushed: dict[str, deque[float]] = {}
         self._held: dict[str, int] = {}
         self._lock = threading.RLock()
@@ -156,6 +158,11 @@ class AlertEngine:
 
     def _announce(self, alert: Alert, rule_summary: str, historical: bool) -> None:
         self.bus.publish("alert", {"alert": alert.model_dump(mode="json"), "historical": historical})
+        if self.on_alert is not None:
+            try:
+                self.on_alert(alert, historical)
+            except Exception:  # noqa: BLE001 - a side effect of an alert must never stop the alert
+                log.exception("alert hook failed for %s", alert.id)
         if self.notifier is not None and not historical:  # a phone is only buzzed for what is happening now
             allowed, held = self._push_allowed(alert.standing_query_id)
             if not allowed:

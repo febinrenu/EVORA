@@ -15,6 +15,7 @@ from evora.core import cameras as cams
 from evora.core import perception_adapter
 from evora.core.bus import Bus
 from evora.core.db import Database
+from evora.live.recorder import Recorder
 from evora.live.restream import LiveError, ReplayManager
 
 log = logging.getLogger("evora.live.runner")
@@ -39,11 +40,12 @@ class LiveRunner:
         self, db: Database, ws: Any, bus: Bus, engine: AlertEngine, replay: ReplayManager, *, profile: str = "cpu",
         onprem: Callable[[], bool] = lambda: False, allows: Callable[[str], bool] = lambda host: True,
         find_live_ingest: Callable[[], Callable[..., None] | None] = perception_adapter.get_live_ingest,
-        join_timeout_s: float = 5.0,
+        join_timeout_s: float = 5.0, recorder: Recorder | None = None,
     ) -> None:
         self.db, self.ws, self.bus, self.engine, self.replay = db, ws, bus, engine, replay
         self.profile, self._onprem, self._allows = profile, onprem, allows
         self._find, self._join_timeout = find_live_ingest, join_timeout_s
+        self.recorder = recorder  # keeps the last minutes of real cameras so their alerts have playable evidence
         self._lock = threading.RLock()
         self._running: dict[str, Analyzer] = {}
 
@@ -82,6 +84,7 @@ class LiveRunner:
                 existing = self._running.get(cid)
                 if existing and existing.state in ("starting", "running", "retrying"):
                     continue
+                self._record(cid, url)
                 analyzer = Analyzer(cid, url)
                 analyzer.thread = threading.Thread(
                     target=self._run, args=(analyzer, fn), name=f"live-{cid}", daemon=True,
@@ -90,7 +93,19 @@ class LiveRunner:
                 analyzer.thread.start()
         return self.status()
 
+    def _record(self, camera_id: str, url: str) -> None:
+        """Record a real camera while it is analysed. A recorded file needs no recording: the file is its own source."""
+        if self.recorder is None:
+            return
+        try:
+            if cams.get_camera(self.db, camera_id).kind == "rtsp":
+                self.recorder.start(camera_id, url)
+        except (LiveError, cams.CameraNotFound):
+            log.warning("could not start recording %s: its alerts will have no clip", camera_id, exc_info=True)
+
     def stop(self, camera_ids: list[str] | None = None) -> dict[str, Any]:
+        if self.recorder is not None:
+            self.recorder.stop(camera_ids)
         with self._lock:
             targets = [a for cid, a in self._running.items() if camera_ids is None or cid in camera_ids]
         for a in targets:
@@ -102,9 +117,8 @@ class LiveRunner:
 
     def status(self) -> dict[str, Any]:
         with self._lock:
-            return {"analyzers": [
-                {"camera_id": a.camera_id, "state": a.state, "error": a.error} for a in self._running.values()
-            ]}
+            analyzers = [{"camera_id": a.camera_id, "state": a.state, "error": a.error} for a in self._running.values()]
+        return {"analyzers": analyzers, "recordings": self.recorder.status() if self.recorder is not None else []}
 
     def shutdown(self) -> None:
         self.stop(None)

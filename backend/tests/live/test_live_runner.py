@@ -140,7 +140,7 @@ def test_without_the_perception_stack_start_says_what_to_install(world):
 def test_everything_is_validated_before_anything_starts(world):
     with pytest.raises(LiveError):
         world.runner.start(["cam_03", "cam_99"])
-    assert world.ingest.calls == [] and world.runner.status() == {"analyzers": []}
+    assert world.ingest.calls == [] and world.runner.status() == {"analyzers": [], "recordings": []}
     with pytest.raises(LiveError):
         world.runner.start([])
 

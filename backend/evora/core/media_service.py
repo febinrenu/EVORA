@@ -18,6 +18,7 @@ from contracts.models import CameraInfo
 
 from evora.core.workspace import Workspace
 from evora.evidence.store import EvidenceRecord
+from evora.live.recorder import RecordingIndex, Segment
 
 log = logging.getLogger("evora.media_service")
 
@@ -35,8 +36,14 @@ def probe_jpeg() -> bytes:
 
 FFMPEG_TIMEOUT_S = 120
 UNBLUR_TTL_S = 300
+NOT_BUFFERED = "that moment is no longer in the recording buffer"
 
 BlurFn = Callable[[bytes], bytes]
+
+
+def concat_listing(paths: list[Path]) -> str:
+    """An ffmpeg concat-demuxer list: one quoted file per line (a quote inside a name is written as '\'')."""
+    return "".join("file '{}'\n".format(p.as_posix().replace("'", "'\\''")) for p in paths)
 
 
 class MediaError(Exception):
@@ -82,9 +89,10 @@ class UnblurTokens:
 class MediaService:
     def __init__(
         self, ws: Workspace, cfg: dict, blur_provider: Callable[[], BlurFn | None],
-        offset_fn: Callable[[CameraInfo, float], float | None] | None = None,
+        offset_fn: Callable[[CameraInfo, float], float | None] | None = None, recordings: RecordingIndex | None = None,
     ):
         self.ws = ws
+        self._recordings = recordings  # the rolling buffer of real RTSP cameras
         self._offset_fn = offset_fn  # wall-clock time -> position in the file, for footage replayed as live
         self.pre_roll = float(cfg["media"]["pre_roll_s"])
         self.post_roll = float(cfg["media"]["post_roll_s"])
@@ -127,6 +135,50 @@ class MediaService:
         if not path.is_file():
             raise MediaError(404, "source video is missing")
         return path
+
+    # --- real RTSP cameras: footage comes from the rolling recording ---
+    def has_live_recording(self, cam: CameraInfo) -> bool:
+        return cam.kind == "rtsp" and self._recordings is not None and self._recordings.has_recording(cam.id)
+
+    def live_segments(self, cam: CameraInfo, rec: EvidenceRecord) -> list[Segment]:
+        """The recording segments an evidence clip is cut from (empty once the buffer has rolled over)."""
+        if self._recordings is None:
+            return []
+        return self._recordings.window(cam.id, rec.t_start - self.pre_roll, rec.t_end + self.post_roll)
+
+    def _live_frame_input(self, cam: CameraInfo, t: float) -> list[str]:
+        """ffmpeg input for the frame at wall-clock `t`. The seek is on the output side: it is exact at the end of a segment."""
+        seg = self._recordings.at(cam.id, t) if self._recordings is not None else None
+        if seg is None:
+            raise MediaError(404, NOT_BUFFERED)
+        rel = min(max(t - seg.start, 0.0), max(seg.end - seg.start - 0.2, 0.0))
+        return ["-i", str(seg.path), "-ss", f"{rel:.3f}"]
+
+    def _render_live_clip(self, cam: CameraInfo, rec: EvidenceRecord, out: Path) -> None:
+        lo, hi = rec.t_start - self.pre_roll, rec.t_end + self.post_roll
+        segs = self.live_segments(cam, rec)
+        if not segs:
+            raise MediaError(404, NOT_BUFFERED)
+        start, end = max(lo, segs[0].start), min(hi, segs[-1].end)
+        if end - start <= 0.05:
+            raise MediaError(422, "that moment is outside the recorded footage")
+        tmp = out.with_name(f"{out.stem}.{uuid.uuid4().hex[:6]}.tmp.mp4")
+        try:
+            with tempfile.TemporaryDirectory(dir=self.ws.clips_dir) as td:
+                if len(segs) == 1:
+                    source = ["-i", str(segs[0].path)]
+                else:
+                    listing = Path(td) / "segments.txt"
+                    listing.write_text(concat_listing([s.path for s in segs]), encoding="utf-8")
+                    source = ["-f", "concat", "-safe", "0", "-i", str(listing)]
+                self._ffmpeg([
+                    *source, "-ss", f"{start - segs[0].start:.3f}", "-t", f"{end - start:.3f}", "-an",
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart", "-y", str(tmp),
+                ])
+            os.replace(tmp, out)
+        finally:
+            tmp.unlink(missing_ok=True)
 
     def blur_status(self, want_blur: bool) -> str:
         """`off`, `applied` or `unavailable`, by actually running the blur on a tiny image (cached for 30 s)."""
@@ -187,8 +239,11 @@ class MediaService:
     def frame(
         self, cam: CameraInfo, t: float, want_blur: bool, bbox: tuple[float, float, float, float] | None = None,
     ) -> tuple[bytes, str]:
-        src = self.source_of(cam)
-        args = ["-ss", f"{self._rel(cam, t):.3f}", "-i", str(src), "-frames:v", "1"]
+        if self.has_live_recording(cam):
+            args = [*self._live_frame_input(cam, t), "-frames:v", "1"]
+        else:
+            src = self.source_of(cam)
+            args = ["-ss", f"{self._rel(cam, t):.3f}", "-i", str(src), "-frames:v", "1"]
         if bbox is not None:
             x1, y1, x2, y2 = (min(max(v, 0.0), 1.0) for v in bbox)
             w, h = max(x2 - x1, 0.001), max(y2 - y1, 0.001)
@@ -251,6 +306,8 @@ class MediaService:
         return blurred, status
 
     def _render_clip(self, cam: CameraInfo, rec: EvidenceRecord, out: Path) -> None:
+        if self.has_live_recording(cam):
+            return self._render_live_clip(cam, rec, out)
         src = self.source_of(cam)
         start, end = self._clip_window(cam, rec)
         if end - start <= 0.05:

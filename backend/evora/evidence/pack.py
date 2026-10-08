@@ -124,13 +124,33 @@ def _json(obj: Any) -> bytes:
     return (json.dumps(obj, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
 
 
+def _live_source(media: MediaService, cam: Any, rec: Any) -> dict[str, Any]:
+    """Provenance of footage from a real camera: the hashes of the recording segments the clip was cut from.
+
+    The camera's address is never written here (it may carry a password).
+    """
+    segments = [
+        {"name": s.path.name, "sha256": sha256_file(s.path), "size": s.path.stat().st_size,
+         "start_epoch_s": round(s.start, 3), "end_epoch_s": round(s.end, 3)}
+        for s in media.live_segments(cam, rec) if s.path.is_file()
+    ]
+    note = (
+        "A live camera: the clip was cut from the rolling recording segments listed here. The segments are not part of this "
+        "pack and are deleted after the buffer window, so compare these hashes while they still exist."
+        if segments else
+        "A live camera: the clip was cut from the rolling recording while it existed; those segments have since been deleted."
+    )
+    return {"kind": "live_recording", "camera_name": cam.name, "segments": segments, "note": note}
+
+
 def build_pack(
     db: Database, ws: Workspace, media: MediaService, evidence_id: str, *, blur_setting: bool,
     unblur_token_valid: bool, unblur_reason: str | None = None, now: float | None = None,
 ) -> PackResult:
     rec = evidence_store.get(db, evidence_id)  # raises EvidenceError / EvidenceNotFound
     cam = cams.get_camera(db, rec.camera_id)
-    source = media.source_of(cam)  # raises MediaError (RTSP, missing file)
+    live = media.has_live_recording(cam)  # a real camera: the evidence comes from its rolling recording
+    source = None if live else media.source_of(cam)  # raises MediaError (RTSP without a recording, missing file)
 
     # privacy: blurred, or not exported
     if unblur_token_valid:
@@ -164,7 +184,7 @@ def build_pack(
         "evidence": full.model_dump(mode="json") if full else None,
         "camera": {"id": cam.id, "name": cam.name, "clock_source": cam.t0_source, "clock_t0": _times(db, cam.t0)},
         "times": {"start": _times(db, rec.t_start), "peak": _times(db, rec.t_peak), "end": _times(db, rec.t_end),
-                  "offset_in_file_s": max(rec.t_peak - cam.t0, 0.0)},
+                  "offset_in_file_s": None if live else max(rec.t_peak - cam.t0, 0.0)},
         "bbox_normalized": list(rec.bbox) if rec.bbox else None,
         "produced_by": context,
     }
@@ -181,7 +201,7 @@ def build_pack(
         "format": "evora-evidence-pack/1", "software_version": __version__, "workspace": ws.slug,
         "generated_at": _times(db, generated), "evidence_id": evidence_id, "faces_blurred": faces_blurred,
         "unblurred_because": why_unblurred,
-        "source": {
+        "source": _live_source(media, cam, rec) if source is None else {
             "file_name": Path(cam.source_uri).name, "source_sha256": upload_sha,
             "stored_sha256": stored_sha256(db, cam.id, source), "transcoded_from": _transcoded_from(db, upload_sha),
             "fps": cam.fps, "width": cam.width, "height": cam.height, "duration_s": cam.duration_s,

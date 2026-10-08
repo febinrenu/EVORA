@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -13,7 +14,7 @@ import httpx
 from evora.alerts.compiler import StandingCompiler
 from evora.alerts.engine import AlertEngine
 from evora.alerts.notify import Notifier
-from evora.core import live_sessions, perception_adapter
+from evora.core import cameras, live_sessions, perception_adapter
 from evora.core import settings as app_settings
 from evora.core import workspace as wsmod
 from evora.core.bus import Bus
@@ -27,6 +28,7 @@ from evora.core.zone_service import ZoneService
 from evora.evidence.prerender import Prerenderer
 from evora.live.live_runner import LiveRunner
 from evora.live.mjpeg import TileLimiter
+from evora.live.recorder import Recorder, RecordingIndex, disk_cap_bytes
 from evora.live.restream import ReplayManager
 from evora.llm.gateway import Gateway
 from evora.llm.keypool import KeyPool
@@ -61,6 +63,8 @@ class AppContext:
     compiler: Any = None
     live: Any = None
     live_runner: Any = None
+    recorder: Any = None
+    recordings: Any = None
     tiles: Any = None
 
     @classmethod
@@ -82,9 +86,15 @@ class AppContext:
         defaults = {"onprem": bool(cfg["llm"]["onprem"]), "blur_faces": bool(cfg["media"]["blur_faces"]), "reference_now": None}
         settings = app_settings.load(db, defaults, force_onprem=os.environ.get("evora_ONPREM") == "1")
         guard.install(lambda: bool(settings["onprem"]), cfg.get("privacy", {}).get("allow_hosts", []))
+        live_cfg = cfg["live"]
+        recordings = RecordingIndex(
+            ws.root / "live" / "rec", segment_s=float(live_cfg.get("record_segment_s", 10)),
+            keep_s=float(live_cfg.get("record_minutes", 30)) * 60,
+            max_bytes=disk_cap_bytes(float(live_cfg.get("record_max_gb", 2))),
+        )
         media = MediaService(
             ws, cfg, blur_provider or perception_adapter.get_blur_faces,
-            offset_fn=lambda cam, t: live_sessions.file_offset(db, cam.id, cam.duration_s, t),
+            offset_fn=lambda cam, t: live_sessions.file_offset(db, cam.id, cam.duration_s, t), recordings=recordings,
         )
         prerender = Prerenderer(db, media, lambda: bool(settings["blur_faces"]), top=int(cfg["media"]["prerender_top"]))
         mock = bool(os.environ.get("evora_MOCK") == "1") if mock is None else mock
@@ -101,7 +111,7 @@ class AppContext:
         ctx = cls(cfg, ws, db, bus, runner, media, UnblurTokens(), prerender, memory, settings, mock, gateway, http)
         ctx.zones = ZoneService(db, bus, memory.kb)
         memory.clarifier.on_zone = ctx.zones.recompute_zone
-        live_cfg = cfg["live"]
+        ctx.recordings = recordings
         ctx.live = ReplayManager(
             db, ws.root / "live", mediamtx_path=live_cfg["mediamtx_path"], port=int(live_cfg["rtsp_port"]),
             max_streams=int(live_cfg["max_streams"]), default_speed=float(live_cfg["default_speed"]),
@@ -114,10 +124,38 @@ class AppContext:
         ctx.alerts = AlertEngine(
             db, bus, memory.kb, ctx.notifier, push_cap=int(cap.get("count", 0)), push_window_s=float(cap.get("window_s", 60)),
         )
+        ctx.recorder = Recorder(
+            recordings, ws.root / "live",
+            on_state=lambda camera_id, state: bus.publish("recording", {"camera_id": camera_id, "state": state}),
+        )
         ctx.live_runner = LiveRunner(
             db, ws, bus, ctx.alerts, ctx.live, profile=os.environ.get("evora_PROFILE", "cpu"),
             onprem=lambda: bool(settings["onprem"]), allows=guard.allows,
+            recorder=ctx.recorder if live_cfg.get("record", True) else None,
         )
+
+        def render_ahead(alert: Any, historical: bool) -> None:
+            """A live alert on a real camera: cut its clip once the post-roll is recorded, before the buffer rolls over."""
+            if historical:
+                return
+            try:
+                camera = cameras.get_camera(db, alert.camera_id)
+            except cameras.CameraNotFound:
+                return
+            if camera.kind != "rtsp":
+                return
+
+            def render() -> None:
+                try:
+                    prerender.schedule([alert.evidence.id])
+                except RuntimeError:  # the app is shutting down
+                    pass
+
+            timer = threading.Timer(media.post_roll + recordings.segment_s + 2.0, render)
+            timer.daemon = True
+            timer.start()
+
+        ctx.alerts.on_alert = render_ahead
         ctx.tiles = TileLimiter(int(live_cfg.get("max_tiles", 8)))
 
         def after_ingest(camera_id: str) -> None:

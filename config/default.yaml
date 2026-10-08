@@ -40,6 +40,10 @@ live:
   max_streams: 16
   default_speed: 1.0
   max_tiles: 8          # simultaneous live tiles (each is one decoder)
+  record: true          # keep a rolling recording of real RTSP cameras while they are analysed (evidence needs it)
+  record_segment_s: 10
+  record_minutes: 30    # how far back evidence can be cut
+  record_max_gb: 2      # disk cap for each camera's buffer
 doctor:
   min_free_gb: 20
 up:

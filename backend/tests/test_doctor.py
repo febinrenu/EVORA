@@ -362,3 +362,18 @@ def test_json_output_lists_the_fixes_and_never_runs_them(tmp_path, monkeypatch, 
     doctor.main(["--json", "--fix", "--yes"])
     data = json.loads(capsys.readouterr().out)
     assert runner.calls == [] and any(c["fixes"] for c in data["checks"])
+
+
+# ---- the recording buffer -------------------------------------------------------------------------------------------------
+
+def test_the_recording_buffer_row_checks_the_disk_against_the_cap(tmp_path):
+    row = by_id(run_checks(healthy(tmp_path)))["recording"]
+    assert row.status == OK and "30 minutes" in row.detail and "2 GB each" in row.detail
+    tight = by_id(run_checks(healthy(tmp_path, disk_free_gb=lambda p: 3.0)))["recording"]
+    assert tight.status == WARN and "live.record_max_gb" in tight.fix
+
+
+def test_no_recording_row_when_recording_is_off(tmp_path):
+    env = healthy(tmp_path)
+    env.cfg["live"]["record"] = False
+    assert "recording" not in by_id(run_checks(env))

@@ -34,6 +34,7 @@ CANNED = {
          "transcoding": False, "started_at": 1790000000.0, "error": None},
     ],
     "analyzers": [{"camera_id": "cam_01", "state": "running", "error": None}],
+    "recordings": [],
 }
 
 

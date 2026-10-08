@@ -417,6 +417,17 @@ def check_live(env: Env) -> list[Check]:
                           {"free": f"{port} is free", "evora": f"{port} is already served by evora",
                            "busy": f"{port} is in use by another program"}[state],
                           "" if state != "busy" else "Stop the other program or change the port in config/default.yaml."))
+    live = env.cfg.get("live", {})
+    if live.get("record", True):
+        cap, minutes = float(live.get("record_max_gb", 2)), float(live.get("record_minutes", 30))
+        root = env.workspaces_dir
+        free = env.disk_free_gb(root if root.exists() else root.parent)
+        enough = free >= 2 * cap
+        rows.append(Check(
+            "recording", "Recording buffer", OK if enough else WARN,
+            f"keeps the last {minutes:g} minutes of each real camera, up to {cap:g} GB each; {free:.0f} GB free",
+            "" if enough else "Free some space or lower live.record_max_gb: real cameras are recorded while they are analysed.",
+        ))
     return rows
 
 
