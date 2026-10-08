@@ -43,13 +43,6 @@ def test_clarify_resumes(client):
     assert sse_types(r)[-1] == "done"
 
 
-def test_memory_crud(client):
-    assert len(client.get("/api/memory").json()) == 2
-    assert client.patch("/api/memory/mf_001", json={"canonical": "gate"}).json()["canonical"] == "gate"
-    assert len(client.delete("/api/memory/mf_001").json()) == 1
-    assert client.delete("/api/memory/zzz").status_code == 404
-
-
 def test_zone_validation(client):
     ok = client.post("/api/zones", json={"id": "z", "camera_id": "cam_01", "kind": "line"})
     assert ok.status_code == 200

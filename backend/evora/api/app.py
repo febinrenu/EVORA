@@ -7,18 +7,20 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from contracts.models import ClarifyResponse, MemoryFact, Zone
+from contracts.models import ClarifyResponse, Zone
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from evora.api import fixtures, routes_cameras, routes_ingest, routes_media
+from evora.api import fixtures, routes_cameras, routes_ingest, routes_media, routes_memory
 from evora.api.context import AppContext
 from evora.api.sse import stream_events
 from evora.core.config import load_config
 from evora.core.jobs import IngestFn
 from evora.core.media_service import BlurFn
 from evora.evidence import audit
+from evora.memory.embedder import TextEmbedder
+from evora.memory.resolve import Equivalence
 
 # 1x1 JPEG standing in for thumbnails and frames in the skeleton
 _JPEG = base64.b64decode(
@@ -29,10 +31,11 @@ _JPEG = base64.b64decode(
 
 def create_app(
     workspaces_root: Path | None = None, ingest_fn: IngestFn | None = None,
-    blur_provider: Callable[[], BlurFn | None] | None = None,
+    blur_provider: Callable[[], BlurFn | None] | None = None, embedder: TextEmbedder | None = None,
+    equivalence: Equivalence | None = None,
 ) -> FastAPI:
     cfg = load_config()
-    ctx = AppContext.build(cfg, workspaces_root, ingest_fn, blur_provider)
+    ctx = AppContext.build(cfg, workspaces_root, ingest_fn, blur_provider, embedder, equivalence)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -45,6 +48,7 @@ def create_app(
     app.include_router(routes_cameras.make_router(ctx))
     app.include_router(routes_ingest.make_router(ctx))
     app.include_router(routes_media.make_router(ctx))
+    app.include_router(routes_memory.make_router(ctx))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cfg["server"]["cors_origins"],
@@ -53,7 +57,6 @@ def create_app(
     )
     state: dict[str, Any] = {
         "settings": ctx.settings,
-        "memory": [dict(f) for f in fixtures.load("memory_facts")],
         "workspaces": [{"slug": ctx.ws.slug, "name": ctx.ws.slug, "active": True}],
     }
 
@@ -94,33 +97,6 @@ def create_app(
     @app.post("/api/clarify")
     def clarify(resp: ClarifyResponse):
         return stream_events(fixtures.load("stream_query"))
-
-    # --- memory ---
-    @app.get("/api/memory")
-    def memory():
-        return state["memory"]
-
-    @app.post("/api/memory")
-    def add_memory(fact: MemoryFact):
-        state["memory"].append(fact.model_dump())
-        return fact
-
-    def _fact(fid: str) -> dict:
-        for f in state["memory"]:
-            if f["id"] == fid:
-                return f
-        raise HTTPException(404, "unknown fact")
-
-    @app.patch("/api/memory/{fid}")
-    def patch_memory(fid: str, body: dict):
-        f = _fact(fid)
-        f.update({k: v for k, v in body.items() if k in {"canonical", "aliases", "binding"}})
-        return f
-
-    @app.delete("/api/memory/{fid}")
-    def delete_memory(fid: str):
-        state["memory"].remove(_fact(fid))
-        return state["memory"]
 
     # --- zones, tracks, globals ---
     @app.get("/api/zones")

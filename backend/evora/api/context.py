@@ -15,6 +15,9 @@ from evora.core.jobs import IngestFn, JobRunner
 from evora.core.media_service import BlurFn, MediaService, UnblurTokens
 from evora.core.workspace import Workspace
 from evora.evidence.prerender import Prerenderer
+from evora.memory.embedder import TextEmbedder
+from evora.memory.resolve import Equivalence
+from evora.memory.service import MemoryService, build_memory
 
 
 @dataclass
@@ -27,12 +30,14 @@ class AppContext:
     media: MediaService
     unblur: UnblurTokens
     prerender: Prerenderer
+    memory: MemoryService
     settings: dict[str, Any]
 
     @classmethod
     def build(
         cls, cfg: dict[str, Any], workspaces_root: Path | None = None, ingest_fn: IngestFn | None = None,
-        blur_provider: Callable[[], BlurFn | None] | None = None,
+        blur_provider: Callable[[], BlurFn | None] | None = None, embedder: TextEmbedder | None = None,
+        equivalence: Equivalence | None = None,
     ) -> AppContext:
         name = os.environ.get("evora_WORKSPACE") or cfg["workspace"]["default"]
         ws = wsmod.create(name, workspaces_root)
@@ -47,4 +52,5 @@ class AppContext:
         settings = {"onprem": bool(cfg["llm"]["onprem"]), "blur_faces": bool(cfg["media"]["blur_faces"]), "reference_now": None}
         media = MediaService(ws, cfg, blur_provider or perception_adapter.get_blur_faces)
         prerender = Prerenderer(db, media, lambda: bool(settings["blur_faces"]), top=int(cfg["media"]["prerender_top"]))
-        return cls(cfg, ws, db, bus, runner, media, UnblurTokens(), prerender, settings)
+        memory = build_memory(db, ws, cfg, embedder=embedder, equivalence=equivalence)
+        return cls(cfg, ws, db, bus, runner, media, UnblurTokens(), prerender, memory, settings)
