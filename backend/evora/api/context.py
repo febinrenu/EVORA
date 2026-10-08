@@ -59,7 +59,7 @@ class AppContext:
         jobs = cfg["jobs"]
         runner = JobRunner(
             db, bus, profile=os.environ.get("evora_PROFILE", "cpu"), workers=jobs["workers"],
-            default_layers=jobs["default_layers"], ingest_fn=ingest_fn, stub_tick_s=jobs["stub_tick_s"],
+            default_layers=jobs["default_layers"], ingest_fn=ingest_fn, stub_tick_s=jobs["stub_tick_s"], ws=ws,
         )
         runner.recover()
         settings = {"onprem": bool(cfg["llm"]["onprem"]), "blur_faces": bool(cfg["media"]["blur_faces"]), "reference_now": None}

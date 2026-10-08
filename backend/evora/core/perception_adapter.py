@@ -7,6 +7,7 @@ Contract (PLAN.md §5.6):
 from __future__ import annotations
 
 import importlib
+import inspect
 import logging
 import os
 import threading
@@ -29,7 +30,8 @@ def _find(name: str) -> Callable | None:
     for module in ("evora.perception", "evora.perception.clock", "evora.perception.pipeline", "evora.perception.embed"):
         try:
             fn = getattr(importlib.import_module(module), name, None)
-        except ImportError:
+        except Exception as exc:  # noqa: BLE001 - a half-installed stack (missing DLL, wrong CUDA) must mean "not available"
+            log.debug("could not import %s: %s", module, exc)
             continue
         if callable(fn):
             return fn
@@ -53,13 +55,15 @@ _warned = False
 
 def ingest(
     cam: CameraInfo, profile: str, layers: set[str], on_progress: ProgressFn,
-    tick_s: float = 0.05, stop: threading.Event | None = None,
+    tick_s: float = 0.05, stop: threading.Event | None = None, ws: Any | None = None,
 ) -> None:
     """Run M2's pipeline if installed; otherwise report simulated progress so the platform can be tested."""
     global _warned
     real = _find("ingest")
     if real is not None:
-        real(cam, profile, layers, on_progress)
+        # M2's pipeline resolves its own workspace unless told which one the app is using
+        accepts_ws = ws is not None and "ws" in inspect.signature(real).parameters
+        real(cam, profile, layers, on_progress, **({"ws": ws} if accepts_ws else {}))
         return
     if not _warned:
         log.warning("perception.ingest is not installed: using the simulated ingest stub")

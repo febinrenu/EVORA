@@ -8,6 +8,7 @@ import time
 import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 from contracts.models import CameraInfo, IngestJob
 
@@ -30,10 +31,13 @@ class JobRunner:
     def __init__(
         self, db: Database, bus: Bus, *, profile: str = "cpu", workers: int = 0,
         default_layers: list[str] | None = None, ingest_fn: IngestFn | None = None, stub_tick_s: float = 0.05,
+        ws: Any | None = None,
     ):
         self.db, self.bus, self.profile = db, bus, profile
         self.default_layers = list(default_layers or LAYERS)
-        self._ingest = ingest_fn or (lambda c, p, ly, cb: perception_adapter.ingest(c, p, ly, cb, tick_s=stub_tick_s))
+        self._ingest = ingest_fn or (
+            lambda c, p, ly, cb: perception_adapter.ingest(c, p, ly, cb, tick_s=stub_tick_s, ws=ws)
+        )
         self._pool = ThreadPoolExecutor(max_workers=auto_workers(workers), thread_name_prefix="ingest")
         self._lock = threading.Lock()
         self._wanted: dict[str, set[str]] = {}

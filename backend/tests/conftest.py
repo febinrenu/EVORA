@@ -8,6 +8,16 @@ from evora.core import db as dbmod
 
 
 @pytest.fixture(autouse=True)
+def _simulated_ingest(monkeypatch):
+    """Platform tests must not run the real (slow, GPU) pipeline even when the perception stack is installed."""
+    from evora.core import perception_adapter
+
+    real_find = perception_adapter._find
+    monkeypatch.setattr(perception_adapter, "_find", lambda name: None if name == "ingest" else real_find(name))
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _close_dbs():
     yield
     dbmod.close_all()

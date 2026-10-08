@@ -188,3 +188,36 @@ def test_ingest_that_completes_nothing_is_an_error(db):
     assert "without completing" in runner.get(job.id).error
     assert cams.get_camera(db, cam.id).status == "error"
     runner.shutdown()
+
+
+def test_the_real_pipeline_is_told_which_workspace_to_use(db, monkeypatch):
+    from evora.core import perception_adapter
+
+    seen = {}
+
+    def real(cam, profile, layers, on_progress, *, ws=None, settings=None):
+        seen["ws"] = ws
+        for layer in sorted(layers):
+            on_progress(IngestJob(id="", camera_id=cam.id, state="running", layer=layer, progress=1.0))
+
+    monkeypatch.setattr(perception_adapter, "_find", lambda name: real if name == "ingest" else None)
+    cam = add_cam(db)
+    runner = JobRunner(db, Bus(), workers=1, ws="THE-WORKSPACE")
+    job = runner.submit([cam.id], ["L0"])[0]
+    assert wait_for(lambda: runner.get(job.id).state == "done")
+    assert seen["ws"] == "THE-WORKSPACE"
+    runner.shutdown()
+
+
+def test_a_perception_function_without_a_ws_parameter_is_still_called(db, monkeypatch):
+    from evora.core import perception_adapter
+
+    def old_style(cam, profile, layers, on_progress):
+        on_progress(IngestJob(id="", camera_id=cam.id, state="running", layer="L0", progress=1.0))
+
+    monkeypatch.setattr(perception_adapter, "_find", lambda name: old_style if name == "ingest" else None)
+    cam = add_cam(db)
+    runner = JobRunner(db, Bus(), workers=1, ws="x")
+    job = runner.submit([cam.id], ["L0"])[0]
+    assert wait_for(lambda: runner.get(job.id).state == "done")
+    runner.shutdown()
