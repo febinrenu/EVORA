@@ -760,6 +760,8 @@ def _unconfirmed(plan: QueryPlan, evidence: Sequence[Evidence]) -> bool:
 
 def _is_partial(cameras: list[_Camera], plan: QueryPlan, evidence: Sequence[Evidence]) -> bool:
     relevant = set(plan.camera_ids) | {e.camera_id for e in evidence}
+    if any(w.startswith("scene fallback") for e in evidence for w in e.why):
+        return True  # an answer resting on whole-scene similarity is never a full yes
     return any("L1" not in c.layers for c in cameras if not relevant or c.id in relevant)
 
 

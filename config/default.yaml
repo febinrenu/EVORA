@@ -95,5 +95,7 @@ retrieval:              # query side (M3); keys and defaults mirror backend/evor
   weights: {image: 0.55, attributes: 0.25, caption: 0.10, scene: 0.10}
   calibration: {midpoint: 0.09, scale: 0.015}   # fitted on real SigLIP2 cosines, see PROGRESS
   ann_k: 400
+  scene_fallback: false   # answer from whole-scene similarity where the detector found nothing (off until measured)
+  scene_fallback_z: 3.5
   scene_k: 300
   pool_limit: 100

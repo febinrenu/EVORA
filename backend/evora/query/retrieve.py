@@ -70,6 +70,12 @@ class RetrievalConfig:
     ann_k: int = 400
     scene_k: int = 300
     pool_limit: int = 100
+    # a camera where the detector found nothing in the window may still answer from whole-scene similarity, but only
+    # when the window's best tile stands far above that camera's usual similarity (off until measured on real footage)
+    scene_fallback: bool = False
+    scene_fallback_z: float = 3.5      # robust z of the window's peak tile against all of the camera's tiles
+    scene_fallback_min_tiles: int = 30  # too few tiles to know the camera's usual level: no fallback
+    scene_fallback_score: float = 0.42  # just above the accept threshold: below any real track match
 
     @classmethod
     def from_cfg(cls, cfg: dict[str, Any] | None) -> RetrievalConfig:
@@ -85,6 +91,10 @@ class RetrievalConfig:
             ann_k=int(section.get("ann_k", 400)),
             scene_k=int(section.get("scene_k", 300)),
             pool_limit=int(section.get("pool_limit", 100)),
+            scene_fallback=bool(section.get("scene_fallback", False)),
+            scene_fallback_z=float(section.get("scene_fallback_z", 3.5)),
+            scene_fallback_min_tiles=int(section.get("scene_fallback_min_tiles", 30)),
+            scene_fallback_score=float(section.get("scene_fallback_score", 0.42)),
         )
 
 
@@ -278,6 +288,11 @@ class Retriever:
 
         if track_cams and "crops" in tables:
             self._track_candidates(plan, scope, sorted(track_cams), variants, tables, out)
+            if self.cfg.scene_fallback and "scenes" in tables and _fallback_allowed(plan, scope):
+                found = {c.track.camera_id for c in out.candidates}
+                missed = [c for c in sorted(track_cams) if c not in found]
+                if missed:
+                    self._scene_fallback(plan, scope, missed, variants, out, names)
         elif track_cams:
             scene_only = cams  # tracks exist but no crop vectors yet: scenes are all we can search
             out.notes.append("Track embeddings are not ready yet; searched coarse scene tiles instead.")
@@ -497,6 +512,47 @@ class Retriever:
             out.candidates.append(Candidate(track, score, why))
         out.layers += sorted(used - set(out.layers))
 
+    # --- scene fallback for cameras where the detector found nothing
+    def _scene_fallback(self, plan: QueryPlan, scope: SearchScope, cams: list[str], variants: list[str],
+                        out: RetrievalResult, names: dict[str, str]) -> None:
+        """One weak candidate per camera whose best tile in the window stands out from that camera's usual tiles.
+
+        Whole-frame similarity barely separates a small person from an empty street, so a candidate needs the window's
+        peak to be an outlier for this camera (a robust z-score over all its tiles), not merely a high cosine.
+        """
+        table = self._store.open_table("scenes")
+        noun = plan.targets[0].noun
+        for cam in cams:
+            where = _in_clause("camera_id", [cam])
+            total = int(table.count_rows(where))
+            if total < self.cfg.scene_fallback_min_tiles:
+                continue
+            best: dict[tuple[float, str], float] = {}
+            for text in variants:
+                query = table.search(self._text_vector(text)).metric("cosine").where(where, prefilter=True).limit(total)
+                for row in query.to_list():
+                    key = (float(row["t"]), str(row["tile"]))
+                    best[key] = max(best.get(key, -1.0), 1.0 - float(row["_distance"]))
+            inside = [(t, cos) for (t, _), cos in best.items() if instant_in_window(t, scope.window, scope.tz)]
+            if not inside:
+                continue
+            values = np.fromiter(best.values(), dtype=np.float64)
+            med = float(np.median(values))
+            spread = 1.4826 * float(np.median(np.abs(values - med)))
+            if spread <= 1e-9:
+                continue
+            t_peak, peak = max(inside, key=lambda p: p[1])
+            z = (peak - med) / spread
+            if z < self.cfg.scene_fallback_z:
+                continue
+            track = TrackRec(f"scene:{cam}:{t_peak:.0f}", cam, "scene", t_peak - 1.0, t_peak + 1.0, t_peak, None)
+            out.candidates.append(Candidate(track, self.cfg.scene_fallback_score,
+                                            (f"scene fallback z {z:.1f}", f"scene siglip {peak:.2f}")))
+            out.notes.append(f"No {noun} was detected on {names.get(cam, cam)} in that window; the moment shown there "
+                             "is where the whole picture looks most like it, which is weaker evidence.")
+        if "scenes" not in out.layers and any(c.track.cls == "scene" for c in out.candidates):
+            out.layers.append("scenes")
+
     # --- scenes only
     def _scene_candidates(self, scope: SearchScope, cams: list[str], variants: list[str], out: RetrievalResult,
                           full_frames_only: bool) -> None:
@@ -508,3 +564,11 @@ class Retriever:
             out.candidates.append(Candidate(track, cal(w.score), (f"scene siglip {w.score:.2f}",)))
         if "scenes" not in out.layers:
             out.layers.append("scenes")
+
+
+def _fallback_allowed(plan: QueryPlan, scope: SearchScope) -> bool:
+    """Only presence questions with a time window: counts and paths need real tracks, an action needs a track to show it."""
+    window = scope.window
+    has_window = window is not None and any(
+        v is not None for v in (window.start, window.end, window.tod_after, window.tod_before))
+    return has_window and plan.intent in ("exists", "list", "first", "last") and plan.action in ("any", "appear")
