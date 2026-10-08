@@ -1,0 +1,77 @@
+[
+  {
+    "question": "did a red car pass through the main gate in the last hour?",
+    "plan": {"intent": "exists", "targets": [{"noun": "car", "cls": ["car"], "attributes": ["red"], "embed_text": "a photo of a red car"}],
+      "place": {"text": "main gate", "role": "place"}, "action": "pass_through", "time": {"phrase": "in the last hour"},
+      "camera_ids": [], "limit": 10, "unresolved": [{"text": "main gate", "role": "place"}], "source": "llm"}
+  },
+  {
+    "question": "show me everyone who entered the lobby after 8pm",
+    "plan": {"intent": "list", "targets": [{"noun": "person", "cls": ["person"], "attributes": [], "embed_text": "a photo of a person"}],
+      "place": null, "action": "enter", "time": {"phrase": "after 8pm", "tod_after": "20:00"},
+      "camera_ids": ["cam_02"], "limit": 10, "unresolved": [], "source": "llm"}
+  },
+  {
+    "question": "how many people with backpacks walked past the loading dock between 9 and 10 am?",
+    "plan": {"intent": "count", "targets": [{"noun": "person", "cls": ["person", "backpack"], "attributes": ["backpack"], "embed_text": "a photo of a person carrying a backpack"}],
+      "place": {"text": "loading dock", "role": "place"}, "action": "pass_through",
+      "time": {"phrase": "between 9 and 10 am", "tod_after": "09:00", "tod_before": "10:00"},
+      "camera_ids": [], "limit": 10, "unresolved": [{"text": "loading dock", "role": "place"}], "source": "llm"}
+  },
+  {
+    "question": "when did the first person arrive at the back door today?",
+    "plan": {"intent": "first", "targets": [{"noun": "person", "cls": ["person"], "attributes": [], "embed_text": "a photo of a person"}],
+      "place": null, "action": "appear", "time": {"phrase": "today"},
+      "camera_ids": ["cam_03"], "limit": 1, "unresolved": [], "source": "llm"}
+  },
+  {
+    "question": "when was a white van last seen near the loading dock?",
+    "plan": {"intent": "last", "targets": [{"noun": "van", "cls": ["car", "truck"], "attributes": ["white", "van"], "embed_text": "a photo of a white van"}],
+      "place": {"text": "loading dock", "role": "place"}, "action": "any", "time": null,
+      "camera_ids": [], "limit": 1, "unresolved": [{"text": "loading dock", "role": "place"}], "source": "llm"}
+  },
+  {
+    "question": "where did the woman in the green jacket go after the lobby?",
+    "plan": {"intent": "path", "targets": [{"noun": "woman", "cls": ["person"], "attributes": ["green"], "embed_text": "a photo of a person in a green jacket"}],
+      "place": null, "action": "any", "time": null,
+      "camera_ids": ["cam_02"], "limit": 10, "unresolved": [], "source": "llm"}
+  },
+  {
+    "question": "what happened at the gate yesterday evening?",
+    "plan": {"intent": "describe", "targets": [], "place": null, "action": "any", "time": {"phrase": "yesterday evening"},
+      "camera_ids": ["cam_01"], "limit": 10, "unresolved": [], "source": "llm"}
+  },
+  {
+    "question": "alert me if anyone enters the server room after hours",
+    "plan": {"intent": "standing", "targets": [{"noun": "person", "cls": ["person"], "attributes": [], "embed_text": "a photo of a person"}],
+      "place": {"text": "server room", "role": "place"}, "action": "enter", "time": {"phrase": "after hours"},
+      "camera_ids": [], "limit": 10,
+      "unresolved": [{"text": "server room", "role": "place"}, {"text": "after hours", "role": "time"}], "source": "llm"}
+  },
+  {
+    "question": "did someone carrying a large bag go through the main entrance last night?",
+    "plan": {"intent": "exists", "targets": [{"noun": "person", "cls": ["person", "suitcase", "handbag"], "attributes": ["large_bag"], "embed_text": "a photo of a person carrying a large bag"}],
+      "place": {"text": "main entrance", "role": "place"}, "action": "pass_through", "time": {"phrase": "last night"},
+      "camera_ids": [], "limit": 10, "unresolved": [{"text": "main entrance", "role": "place"}], "source": "llm"}
+  },
+  {
+    "question": "was there a blue motorcycle in the parking on 3 October between 14:00 and 14:30?",
+    "plan": {"intent": "exists", "targets": [{"noun": "motorcycle", "cls": ["motorcycle"], "attributes": ["blue", "motorcycle"], "embed_text": "a photo of a blue motorcycle"}],
+      "place": null, "action": "any",
+      "time": {"phrase": "on 3 October between 14:00 and 14:30", "tod_after": "14:00", "tod_before": "14:30"},
+      "camera_ids": ["cam_04"], "limit": 10, "unresolved": [], "source": "llm"}
+  },
+  {
+    "question": "has anyone been loitering near the back door for more than a few minutes today?",
+    "plan": {"intent": "exists", "targets": [{"noun": "person", "cls": ["person"], "attributes": [], "embed_text": "a photo of a person standing"}],
+      "place": null, "action": "dwell", "time": {"phrase": "today"},
+      "camera_ids": ["cam_03"], "limit": 10, "unresolved": [], "source": "llm"}
+  },
+  {
+    "question": "show me my car leaving the lot this morning",
+    "plan": {"intent": "list", "targets": [{"noun": "car", "cls": ["car"], "attributes": [], "embed_text": "a photo of a car"}],
+      "place": {"text": "the lot", "role": "place"}, "action": "exit", "time": {"phrase": "this morning"},
+      "camera_ids": [], "limit": 10,
+      "unresolved": [{"text": "my car", "role": "object"}, {"text": "the lot", "role": "place"}], "source": "llm"}
+  }
+]
