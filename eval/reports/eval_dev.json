@@ -1,7 +1,7 @@
 {
   "ours": {
     "split": "dev",
-    "n_queries": 38,
+    "n_queries": 28,
     "metrics": {
       "hit@1": {
         "value": 0.2222,
@@ -28,28 +28,28 @@
         "n": 13
       },
       "existence_accuracy": {
-        "value": 0.8621,
-        "n": 29
+        "value": 0.8571,
+        "n": 28
       },
       "existence_f1": {
         "value": 0.8889,
-        "n": 29
+        "n": 28
       },
       "negative_precision": {
-        "value": 0.8182,
-        "n": 11
+        "value": 0.8,
+        "n": 10
       },
       "count_accuracy": {
-        "value": 0.1111,
-        "n": 9
+        "value": null,
+        "n": 0
       },
       "count_mae": {
-        "value": 6.2222,
-        "n": 9
+        "value": null,
+        "n": 0
       },
       "count_within_1": {
-        "value": 0.1111,
-        "n": 9
+        "value": null,
+        "n": 0
       },
       "ask_precision": {
         "value": null,
@@ -61,41 +61,41 @@
       },
       "reask_count": {
         "value": 0.0,
-        "n": 38
+        "n": 28
       },
       "path_hop_accuracy": {
         "value": null,
         "n": 0
       },
       "ttfa_p50_ms": {
-        "value": 332.8208,
-        "n": 38
+        "value": 321.075,
+        "n": 28
       },
       "ttfa_p95_ms": {
-        "value": 493.8485,
-        "n": 38
+        "value": 484.1836,
+        "n": 28
       },
       "ttva_p50_ms": {
-        "value": 335.3067,
-        "n": 38
+        "value": 322.9939,
+        "n": 28
       },
       "ttva_p95_ms": {
-        "value": 495.9755,
-        "n": 38
+        "value": 486.3887,
+        "n": 28
       },
       "no_model_share": {
         "value": 1.0,
-        "n": 38
+        "n": 28
       },
       "errors": {
         "value": 0.0,
-        "n": 38
+        "n": 28
       }
     }
   },
   "b0": {
     "split": "dev",
-    "n_queries": 38,
+    "n_queries": 28,
     "metrics": {
       "hit@1": {
         "value": 0.5556,
@@ -122,28 +122,28 @@
         "n": 14
       },
       "existence_accuracy": {
-        "value": 0.6207,
-        "n": 29
+        "value": 0.6429,
+        "n": 28
       },
       "existence_f1": {
-        "value": 0.766,
-        "n": 29
+        "value": 0.7826,
+        "n": 28
       },
       "negative_precision": {
         "value": 0.0,
-        "n": 11
+        "n": 10
       },
       "count_accuracy": {
-        "value": 0.0,
-        "n": 9
+        "value": null,
+        "n": 0
       },
       "count_mae": {
-        "value": 4.6667,
-        "n": 9
+        "value": null,
+        "n": 0
       },
       "count_within_1": {
-        "value": 0.1111,
-        "n": 9
+        "value": null,
+        "n": 0
       },
       "ask_precision": {
         "value": null,
@@ -155,35 +155,35 @@
       },
       "reask_count": {
         "value": 0.0,
-        "n": 38
+        "n": 28
       },
       "path_hop_accuracy": {
         "value": null,
         "n": 0
       },
       "ttfa_p50_ms": {
-        "value": 68.0904,
-        "n": 38
+        "value": 63.1362,
+        "n": 28
       },
       "ttfa_p95_ms": {
-        "value": 78.3522,
-        "n": 38
+        "value": 68.1769,
+        "n": 28
       },
       "ttva_p50_ms": {
-        "value": 68.0904,
-        "n": 38
+        "value": 63.1362,
+        "n": 28
       },
       "ttva_p95_ms": {
-        "value": 78.3522,
-        "n": 38
+        "value": 68.1769,
+        "n": 28
       },
       "no_model_share": {
         "value": 1.0,
-        "n": 38
+        "n": 28
       },
       "errors": {
         "value": 0.0,
-        "n": 38
+        "n": 28
       }
     }
   }
