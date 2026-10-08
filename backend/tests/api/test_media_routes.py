@@ -248,3 +248,51 @@ def test_an_unblurred_image_is_never_filed_as_the_blurred_one(env, gray_jpeg):
     env.blur_fn["fn"] = lambda jpeg: gray_jpeg  # the model arrives later: blurred output must now be served
     again = env.client.get(f"/api/media/thumb/{eid}.jpg")
     assert again.headers["x-evora-blur"] == "applied" and again.content == gray_jpeg
+
+
+# ---- evidence clips are capped in size and frame rate ----------------------------------------------------------------------
+
+def probe_stream(content: bytes, tmp_path) -> tuple[int, int, float]:
+    path = tmp_path / "probe.mp4"
+    path.write_bytes(content)
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,r_frame_rate",
+         "-of", "csv=p=0", str(path)], capture_output=True, text=True, check=True,
+    ).stdout.strip().split(",")
+    num, den = out[2].split("/")
+    return int(out[0]), int(out[1]), float(num) / float(den)
+
+
+def test_a_hd_clip_is_rendered_at_most_1280_wide_and_15_fps(env, tmp_path):
+    hd = tmp_path / "hd.mp4"
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30:duration=3", "-pix_fmt", "yuv420p",
+         "-metadata", "creation_time=2026-10-08T09:00:00Z", str(hd)], check=True,
+    )
+    with open(hd, "rb") as fh:
+        cid = env.client.post("/api/cameras", files=[("files", ("hd.mp4", fh))]).json()[0]["id"]
+    eid = env.evidence("ev_hd", t_start=T0 + 1.0, t_end=T0 + 2.0, t_peak=T0 + 1.5, cam=cid)
+    env.client.post("/api/settings", json={"blur_faces": False})
+    r = env.client.get(f"/api/media/clip/{eid}.mp4")
+    assert r.status_code == 200 and probe_stream(r.content, tmp_path) == (1280, 720, 15.0)
+    env.client.post("/api/settings", json={"blur_faces": True})  # the test blur returns a fixed small image, so check the rate
+    r = env.client.get(f"/api/media/clip/{eid}.mp4")
+    assert r.status_code == 200 and probe_stream(r.content, tmp_path)[2] == 15.0, "the blurred clip keeps the capped rate"
+
+
+def test_a_small_slow_clip_is_left_as_it_is(env, tmp_path):
+    env.client.post("/api/settings", json={"blur_faces": False})
+    r = env.client.get(f"/api/media/clip/{env.evidence()}.mp4")
+    assert r.status_code == 200 and probe_stream(r.content, tmp_path) == (320, 240, 10.0), "never enlarged, no frames added"
+
+
+def test_clip_rate_rules(env):
+    from evora.core import cameras as cams
+
+    media, cam = env.ctx.media, cams.get_camera(env.ctx.db, env.cam_id)
+    assert media.clip_fps(cam.model_copy(update={"fps": 30.0})) == 15.0
+    assert media.clip_fps(cam.model_copy(update={"fps": 12.5})) == 12.5
+    assert media.clip_fps(cam.model_copy(update={"fps": None})) == 15.0, "a live camera's rate is unknown: use the cap"
+    assert media._clip_filter(cam.model_copy(update={"fps": 10.0})) == ["-vf", "scale=w='min(1280,iw)':h=-2"]
+    media.clip_max_fps, media.clip_max_width = 0, 0
+    assert media._clip_filter(cam) == [] and media.clip_fps(cam.model_copy(update={"fps": 30.0})) == 30.0, "0 turns a cap off"

@@ -100,6 +100,10 @@ class MediaService:
         self.post_roll = float(cfg["media"]["post_roll_s"])
         self._blur_provider = blur_provider
         self.cache_max_bytes = int(cfg["media"].get("cache_max_bytes", 0))
+        # Evidence clips are capped in size and rate: every frame of a blurred clip goes through the face detector, and a
+        # full 1080p30 clip took about 40 s to blur against about 9 s at 1280 wide and 15 fps.
+        self.clip_max_width = int(cfg["media"].get("clip_max_width", 1280))
+        self.clip_max_fps = float(cfg["media"].get("clip_max_fps", 15))
         self._locks: dict[Path, threading.Lock] = {}
         self._guard = threading.Lock()
         self.ffmpeg_calls = 0
@@ -175,7 +179,7 @@ class MediaService:
                     source = ["-f", "concat", "-safe", "0", "-i", str(listing)]
                 self._ffmpeg([
                     *source, "-ss", f"{start - segs[0].start:.3f}", "-t", f"{end - start:.3f}", "-an",
-                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+                    *self._clip_filter(cam), "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
                     "-movflags", "+faststart", "-y", str(tmp),
                 ])
             os.replace(tmp, out)
@@ -318,16 +322,31 @@ class MediaService:
         try:
             self._ffmpeg([
                 "-ss", f"{start:.3f}", "-i", str(src), "-t", f"{end - start:.3f}", "-an",
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+                *self._clip_filter(cam), "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
                 "-movflags", "+faststart", "-y", str(tmp),
             ])
             os.replace(tmp, out)
         finally:
             tmp.unlink(missing_ok=True)
 
+    def clip_fps(self, cam: CameraInfo) -> float:
+        """Frame rate of a rendered evidence clip: the camera's own, or the cap when it is higher or unknown."""
+        if self.clip_max_fps <= 0:
+            return cam.fps or 25.0
+        return min(cam.fps, self.clip_max_fps) if cam.fps else self.clip_max_fps
+
+    def _clip_filter(self, cam: CameraInfo) -> list[str]:
+        """ffmpeg filters that cap an evidence clip's width and frame rate (never enlarging, never adding frames)."""
+        parts = []
+        if self.clip_max_fps > 0 and (not cam.fps or cam.fps > self.clip_max_fps):
+            parts.append(f"fps={self.clip_max_fps:g}")
+        if self.clip_max_width > 0:
+            parts.append(f"scale=w='min({self.clip_max_width},iw)':h=-2")
+        return ["-vf", ",".join(parts)] if parts else []
+
     def _blur_clip(self, cam: CameraInfo, raw: Path, out: Path, fn: BlurFn) -> None:
         """Decode to JPEG frames, blur each, re-encode. Disk based so no pixel library is needed."""
-        fps = cam.fps or 25.0
+        fps = self.clip_fps(cam)
         tmp_out = out.with_name(f"{out.stem}.{uuid.uuid4().hex[:6]}.tmp.mp4")
         with tempfile.TemporaryDirectory(dir=self.ws.clips_dir) as td:
             frames = Path(td)
