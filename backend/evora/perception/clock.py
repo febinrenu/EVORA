@@ -26,7 +26,7 @@ from evora.perception.vision import VisionClient, get_vision_client
 log = logging.getLogger("evora.perception.clock")
 
 DEFAULT_TZ = "Asia/Kolkata"
-VISION_BUDGET_S = 40.0
+VISION_BUDGET_S = 25.0
 OsdReader = Callable[[Path], "float | None"]  # returns epoch seconds, or None when no timestamp is readable
 
 _MIN_YEAR, _MAX_YEAR = 2000, 2100
