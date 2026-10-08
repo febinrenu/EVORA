@@ -16,9 +16,9 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 ## Status board (each member edits only their own block)
 
 ### M1 — Platform, Memory & Integration
-- State: not started
-- Doing:
-- Next: P1.1–P1.3 (cp0)
+- State: on track
+- Doing: cp0 pushed; starting P1.4
+- Next: P1.4 db/vectors/workspace, P1.5 camera upload
 - Blockers:
 
 ### M2 — Perception & Identity
@@ -46,7 +46,7 @@ State values: not started · on track · at risk · blocked · done
 ## Checkpoints
 | Gate | Target | Result | Notes |
 |---|---|---|---|
-| cp0 contracts + fixtures | start + 1:00 | | |
+| cp0 contracts + fixtures | start + 1:00 | pass | tag cp0; `make check` green (26 tests) |
 | CP1 thin slice | start + 4:20 | | |
 | CP2 eval #1 + dry run | start + 9:30 | | |
 | Judge simulation | start + 12:45 | | |
@@ -81,3 +81,7 @@ State values: not started · on track · at risk · blocked · done
 
 ## Log (append only, newest at the bottom)
 - [HH:MM] [M1] Repository created; PROGRESS.md initialised.
+- [09:57] [M1] P1.1 scaffold done (a0b9cd5): uv project, config profiles, Makefile (setup dev check test types), README.
+- [09:57] [M1] P1.2 contracts v1 + fixtures + generated TS types done (e70d847). CONTRACT v1: pull and code against `contracts/`; use `contracts/fixtures/*.json` for mocks.
+- [09:57] [M1] P1.3 API skeleton done (cea238f): every §5.5 route on :8700 serving fixtures; `make dev`. Tagged cp0.
+- [09:57] [M1] HANDOFF: next is P1.4 (core/db.py, vectors.py, workspace.py), then P1.5 upload. Windows note: `make` via winget ezwinports.make; `uv` via `python -m uv` (Makefile handles both).
