@@ -35,7 +35,7 @@ class FrameTracker:
             results = self.det.model.track(
                 bgr, persist=not self._fresh, tracker=self.cfg.tracker, conf=self.cfg.det_conf,
                 imgsz=self.cfg.det_imgsz, classes=self.det.class_ids, device=self.det.device,
-                half=self.det.half, verbose=False,
+                quantize=16 if self.det.half else None, verbose=False,
             )
         self._fresh = False
         boxes = results[0].boxes
