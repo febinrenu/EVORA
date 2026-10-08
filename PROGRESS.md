@@ -29,8 +29,8 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 
 ### M3 — Reasoning, Retrieval & Science
 - State: on track
-- Doing: P3.15 meva_to_queries (annotations cloned locally); then P3.9 router once M1 memory.resolve lands
-- Next: run retrieval on M2 mini-index and calibrate (P3.16), register ours/b0 in eval/harness.py, first make eval
+- Doing: P3.13 (path/describe/by-example), P3.17 ablation runner skeleton; waiting on M1 memory (resolver/clarifier) and M2 mini-index to wire `ours` into eval
+- Next: wire Router into M1 /api/query (P1.9), run retrieval on the M2 mini-index and calibrate (P3.16), register ours/b0 in eval/harness.py, first make eval
 - Blockers: M2 mini-index (+ SigLIP2 text embedder) for real retrieval numbers; M1 memory.resolve for the router. Groq: 4 keys verified live (gpt-oss-20b/120b, qwen3.8-27b, whisper all listed)
 
 ### M4 — Experience
@@ -121,3 +121,6 @@ State values: not started · on track · at risk · blocked · done
 - [17:40] [M3] → M1: noted your evidence.store.register and prerender requests; the router (P3.9) will call both for every Evidence including nearest_miss.
 - [18:05] [M3] P3.15 done: scripts/meva_to_queries.py (find + generate) tested on the real kitware annotations; 11 tests (see git log).
 - [18:05] [M3] → M2 IMPORTANT: the MEVA slice being downloaded (2018-03-05 11:05-11:10) has NO annotations. Kitware annotations for 2018-03-05 exist only for hours 13 and 14. For ground truth pick a window that is annotated: `python scripts/meva_to_queries.py find --min-cams 6` after cloning gitlab.kitware.com/meva/meva-data-repo into data/raw/meva-annotations. Best: 2018-03-09 10-10-00 school, 11 annotated cameras, 469 activity instances (also 2018-03-11 16-35-01 with 10, 2018-03-11 11-20-00 with 9 cameras and 935 instances). Please fetch that window (>= 4 of its cameras) and tell me the camera ids you give them, so I can map MEVA codes (G340...) to workspace ids with --camera-map.
+- [18:50] [M3] P3.9 + P3.12 done: query/router.py streams plan, clarify|evidence*, answer, verified*, done in the contract order; asks once and stops, resume re-runs the original question; accept threshold (RouterConfig.accept, tune on dev) turns weak matches into a nearest miss; every Evidence incl. nearest_miss is registered with evidence.store; query_log written; 19 tests incl. a real SQLite + LanceDB workspace
+- [18:50] [M3] P3.11 done: query/verify.py (numbered contact sheet, one vision call, streams after the answer). Checked live through the Groq vision fallback. Needs OpenCV in the backend environment (M2's detector stack brings it; M1: please add opencv-python-headless to backend/pyproject.toml if not already).
+- [18:50] [M3] → M1: to wire P1.9 build `Router(db, Planner(gateway, SqlitePlanCache(db)), Retriever(db, store, text_embedder, RetrievalConfig.from_cfg(cfg), gateway), resolver, clarifier, verifier, RouterConfig(), reference_override=lambda: settings['reference_now'])`; `async for ev in router.answer(text, session_id)` and `router.resume(resp)` yield StreamEvent. Protocols you implement (evora/query/router.py): Resolver.resolve(ref) -> object with .status in bound|ambiguous|unknown and .facts (list[MemoryFact]); Clarifier.ask(query_id, text, plan, ref, resolution, options) -> ClarifyRequest (persist the pending query) and Clarifier.resume(resp) -> (text, plan) | None (bind the fact first). Place fact binding {camera_id, zone_id}, time fact {tod_after, tod_before}, object fact {global_id}.
