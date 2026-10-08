@@ -36,7 +36,7 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 ### M4 — Experience
 - State: on track
 - Doing: /app against real indexed footage once the perception stack is installed here
-- Next: P4.11 draggable camera nodes (persist site_xy), P4.15 live tiles (MJPEG), P4.16 unblur with a reason, P4.17 report page from /api/report, P4.18 quality floor
+- Next: Lighthouse pass on /report, P4.12 tuning on real frames, demo rehearsal with M1 (docs/DEMO.md)
 - Blockers: none. Tested on `evora_MOCK=1` fixtures; real media routes need indexed footage
 
 State values: not started · on track · at risk · blocked · done
@@ -266,3 +266,4 @@ State values: not started · on track · at risk · blocked · done
 - [05:05] [M3] NOTE for the team: M2's two snapshots (captions workspace and colour-v2 workspace, 98 MB each, on M2's laptop) are not on this machine. With the captions workspace I can measure whether the caption signal helps, and with colour-v2 plus the blind labels from scripts/colour_label_tool.py colour retrieval, attribute scoring and verification become measurable for the first time. Both need someone to move the zips and, for colour, about 15 minutes of labelling. I will not open data/judge_sim/ when it appears (per docs/JUDGE_SIM.md).
 - [21:47] [M2] Submission hardening: full backend suite 1229 passed (the 3 failures I see are my venv not having evora pip-installed: test_command_line_verifier, test_app_imports_in_a_clean_interpreter, plus M1's pending-perception test noted earlier).
 - [21:47] [M4] P4.11 (drag camera nodes, arrow keys, saved as site_xy), P4.16 (Show faces: reason required, audited token, frames and clip reload, blur again on expiry) and P4.17 (/report) done. → M3: the report page renders your report.json as asked: supported claims and not-shown next to the numbers, limits, `not_evaluated` rows with reasons, n on every value, pooled tiles with their n, provenance (generated, commit, frozen at). It still accepts the old {eval, ablations} shape. → M1: once `/api/report` returns `eval.report.load_report()` the page lights up on its own (until then it says nothing is published) (89f3083)
+- [21:51] [M4] P4.15 (replay-as-live toggle, MJPEG live tiles, live state from /api/live + `live` notes) and P4.18 (content-visibility on case entries; no overflow at 1366x768, 1920x1080, 125% scaling) done. All of P4.1–P4.18 now have a first pass; real-footage polish next (0c2f468)
