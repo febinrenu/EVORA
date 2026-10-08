@@ -110,7 +110,10 @@ class AppContext:
             on_end=lambda camera_id: live_sessions.end(db, camera_id, time.time()),
         )
         ctx.notifier = Notifier(gateway, lambda: bool(settings["onprem"]))
-        ctx.alerts = AlertEngine(db, bus, memory.kb, ctx.notifier)
+        cap = cfg.get("alerts", {}).get("push_cap", {})
+        ctx.alerts = AlertEngine(
+            db, bus, memory.kb, ctx.notifier, push_cap=int(cap.get("count", 0)), push_window_s=float(cap.get("window_s", 60)),
+        )
         ctx.live_runner = LiveRunner(
             db, ws, bus, ctx.alerts, ctx.live, profile=os.environ.get("evora_PROFILE", "cpu"),
             onprem=lambda: bool(settings["onprem"]), allows=guard.allows,

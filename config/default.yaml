@@ -46,6 +46,9 @@ up:
   start_ollama: false    # on-prem mode always starts Ollama if it is installed but not running
 alerts:
   default_cooldown_s: 30
+  push_cap:             # phone pushes per watch; the alerts themselves are always stored and shown
+    count: 5            # 0 = no cap
+    window_s: 60
 jobs:
   workers: 0            # 0 = auto (cpu cores / 4, at least 1)
   default_layers: [L0, L1, L2, L3]

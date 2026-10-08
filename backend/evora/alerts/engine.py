@@ -4,7 +4,9 @@ from __future__ import annotations
 import hashlib
 import logging
 import threading
-from collections.abc import Mapping
+import time
+from collections import deque
+from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any
 
@@ -29,8 +31,14 @@ EVIDENCE_PAD_S = 2.0
 
 
 class AlertEngine:
-    def __init__(self, db: Database, bus: Bus, kb: KnowledgeBase, notifier: Notifier | None = None) -> None:
+    def __init__(
+        self, db: Database, bus: Bus, kb: KnowledgeBase, notifier: Notifier | None = None, *,
+        push_cap: int = 0, push_window_s: float = 60.0, clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         self.db, self.bus, self.kb, self.notifier = db, bus, kb, notifier
+        self._push_cap, self._push_window, self._now = push_cap, push_window_s, clock  # a cap of 0 means no cap
+        self._pushed: dict[str, deque[float]] = {}
+        self._held: dict[str, int] = {}
         self._lock = threading.RLock()
         self._rules_cache: list[tuple[StandingQuery, StandingRule]] | None = None
         self._last_alert: dict[tuple[str, str], float] = {}
@@ -149,8 +157,29 @@ class AlertEngine:
     def _announce(self, alert: Alert, rule_summary: str, historical: bool) -> None:
         self.bus.publish("alert", {"alert": alert.model_dump(mode="json"), "historical": historical})
         if self.notifier is not None and not historical:  # a phone is only buzzed for what is happening now
+            allowed, held = self._push_allowed(alert.standing_query_id)
+            if not allowed:
+                self.bus.publish("alert_burst", {"standing_query_id": alert.standing_query_id, "held_back": held})
+                return
             text = f"{rule_summary} ({alert.evidence.camera_name}, {self._clock(alert.t)})"
+            if held:
+                text += f" (+{held} more held back)"
             self.notifier.push("evora alert", text)
+
+    def _push_allowed(self, watch_id: str) -> tuple[bool, int]:
+        """(may this alert buzz a phone, how many earlier ones were held back). Every alert is still stored and shown."""
+        if self._push_cap <= 0:
+            return True, 0
+        with self._lock:
+            now = self._now()
+            sent = self._pushed.setdefault(watch_id, deque())
+            while sent and now - sent[0] >= self._push_window:
+                sent.popleft()
+            if len(sent) >= self._push_cap:
+                self._held[watch_id] = self._held.get(watch_id, 0) + 1
+                return False, self._held[watch_id]
+            sent.append(now)
+            return True, self._held.pop(watch_id, 0)
 
     # --- recorded footage ---
     def backfill(self, camera_id: str | None = None, only_rule: str | None = None, historical: bool = True) -> int:

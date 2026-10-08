@@ -6,6 +6,7 @@ import pytest
 from contracts.models import Zone
 
 from evora.alerts import store
+from evora.alerts.engine import AlertEngine
 from evora.alerts.notify import Notifier
 from evora.alerts.store import StandingRule
 from evora.core import zones
@@ -240,3 +241,114 @@ def test_engine_pushes_live_alerts_but_not_historical_ones(gate):
     gate.engine.evaluate(gate.event("old", track="cam_01:t2"), historical=True)
     assert len(gw.sent) == 1 and "Gate" in gw.sent[0][2] and "secret" not in gw.sent[0][2]
     assert datetime.fromtimestamp(T0 + 10, UTC).strftime("%H:%M") in gw.sent[0][2]
+
+
+# ---- the phone push cap -----------------------------------------------------------------------------------------
+
+class Phone:
+    def __init__(self):
+        self.sent: list[str] = []
+
+    def push(self, title, text):
+        self.sent.append(text)
+        return True
+
+
+class Clock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+def capped(env, cap=5, window=60.0):
+    phone, clock = Phone(), Clock()
+    env.engine = AlertEngine(env.db, env.bus, env.kb, phone, push_cap=cap, push_window_s=window, clock=clock)
+    return phone, clock
+
+
+def burst(env, n, start=0, step=40.0):
+    """n distinct crossings by distinct people (so the per-person cooldown never hides one)."""
+    out = []
+    for i in range(start, start + n):
+        env.track(f"cam_01:t{i}")
+        out += env.engine.evaluate(env.event(f"b{i}", track=f"cam_01:t{i}", t=T0 + step * i))
+    return out
+
+
+def test_a_burst_stores_every_alert_but_only_buzzes_up_to_the_cap(gate):
+    phone, _ = capped(gate)
+    watch(gate)
+    assert len(burst(gate, 12)) == 12 and len(store.list_alerts(gate.db)) == 12
+    assert len(phone.sent) == 5
+
+
+def test_after_the_window_the_next_push_says_how_many_were_held_back(gate):
+    phone, clock = capped(gate)
+    watch(gate)
+    burst(gate, 8)
+    assert len(phone.sent) == 5
+    clock.now += 61
+    burst(gate, 1, start=8)
+    assert len(phone.sent) == 6 and phone.sent[-1].endswith("(+3 more held back)")
+    clock.now += 61
+    burst(gate, 1, start=9)
+    assert "held back" not in phone.sent[-1], "the count is reported once"
+
+
+def test_a_burst_note_tells_the_screen(gate):
+    async def scenario():
+        capped(gate, cap=1)
+        watch(gate)
+        sub = gate.bus.subscribe()
+        await asyncio.to_thread(burst, gate, 3)
+        notes = []
+        while True:
+            try:
+                notes.append(json.loads((await asyncio.wait_for(sub.queue.get(), 0.5))["data"]))
+            except TimeoutError:
+                return notes
+
+    bursts = [n for n in asyncio.run(scenario()) if n["kind"] == "alert_burst"]
+    assert [b["held_back"] for b in bursts] == [1, 2] and bursts[0]["standing_query_id"].startswith("sq")
+
+
+def test_each_watch_has_its_own_budget(gate):
+    phone, _ = capped(gate, cap=1)
+    watch(gate)
+    other = StandingRule(
+        targets=["person"], place="main gate", camera_ids=["cam_01"], zone_id="z_gate", events=["cross_line"],
+        direction="a_to_b", cooldown_s=30.0, summary="Second watch.",
+    )
+    store.create_standing(gate.db, "second", other)
+    gate.engine.invalidate()
+    burst(gate, 2)
+    assert len(phone.sent) == 2, "one push per watch for the first crossing, the second crossing is held back for both"
+
+
+def test_a_cap_of_zero_means_no_cap(gate):
+    phone, _ = capped(gate, cap=0)
+    watch(gate)
+    burst(gate, 9)
+    assert len(phone.sent) == 9
+
+
+def test_historical_alerts_never_count_against_the_budget(gate):
+    phone, _ = capped(gate, cap=1)
+    watch(gate)
+    gate.track("cam_01:t2")
+    gate.event("old", t=T0 + 10, track="cam_01:t2")
+    gate.engine.backfill("cam_01")
+    assert phone.sent == []
+    assert len(burst(gate, 1, start=5)) == 1 and len(phone.sent) == 1
+
+
+def test_the_app_reads_the_cap_from_config(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from evora.api.app import create_app
+
+    monkeypatch.setenv("evora_WORKSPACE", "capcfg")
+    engine = TestClient(create_app(workspaces_root=tmp_path / "ws", gateway=object())).app.state.ctx.alerts
+    assert (engine._push_cap, engine._push_window) == (5, 60.0)
