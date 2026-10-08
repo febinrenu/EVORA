@@ -34,10 +34,10 @@ Ingestion box: ________ (GPU: ________) · Start time: ____ · Freeze: start + 1
 - Blockers: M2 mini-index (+ SigLIP2 text embedder) for real retrieval numbers; M1 memory.resolve for the router. Groq: 4 keys verified live (gpt-oss-20b/120b, qwen3.8-27b, whisper all listed)
 
 ### M4 — Experience
-- State: not started
-- Doing:
-- Next: P4.1–P4.3
-- Blockers:
+- State: on track
+- Doing: performance pass on the `/` story (twin acts under CPU throttle), then phone layout and reduced motion
+- Next: P4.4+ in `/app`: ask bar + SSE client, case log, evidence sheet, against `evora_MOCK=1 make dev`
+- Blockers: none. Note: `make check` does not cover `frontend/` yet (request below)
 
 State values: not started · on track · at risk · blocked · done
 
@@ -72,6 +72,7 @@ State values: not started · on track · at risk · blocked · done
 - [17:14] [M2] DECISION: detector yolo26n.pt, profile gpu on the RTX 4060 laptop. Why: n and s both run about 85 fps detect+track on 360x288 (bound by per-frame tracker overhead, not the network), so n is enough. Impact: ingest speed; set `ingest.detector` to change.
 - [17:44] [M2] DECISION: line direction convention for Zone.direction and cross_line payload.direction: looking from point a to point b in normalised image coordinates, `a_to_b` means the track goes from the left of the line to the right (b_to_a the reverse). Left is where dx*(py-ay) - dy*(px-ax) > 0, with y growing downwards. Why: the contract did not define it. Impact: M4 must draw the inward arrow for `a_to_b` accordingly; M3's enter/exit use a_to_b as inwards.
 - [17:44] [M2] DECISION: L2 means attributes + events for now (ReID features join it in P2.14/P2.15). Re-running L2 is idempotent and recomputes events for every stored zone.
+- [18:48] [M4] DECISION: frontend is one Next.js (App Router) app: `/` is the scroll story of the system, `/app` the operator product on the light table (PLAN §10). Replaces the Vite assumption in PLAN §8.4. Why: one codebase, shared tokens and contracts types; the story ends by switching the light table on and walking into `/app`. Impact: M1 `make up` serves the built frontend (`npm run build`, static output); UI dev server is `npm run dev` in `frontend/`.
 
 ## Contract change requests (append only)
 - [02:30] [M1] REQUEST (self-approved, additive): `GET /api/live`, `POST /api/live/replay {camera_ids, speed?}`, `POST /api/live/replay/stop {camera_ids?}`, bus note `kind="live"`. Why: replay-as-live demo and live testing without a camera. Affects: M2, M4. → [02:30] [M1] APPROVED v1.7 (588862c)
@@ -116,6 +117,7 @@ State values: not started · on track · at risk · blocked · done
 - [17:37] [M2] → M1: blur_faces is in (`from evora.perception import blur_faces`, 3454da2). It returns JPEG bytes and raises FaceBlurUnavailable when models/yunet is missing, so catch that to set your X-Evora-Blur header. bge-small for fastembed is fetched by `python scripts/models_download.py --only fastembed` into models/fastembed: pass cache_dir=<repo>/models/fastembed to default_embedder (298eb55).
 - [17:44] [M2] → M3: tracks.attrs is now filled (L2, 0d7b0e7) with TrackAttrs JSON: color/upper_color/lower_color from 11 basic terms (suppressed on infrared), vehicle_type, carrying (person-bag association, incl. large_bag), size_rel, is_ir; cameras.ir_fraction is set. Events table has appear/disappear for every track (zone_id NULL), and cross_line/enter_zone/exit_zone/dwell for every stored zone. `recompute_events(camera_id, zones)` is in evora.perception.events for retroactive zones (M1 can call it when a zone is saved). Note the terrace test footage is mostly dark clothing, so expect 'black' to dominate there; colour accuracy still needs checking on our own footage.
 - [17:58] [M2] → M3: meva-school is ready (see Datasets). Honest limits: the school cameras are quiet (cam_02 has 4 tracks), 'black' is the upper colour of 74% of people (winter clothing, 720p, small crops; colour accuracy is not validated yet), and the topology learner found no confident cross-camera transit in a 5-minute window, so path queries will rely on the 10 appearance-linked identities. `evora.reid`: `link_global_ids(ws)`, `path_for(global_id, db=...)` (PathHop.evidence_id is the track id with ':' replaced by '_', because media ids cannot contain ':'; map it to your own evidence id), `similar_tracks(track_id, k)` for query by example. Ablation switch: IngestSettings.reid_topology (C5).
+- [18:48] [M4] → M1: please add `cd frontend && npm ci && npm run check` (tsc + eslint) to `make check`, and `npm run build` to `make up` when you get there. `frontend/.gitignore` already excludes `.next/` and the generated `public/footage/`.
 
 ## Known issues (append; mark fixed with commit)
 - [17:58] [M2] Ingest speed: L1 runs at about 3 video-s/s per camera on the RTX 4060 (L0 about 5), single process. Too slow for judge-day volume; P2.18 will batch and parallelise. Colour naming has not been checked against ground truth.
@@ -127,6 +129,7 @@ State values: not started · on track · at risk · blocked · done
 - [16:06] [M2] EPFL terrace1, passageway1 and 6p (12 clips) downloaded and normalised to H.264 mp4 under data/norm/epfl; manifest at data/manifest.json. MEVA 2018-03-05 11:05-11:10 slice and WILDTRACK zip downloading.
 - [17:14] [M2] Local mini index at workspaces/mini (2 cameras, EPFL terrace1-c0/c1, 200 s each, t0 2026-10-01T09:00+05:30): 190 tracks, 740 crop and 1010 scene vectors. Not in git. Rebuild: `python scripts/data/fetch_epfl.py --only terrace1`, `bash scripts/data/transcode.sh data/raw/epfl data/norm/epfl`, `python -m evora.perception.cli ingest data/norm/epfl/terrace1-c0.mp4 data/norm/epfl/terrace1-c1.mp4 --workspace mini --profile gpu --t0 2026-10-01T09:00:00+05:30`. SigLIP2, bge-small, YOLO26, YOLOE-26 and YuNet weights are in models/ (python scripts/models_download.py). qwen3-vl:4b pulled; qwen3.5:4b needs Ollama >= a newer release than 0.17.1 (pull refused).
 - [17:58] [M2] MEVA 2018-03-09 10:10 school window is fully indexed (L0-L3 minus L3) in workspace `meva-school`: 8 cameras (cam_01=G299, cam_02=G300, cam_03=G328, cam_04=G330, cam_05=G419, cam_06=G421, cam_07=G423, cam_08=G424), 300 s each, 245 tracks (200 person, 44 car, 1 truck), 949 crop and 6040 scene vectors, ReID vectors, attributes, events. Clocks come from the file names (+05:30). Zip of the workspace (108 MB): data/share/meva-school-workspace.zip on my laptop, unzip into `workspaces/` to use it.
+- [18:48] [M4] EPFL terrace/passageway/6p: 12 s segments of nine views tiled into `frontend/public/footage/atlas.mp4` (1920x1080, ~4 MB) by `npm run footage` (reads over HTTP, no full download; needs ffmpeg). Git-ignored; procedural feeds when absent.
 
 ## Log (append only, newest at the bottom)
 - [HH:MM] [M1] Repository created; PROGRESS.md initialised.
@@ -190,3 +193,4 @@ State values: not started · on track · at risk · blocked · done
 - [18:17] [M2] P2.19 done: robustness drill (`python scripts/data/make_robustness_clips.py` then `python scripts/robustness_drill.py --fresh`): rotated phone video, variable frame rate, 4K, 60 fps, HEVC/mkv, one-frame, night/IR-look and a truncated faststart file all ingest; audio-only, empty and a truncated mp4 without its index are rejected with a clear message and leave no half-registered camera. Infrared footage is flagged (ir_fraction 1.0) and its colours suppressed. 88 perception tests (883a0e0).
 - [02:30] [M1] P1.16 done (588862c): replay-as-live: a loopback-only MediaMTX (every other protocol off) and one supervised ffmpeg loop per camera (copy first, one transcode retry for an instant failure, up to 3 restarts, then `failed` with the last log line), speed 0.25 to 8, state notes on the bus, clean shutdown that frees the port. Checked for real with the installed MediaMTX 1.21.1: ffprobe reads an H.264 stream back from the RTSP URL. CONTRACT v1.7. 909 tests in make check.
 - [02:40] [M1] Fix: my P1.16 commit accidentally added `backend/auto.crt` and `backend/auto.key`, a throwaway self-signed certificate pair MediaMTX generates in its working directory; removed from the tree, git-ignored, and MediaMTX now starts inside `<workspace>/live`. They were never used by anything (RTSP encryption is off) so there is nothing to rotate; they remain in history (not rewritten).
+- [18:48] [M4] P4.1–P4.3 done in Next.js instead of Vite (see Decision): tokens, self-hosted Archivo + Geist Mono, `/app` shell; plus the full `/` story (13 acts, one renderer, one ticker, digital twin, EPFL atlas). tsc + eslint clean, production build green; scroll through all acts has zero long tasks on the Iris Xe (cd32dcb)
