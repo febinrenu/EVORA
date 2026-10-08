@@ -1,6 +1,7 @@
 """Render frames, thumbnails and clips from stored footage, with a disk cache and face blur."""
 from __future__ import annotations
 
+import base64
 import logging
 import os
 import secrets
@@ -20,6 +21,11 @@ from evora.evidence.store import EvidenceRecord
 
 log = logging.getLogger("evora.media_service")
 
+# a 1x1 JPEG, used to check that the blur model actually runs
+_PROBE_JPEG = base64.b64decode(
+    "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////"
+    "////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA="
+)
 FFMPEG_TIMEOUT_S = 120
 UNBLUR_TTL_S = 300
 
@@ -71,6 +77,7 @@ class MediaService:
         self._locks: dict[Path, threading.Lock] = {}
         self._guard = threading.Lock()
         self.ffmpeg_calls = 0
+        self._probe: tuple[float, int, bool] | None = None  # (when, id of the blur function, did it work)
         (ws.media_dir / "thumbs").mkdir(parents=True, exist_ok=True)
         ws.clips_dir.mkdir(parents=True, exist_ok=True)
 
@@ -104,6 +111,23 @@ class MediaService:
         if not path.is_file():
             raise MediaError(404, "source video is missing")
         return path
+
+    def blur_status(self, want_blur: bool) -> str:
+        """`off`, `applied` or `unavailable`, by actually running the blur on a tiny image (cached for 30 s)."""
+        if not want_blur:
+            return "off"
+        fn = self._blur_provider()
+        if fn is None:
+            return "unavailable"
+        now = time.monotonic()
+        if self._probe is None or self._probe[1] != id(fn) or now - self._probe[0] > 30:
+            try:
+                fn(_PROBE_JPEG)
+                ok = True
+            except Exception:  # noqa: BLE001 - any failure means blur cannot be promised
+                ok = False
+            self._probe = (now, id(fn), ok)
+        return "applied" if self._probe[2] else "unavailable"
 
     def blur_function(self) -> BlurFn | None:
         """The face-blur function if the model is installed (no logging; callers decide what to do without it)."""

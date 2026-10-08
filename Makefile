@@ -35,5 +35,8 @@ test-e2e:
 eval ablate models:
 	@echo "make $@: owned by M2/M3, not wired yet"; exit 1
 
-doctor offline-test up:
+offline-test:
+	HF_HUB_OFFLINE=1 evora_ONPREM=1 $(BACKEND) run pytest -q tests/e2e tests/privacy
+
+doctor up:
 	@echo "make $@: M1 phase 3, not wired yet"; exit 1

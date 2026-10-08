@@ -30,6 +30,8 @@ media:
   blur_faces: true
   cache_max_bytes: 2147483648   # clips and thumbnails; oldest are removed first
   prerender_top: 3
+privacy:
+  allow_hosts: []     # hosts reachable in on-prem mode besides loopback (empty = loopback only)
 alerts:
   default_cooldown_s: 30
 jobs:

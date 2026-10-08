@@ -13,12 +13,14 @@ from evora.alerts.compiler import StandingCompiler
 from evora.alerts.engine import AlertEngine
 from evora.alerts.notify import Notifier
 from evora.core import perception_adapter
+from evora.core import settings as app_settings
 from evora.core import workspace as wsmod
 from evora.core.bus import Bus
 from evora.core.config import load_env_file
 from evora.core.db import Database, open_db
 from evora.core.jobs import IngestFn, JobRunner
 from evora.core.media_service import BlurFn, MediaService, UnblurTokens
+from evora.core.privacy_guard import guard
 from evora.core.workspace import Workspace
 from evora.core.zone_service import ZoneService
 from evora.evidence.prerender import Prerenderer
@@ -70,7 +72,9 @@ class AppContext:
             default_layers=jobs["default_layers"], ingest_fn=ingest_fn, stub_tick_s=jobs["stub_tick_s"], ws=ws,
         )
         runner.recover()
-        settings = {"onprem": bool(cfg["llm"]["onprem"]), "blur_faces": bool(cfg["media"]["blur_faces"]), "reference_now": None}
+        defaults = {"onprem": bool(cfg["llm"]["onprem"]), "blur_faces": bool(cfg["media"]["blur_faces"]), "reference_now": None}
+        settings = app_settings.load(db, defaults, force_onprem=os.environ.get("evora_ONPREM") == "1")
+        guard.install(lambda: bool(settings["onprem"]), cfg.get("privacy", {}).get("allow_hosts", []))
         media = MediaService(ws, cfg, blur_provider or perception_adapter.get_blur_faces)
         prerender = Prerenderer(db, media, lambda: bool(settings["blur_faces"]), top=int(cfg["media"]["prerender_top"]))
         mock = bool(os.environ.get("evora_MOCK") == "1") if mock is None else mock

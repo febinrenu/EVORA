@@ -64,6 +64,10 @@ def make_router(ctx: AppContext) -> APIRouter:
             raise HTTPException(422, "no audio received")
         if len(audio) > MAX_VOICE_BYTES:
             raise HTTPException(413, "audio is too large")
+        if ctx.settings["onprem"]:
+            raise HTTPException(
+                503, "Voice needs a cloud model and on-prem mode is on. Use the browser microphone or type the question."
+            )
         try:
             return {"text": await ctx.gateway.transcribe(audio)}
         except LLMError as exc:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import os
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -12,6 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
+from evora import __version__
 from evora.api import (
     fixtures,
     routes_alerts,
@@ -23,9 +25,12 @@ from evora.api import (
     routes_zones,
 )
 from evora.api.context import AppContext
+from evora.core import cameras as cams
+from evora.core import settings as app_settings
 from evora.core.config import load_config
 from evora.core.jobs import IngestFn
 from evora.core.media_service import BlurFn
+from evora.core.privacy_guard import guard
 from evora.evidence import audit
 from evora.memory.embedder import TextEmbedder
 from evora.memory.resolve import Equivalence
@@ -54,7 +59,7 @@ def create_app(
         if ctx.http is not None:
             await ctx.http.aclose()
 
-    app = FastAPI(title="evora", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="evora", version=__version__, lifespan=lifespan)
     app.state.ctx = ctx
     app.include_router(routes_cameras.make_router(ctx))
     app.include_router(routes_ingest.make_router(ctx))
@@ -77,7 +82,13 @@ def create_app(
     # --- health, workspaces ---
     @app.get("/api/health")
     def health():
-        return {**fixtures.load("health"), "workspace": ctx.ws.slug, "onprem": state["settings"]["onprem"]}
+        usable = [c for c in cams.list_cameras(ctx.db) if c.status != "error"]
+        ready = sorted(set.intersection(*(set(c.layers) for c in usable))) if usable else []
+        return {
+            "ok": True, "version": __version__, "workspace": ctx.ws.slug, "profile": os.environ.get("evora_PROFILE", "cpu"),
+            "onprem": bool(state["settings"]["onprem"]), "layers_ready": ready,
+            "egress_blocked": guard.blocked, "blur": ctx.media.blur_status(bool(state["settings"]["blur_faces"])),
+        }
 
     @app.get("/api/workspaces")
     def workspaces():
@@ -126,11 +137,19 @@ def create_app(
     # --- settings, voice, report, dev ---
     @app.post("/api/settings")
     def settings(body: dict):
-        changes = {k: v for k, v in body.items() if k in state["settings"]}
-        if "blur_faces" in changes and changes["blur_faces"] != state["settings"]["blur_faces"]:
-            audit.record(ctx.db, "blur_setting", {"blur_faces": bool(changes["blur_faces"])})
-        state["settings"].update(changes)
-        return state["settings"]
+        try:
+            changes = app_settings.validate(body)
+        except app_settings.SettingsError as exc:
+            raise HTTPException(422, str(exc)) from None
+        current = state["settings"]
+        if "blur_faces" in changes and changes["blur_faces"] != current["blur_faces"]:
+            audit.record(ctx.db, "blur_setting", {"blur_faces": changes["blur_faces"]})
+        if "onprem" in changes and changes["onprem"] != current["onprem"]:
+            audit.record(ctx.db, "onprem_setting", {"onprem": changes["onprem"]})
+            ctx.bus.publish("privacy", {"onprem": changes["onprem"]})
+        current.update(changes)
+        app_settings.save(ctx.db, changes)
+        return current
 
     @app.get("/api/report")
     def report():
