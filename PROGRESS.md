@@ -169,6 +169,7 @@ State values: not started · on track · at risk · blocked · done
   (2) BACKUP VIDEO (docs/DEMO.md §1.6, none exists yet). Record that rehearsal: Win+G (Xbox Game Bar) or OBS, browser full screen (F11) at the projector size, about 5 minutes. Keep it outside the repo and put a copy on the desktop.
   (3) SCREENSHOTS FOR docs/WRITEUP.md (it has none). From the same run: the story opening at /, an answer sheet with the circled frame, the clarify card with a drawn line, the site plan with a route, the watch drawer with an alert, /report. PNG, about 300 kB each; give them to the write-up owner.
   Tips: on a projector, Ctrl + (125%) makes the circled frame easier to see; if the page ever looks stuck, refresh (state lives on the server); "Check this machine" in the top bar runs the same checks as `make doctor`.
+- [06:51] [M4] → M1 (README.md is yours): please add the hosted site near the top of the root README, e.g. right under the first paragraph: "**Live: https://evora-ivory.vercel.app** — the story and the results page. The product at `/app` needs the local API, so there it only shows the interface; run `start.bat` (or `make up`) for the working system." frontend/README.md already carries it.
 
 ## Known issues (append; mark fixed with commit)
 - [17:58] [M2] Ingest speed: L1 runs at about 3 video-s/s per camera on the RTX 4060 (L0 about 5), single process. Too slow for judge-day volume; P2.18 will batch and parallelise. Colour naming has not been checked against ground truth.
