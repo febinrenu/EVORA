@@ -61,7 +61,8 @@ export function AppShell() {
             st.setClock(n.camera_id, n.state === "failed" ? { state: "failed", error: typeof n.error === "string" ? n.error : undefined } : null);
             void st.refreshCameras();
           }
-        } else if (n.kind === "privacy") void st.refreshHealth();
+        } else if (n.kind === "site") st.siteChanged();
+        else if (n.kind === "privacy") void st.refreshHealth();
         else if (n.kind === "live" && typeof n.camera_id === "string" && typeof n.state === "string") st.setLive(n.camera_id, n.state);
         else if (n.kind === "analysis" && typeof n.camera_id === "string" && typeof n.state === "string") st.setAnalysis(n.camera_id, n.state);
         else if (n.kind === "alert" && n.alert && typeof n.alert === "object") st.pushAlert(n.alert as Alert, n.historical === true);

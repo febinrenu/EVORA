@@ -94,7 +94,11 @@ export function EvidenceSheet({ ev, verified, first }: { ev: Evidence; verified:
           {offset(ev.offset_s)} into {fileName(cam)}
         </p>
         <p className={`lt-score is-${verified === true ? "ok" : verified === false ? "no" : "open"}`}>
-          {isHop(ev.hop) ? `Step ${ev.hop.index} of ${ev.hop.of} on the route` : confidence(ev.score)}
+          {isHop(ev.hop)
+            ? `Step ${ev.hop.index} of ${ev.hop.of} on the route`
+            : ev.why?.some((w) => w.startsWith("action estimate: "))
+              ? `Likeliest moment, an estimate · ${confidence(ev.score).toLowerCase()}`
+              : confidence(ev.score)}
           {verified === true ? " · confirmed" : verified === false ? " · rejected on a second look" : ""}
         </p>
         {ev.why?.length ? (

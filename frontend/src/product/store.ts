@@ -76,6 +76,8 @@ interface State {
   analysis: Record<string, string>;
   /** on-screen clock reading per camera, while it runs or after it failed (absent once done) */
   clock: Record<string, { state: "reading" | "failed"; error?: string }>;
+  /** bumped when the site plan picture changes anywhere (note kind="site") */
+  siteVersion: number;
   drawer: boolean;
   /** text to prefill in the watch form ("Watch for this" on an answer) */
   draft: string;
@@ -101,6 +103,7 @@ interface State {
   setClock: (cameraId: string, state: { state: "reading" | "failed"; error?: string } | null) => void;
   /** a camera's clock was corrected: answers that cite it now show stale times */
   clockCorrected: (cameraId: string) => void;
+  siteChanged: () => void;
   /** show an alert's evidence as an entry in the case log */
   openAlert: (a: Alert, watchText: string) => void;
   /** query by example: sightings that look like this track */
@@ -136,17 +139,27 @@ export const useEvora = create<State>()((set, get) => {
         }
         break;
       case "answer": {
+        // a second answer (after the visual check, or a vision-model count) replaces the first
         const answer = m.data as unknown as Answer;
+        const revision = Boolean(now.answer);
+        const evidence = answer.evidence?.length || (revision && Array.isArray(answer.evidence)) ? answer.evidence : now.evidence;
+        // a revised answer can carry the check's verdict on each item
+        const checked: Record<string, boolean> = {};
+        for (const ev of evidence) if (typeof ev.verified === "boolean") checked[ev.id] = ev.verified;
         patch(id, (c) => ({
           ...c,
           answer,
           queryId: answer.query_id,
-          evidence: answer.evidence?.length ? answer.evidence : c.evidence,
+          evidence,
+          verified: { ...c.verified, ...checked },
           status: "answered",
           ttfa: c.ttfa ?? performance.now() - started,
         }));
-        const first = answer.evidence?.[0];
-        if (first) set({ focus: { caseId: id, evidenceId: first.id } });
+        // keep the item the operator is looking at when it survives the revision
+        const focus = get().focus;
+        const stays = focus?.caseId === id && evidence.some((e) => e.id === focus.evidenceId);
+        const first = evidence[0];
+        if (first && !stays) set({ focus: { caseId: id, evidenceId: first.id } });
         break;
       }
       case "verified": {
@@ -261,6 +274,7 @@ export const useEvora = create<State>()((set, get) => {
     live: {},
     analysis: {},
     clock: {},
+    siteVersion: 0,
     drawer: false,
     draft: "",
 
@@ -402,6 +416,7 @@ export const useEvora = create<State>()((set, get) => {
     },
     setLive: (cameraId, state) => set((s) => ({ live: { ...s.live, [cameraId]: state } })),
     setAnalysis: (cameraId, state) => set((s) => ({ analysis: { ...s.analysis, [cameraId]: state } })),
+    siteChanged: () => set((s) => ({ siteVersion: s.siteVersion + 1 })),
     clockCorrected: (cameraId) =>
       set((s) => ({
         cases: s.cases.map((c) =>

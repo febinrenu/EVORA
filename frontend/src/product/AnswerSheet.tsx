@@ -56,9 +56,9 @@ export function AnswerSheet({ c }: { c: Case }) {
   const active = evidence.find((e) => e.id === activeId) ?? evidence[0];
   const verifiedCount = Object.values(c.verified).filter((v) => v === true).length;
   // an action EVORA cannot recognise ("put something down") is not watchable: a watch built
-  // from the plan would silently drop the action. The answer has no field for this yet, so
-  // it is read from the sentence the API documents for it (PROGRESS, M1 03:43).
-  const unrecognisedAction = a.verdict === "partial" && /^I can.t tell whether/i.test(a.text ?? "");
+  // from the plan would alert on mere presence (v1.14 unsupported_action; the sentence only
+  // for a server older than that field)
+  const unrecognisedAction = a.unsupported_action !== undefined ? Boolean(a.unsupported_action) : a.verdict === "partial" && /^I can.t tell whether/i.test(a.text ?? "");
   const watch = unrecognisedAction ? null : watchSentence(a.plan ?? c.plan, cameras);
   const notes = [...(a.notes ?? []), ...c.notes];
   const partial = a.verdict === "partial";
@@ -81,6 +81,11 @@ export function AnswerSheet({ c }: { c: Case }) {
         <p className="lt-partial">{notes.length ? "Some of this could not be checked. The notes below say what." : "Some of this could not be checked. The answer below says what."}</p>
       ) : null}
       {a.verdict !== "count" && evidence.length > 1 ? <p className="lt-shown">{evidence.length} shown</p> : null}
+      {a.verdict === "count" && typeof a.count === "number" && a.count > evidence.length && evidence.length ? (
+        <p className="lt-shown">
+          {evidence.length} of {a.count} shown
+        </p>
+      ) : null}
       <p className="lt-answer">{a.text}</p>
       {c.resolved.length ? <p className="lt-learned">Learned {c.resolved.join(", ")}. This will not be asked again.</p> : null}
       {active ? <EvidenceSheet key={active.id} ev={active} verified={c.verified[active.id]} first={active.id === evidence[0]?.id} /> : null}

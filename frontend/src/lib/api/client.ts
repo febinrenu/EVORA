@@ -169,6 +169,11 @@ export const endpoints = {
   track: (id: string) => api<TrackDetail>(`/api/tracks/${encodeURIComponent(id)}`),
   setOnprem: (onprem: boolean) => api<Record<string, unknown>>("/api/settings", { method: "POST", body: JSON.stringify({ onprem }) }),
   /** the route reads the raw request body */
+  /** the site plan picture of this workspace, shared by every browser (v1.15); the body is the image itself */
+  putSitePlan: (image: Blob) => api<{ ok: boolean; type: string; bytes: number; width: number; height: number }>("/api/site/plan", { method: "PUT", body: image, headers: { "content-type": image.type || "image/jpeg" } }),
+  deleteSitePlan: () => fetch(apiUrl("/api/site/plan"), { method: "DELETE" }).then((r) => {
+    if (!r.ok && r.status !== 404) throw new ApiError(r.status, `${r.status} ${r.statusText}`, null);
+  }),
   voice: (audio: Blob) => api<{ text: string }>("/api/voice", { method: "POST", body: audio, headers: { "content-type": audio.type || "audio/webm" } }),
 };
 

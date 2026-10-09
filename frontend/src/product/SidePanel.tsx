@@ -6,8 +6,8 @@
 // is, which is saved on the camera. Click a camera to see its latest frame.
 // The focused answer's path is drawn hop by hop with its times, and listed
 // beneath the plan as a film strip of the frames at each camera.
-import { useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { endpoints, frameUrl, liveUrl, type CameraInfo } from "@/lib/api/client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ApiError, apiUrl, endpoints, frameUrl, liveUrl, type CameraInfo } from "@/lib/api/client";
 import { clock, day } from "./format";
 import { useEvora } from "./store";
 import { Frame } from "./Frame";
@@ -228,66 +228,107 @@ function RouteStrip({ hops, caseId, evidenceIds }: { hops: { camera_id: string; 
 interface FloorPlan {
   url: string | null;
   error: string | null;
+  busy: boolean;
   set: (file: File) => void;
   clear: () => void;
 }
 
-/**
- * A picture of the site under the camera nodes. There is no API for it yet,
- * so it is kept in this browser, per workspace, downscaled to a small JPEG.
- */
-// pictures the browser would not keep (too large, storage blocked) stay for this visit
-const floorMemory = new Map<string, string | null>();
-const floorListeners = new Set<() => void>();
-const floorChanged = () => floorListeners.forEach((l) => l());
-const subscribeFloor = (l: () => void) => {
-  floorListeners.add(l);
-  window.addEventListener("storage", l);
-  return () => {
-    floorListeners.delete(l);
-    window.removeEventListener("storage", l);
-  };
-};
-const readFloor = (key: string): string | null => {
-  if (floorMemory.has(key)) return floorMemory.get(key) ?? null;
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-};
+/** where this browser kept the picture before the API could (v1.15); moved to the server once */
+const legacyKey = (workspace: string) => `evora.floorplan.${workspace}`;
 
+/**
+ * The picture of the site under the camera nodes, kept by the API with the
+ * workspace (GET/PUT/DELETE /api/site/plan), so every browser shows the same
+ * one. It reloads when any browser changes it (note kind="site").
+ */
 function useFloorPlan(workspace: string): FloorPlan {
-  const key = `evora.floorplan.${workspace}`;
-  const url = useSyncExternalStore(subscribeFloor, () => readFloor(key), () => null);
+  const siteVersion = useEvora((s) => s.siteVersion);
+  const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  // bumped after this browser's own change, in case the change note is missed
+  const [mine, setMine] = useState(0);
+  const shown = useRef<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    const show = (next: string | null) => {
+      if (!live) {
+        if (next) URL.revokeObjectURL(next);
+        return;
+      }
+      if (shown.current) URL.revokeObjectURL(shown.current);
+      shown.current = next;
+      setUrl(next);
+    };
+    void (async () => {
+      try {
+        const res = await fetch(apiUrl("/api/site/plan"), { cache: "no-store" });
+        if (res.ok) return show(URL.createObjectURL(await res.blob()));
+        if (res.status !== 404) return; // the API could not say: keep what is shown
+        let old: string | null = null;
+        try {
+          old = window.localStorage.getItem(legacyKey(workspace));
+        } catch {
+          /* storage blocked */
+        }
+        if (!old) return show(null);
+        // nothing on the server yet, but this browser kept one: share it
+        await endpoints.putSitePlan(await (await fetch(old)).blob());
+        try {
+          window.localStorage.removeItem(legacyKey(workspace));
+        } catch {
+          /* already gone */
+        }
+        if (live) setMine((v) => v + 1);
+      } catch {
+        /* the API is not answering: keep what is shown */
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [workspace, siteVersion, mine]);
+
+  // the last picture goes when the panel does
+  useEffect(
+    () => () => {
+      if (shown.current) URL.revokeObjectURL(shown.current);
+    },
+    [],
+  );
+
+  const run = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+      setMine((v) => v + 1);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "The API did not take the picture.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const set = (file: File) => {
     setError(null);
-    if (!file.type.startsWith("image/")) return setError("Choose a picture of the site: png, jpg or webp.");
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return setError("Choose a picture of the site: png, jpg or webp.");
     const img = new Image();
     const src = URL.createObjectURL(file);
     img.onload = () => {
-      const s = Math.min(1, PLAN_MAX_PX / Math.max(img.naturalWidth, img.naturalHeight));
+      // downscaled here, so a phone photo of the floor plan is well under the 5 MB limit
+      const k = Math.min(1, PLAN_MAX_PX / Math.max(img.naturalWidth, img.naturalHeight));
       const c = document.createElement("canvas");
-      c.width = Math.max(1, Math.round(img.naturalWidth * s));
-      c.height = Math.max(1, Math.round(img.naturalHeight * s));
+      c.width = Math.max(1, Math.round(img.naturalWidth * k));
+      c.height = Math.max(1, Math.round(img.naturalHeight * k));
       const ctx = c.getContext("2d");
       URL.revokeObjectURL(src);
       if (!ctx) return setError("This browser could not read that picture.");
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, c.width, c.height);
       ctx.drawImage(img, 0, 0, c.width, c.height);
-      const data = c.toDataURL("image/jpeg", 0.82);
-      try {
-        window.localStorage.setItem(key, data);
-        floorMemory.delete(key);
-      } catch {
-        // too large for this browser's storage, or storage blocked: show it for this visit only
-        floorMemory.set(key, data);
-        setError("Shown for this visit only: this browser would not keep a picture that large.");
-      }
-      floorChanged();
+      c.toBlob((blob) => (blob ? void run(() => endpoints.putSitePlan(blob)) : setError("This browser could not read that picture.")), "image/jpeg", 0.85);
     };
     img.onerror = () => {
       URL.revokeObjectURL(src);
@@ -296,18 +337,9 @@ function useFloorPlan(workspace: string): FloorPlan {
     img.src = src;
   };
 
-  const clear = () => {
-    try {
-      window.localStorage.removeItem(key);
-    } catch {
-      /* nothing kept */
-    }
-    floorMemory.delete(key);
-    setError(null);
-    floorChanged();
-  };
+  const clear = () => void run(() => endpoints.deleteSitePlan());
 
-  return { url, error, set, clear };
+  return { url, error, busy, set, clear };
 }
 
 function FloorPlanControls({ floor }: { floor: FloorPlan }) {
@@ -325,11 +357,11 @@ function FloorPlanControls({ floor }: { floor: FloorPlan }) {
           e.target.value = "";
         }}
       />
-      <button type="button" className="lt-link" onClick={() => input.current?.click()} title="A drawing or photo of the site, kept in this browser">
-        {floor.url ? "Replace floor plan" : "Add a floor plan"}
+      <button type="button" className="lt-link" disabled={floor.busy} onClick={() => input.current?.click()} title="A drawing or photo of the site, shared with everyone on this workspace">
+        {floor.busy ? "Saving…" : floor.url ? "Replace floor plan" : "Add a floor plan"}
       </button>
       {floor.url ? (
-        <button type="button" className="lt-link" onClick={floor.clear}>
+        <button type="button" className="lt-link" disabled={floor.busy} onClick={floor.clear}>
           Remove
         </button>
       ) : null}
