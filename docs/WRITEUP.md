@@ -112,3 +112,41 @@ The demo script is `docs/DEMO.md`; the held-out rehearsal protocol is `docs/JUDG
 ## 10. Licences
 
 evora is released under AGPL-3.0 (`LICENSE`) because Ultralytics and BoxMOT, which it uses for detection, tracking and re-identification, are AGPL-3.0. Other components keep their own licences: SigLIP2 and the Qwen models (Apache-2.0), bge-small (MIT), OpenCV's YuNet face detector, MediaMTX, FFmpeg. Datasets and model weights are not committed.
+
+## 11. Addendum: perception and identity after the first evaluation (2026-10-09)
+
+Sections 3 to 7 were written from the first index of the school site. The perception layer was then re-measured on ground
+truth and improved; these numbers are from the development laptop (RTX 4060), with the scripts and commands in `README.md`
+section 8. Where this addendum and sections 5 to 7 differ, this addendum is the later measurement.
+
+- **Detection and sampling.** The detector now sees 1080p frames at up to 1280 px (it was pinned at 640 by a configuration
+  value, which shrank a person at 5% of the frame height to about 18 px) and samples at least 4 frames per second on a GPU (the
+  motion gate had sat at its 1 fps floor, where a distant walker moves more than its own width between samples). On the school
+  site this raised tracked people on camera G423 from 12 to 57 and on G300 from 1 to 12 (annotated people in labelled
+  activities: 48 and 18).
+- **Tracking.** A looser ByteTrack association (match threshold 0.9) raised detection recall on WILDTRACK from 65% to 71% and
+  cut EPFL 6p tracks of at least 2 s from 33 to 22 for 6 people. Tiled detection (2x2 tiles) gained 3 points of recall for a
+  drop of precision from 0.48 to 0.33 and was rejected. BoT-SORT, DeepOCSORT, StrongSORT and BoostTrack were compared on the
+  same detections and none beat the looser ByteTrack at equal cost.
+- **Re-identification, scored against WILDTRACK identities** (`scripts/wildtrack_score.py`). The OSNet x0.25 model first used
+  separated people weakly (same-camera AUC 0.80, cross-camera 0.63); OSNet AIN x1.0 gives 0.87 and 0.78, and the precision of
+  cross-camera links went from 44% to 74%. Merging fragments of one person within a camera by appearance was found to join two
+  different people in about 40% of its merges, so identities (paths, find-this-person) no longer use it; it feeds only people
+  counts, which it can lower but not corrupt.
+- **Counting.** Per-person counts remain upper bounds (an EPFL room of 4 people gives 14 within-camera groups from 35 tracks);
+  the answer reports how many people were in view at the same time, which is 4, and says how many separate appearances were
+  tracked. On quiet school cameras recall, not merging, is the limit (G421: 15 groups for at least 38 annotated people).
+- **Actions.** Vehicle start, stop, turns, U-turns, getting into or out of a vehicle and people standing together are read from
+  trajectories (`backend/evora/perception/actions.py`). On the annotated window the times land within a few seconds on the cameras
+  with such events (G300: stop at 96 s against 92 s annotated, exits at 103 to 114 s against 98 to 99 s); they are cues, not
+  recognition, and are labelled as estimates in answers.
+- **Colour for questions.** Captions from the local vision model now cover up to 80 tracks per camera (84 of 87 people on the
+  owner's footage, 8 before), and colour questions are answered from a caption or stored colour, with unread colours labelled as
+  estimates and never used to rank.
+- **Retrieval on the latest index** (same harness and queries as section 5, workspace re-indexed with the settings above): dev
+  Hit@1 0.56 (0.33 on the first index), strict Hit@1 0.56 (0.22), Hit@5 0.72 (0.50), median time error 3.6 s (14.8 s), camera
+  accuracy 0.83 (0.67), negative precision 1.00 kept; test (n = 19) Hit@1 0.31, Hit@5 0.69, which does not separate the two indexes
+  (one query is 0.05). The frame-similarity baseline still matches or beats the system on plain object presence.
+- **Throughput** (`eval/reports/throughput.md`): 4 to 7 video-seconds per second per camera for L0 to L2 on 1080p, decode is not the
+  bottleneck (2.3 s of a 70 s ingest), two parallel cameras are about 25% faster than one.
+
