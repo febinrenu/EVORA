@@ -8,6 +8,9 @@ gate in the last hour?"*, *"where did the person in the brown shirt go?"* or *"h
 when it meets a place it has never heard of ("main gate") and never asks it again. When the footage does not support an
 answer it says so, with the nearest miss, instead of inventing one.
 
+**Live: https://evora-ivory.vercel.app** — the story and the results page. The product at `/app` needs the local API, so
+there it only shows the interface; run `start.bat` (or `make up`) for the working system.
+
 Everything runs on one laptop (developed on an RTX 4060 with 8 GB). Cloud models are optional; with the privacy switch on,
 nothing leaves the machine and faces are blurred in everything shown.
 
