@@ -7,3 +7,6 @@ next-env.d.ts
 public/footage/
 dist/
 .lhdist/
+# the static Vercel deploy (npm run deploy) and its project link
+.vercel-out/
+.vercel
