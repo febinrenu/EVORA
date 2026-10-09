@@ -11,6 +11,26 @@ answer it says so, with the nearest miss, instead of inventing one.
 Everything runs on one laptop (developed on an RTX 4060 with 8 GB). Cloud models are optional; with the privacy switch on,
 nothing leaves the machine and faces are blurred in everything shown.
 
+## What it looks like
+
+Screenshots from a real run on the owner's two-camera room footage (the interface, served by the API at `/app`). A
+4 min 21 s recording of the same run is in [`docs/demo/evora_demo.mp4`](docs/demo/evora_demo.mp4).
+
+![The product: cameras on the left, the answer in the middle, the site plan and known places on the right, the timeline below](docs/img/app.jpg)
+
+| | |
+|---|---|
+| ![An answer with the evidence frame, the object circled and the reasons](docs/img/answer-circled-frame.jpg) | ![A count answer with the notes that say how far to trust it](docs/img/answer-count.jpg) |
+| **Answer with evidence.** Camera, time, the circled object, score and reasons, a clip, export and path buttons. | **Count answer.** "About 4 people in view at once", with the notes on separate appearances and estimated colours. |
+| ![The clarify-once card with a gate line drawn on the camera frame](docs/img/clarify-line.jpg) | ![The site plan with the route of a person across cameras](docs/img/site-plan-route.jpg) |
+| **Ask once.** An unknown place asks one question; you pick the camera and draw the line. It is remembered. | **Identity across cameras.** The path of one person over the site plan, with the time between cameras. |
+| ![The watch drawer with a standing rule and its alerts](docs/img/watch-alert.jpg) | ![The privacy switch set to this machine only](docs/img/privacy.jpg) |
+| **Standing questions.** "Notify me if anyone enters the room after 8 pm" becomes a rule that raises alerts. | **Privacy.** One switch keeps every model call on this machine; faces are blurred in everything shown. |
+| ![A signed evidence pack exported from an answer](docs/img/evidence-export.jpg) | ![The results page with the evaluation tables](docs/img/report.jpg) |
+| **Evidence pack.** The clip, frames and a SHA-256 manifest with an Ed25519 signature, checkable offline. | **Results page.** The evaluation tables and ablations, read from `eval/reports/`. |
+
+![The story page that opens the product](docs/img/story.jpg)
+
 ## Contents
 
 1. [Scope: what is built, what is stretch, what is not done](#1-scope)
@@ -22,6 +42,7 @@ nothing leaves the machine and faces are blurred in everything shown.
 7. [Sample input and output](#7-sample-input-and-output)
 8. [Reproducing the demonstrated results](#8-reproducing-the-results)
 9. [Measured results and honest limits](#9-measured-results-and-limits)
+   - [API at a glance](#api-at-a-glance), [Troubleshooting](#troubleshooting)
 10. [Repository layout, tests, team, licence](#10-repository)
 
 ## 1. Scope
@@ -99,6 +120,23 @@ make up                                 # backend and built UI on http://127.0.0
 unseen footage. A scripted browser rehearsal and its recording are described in `PROGRESS.md`.
 
 ## 3. Data pipeline
+
+```mermaid
+flowchart LR
+    A[Camera files / RTSP] --> B[Upload: decode check, clock source]
+    B --> L0[L0 scene embeddings]
+    B --> L1[L1 detect, track, crops]
+    L1 --> L2[L2 colour, ReID, events, actions]
+    L2 --> ID[Identity linking]
+    L2 --> L3[L3 captions]
+    L0 & L1 & L2 & L3 & ID --> W[(Workspace: SQLite + LanceDB + media)]
+    Q[Question] --> P[Plan] --> R[Resolve places and times] --> RT[Retrieve] --> D[Decide: time, zone, action] --> V[Verify by vision model] --> ANS[Answer with evidence]
+    W --> RT
+    W --> D
+    R <--> M[(Memory: learned places)]
+```
+
+The same pipeline in text:
 
 ```
 camera files / RTSP
@@ -250,6 +288,34 @@ Perception, measured on ground truth (WILDTRACK, 7 cameras, people with ids; `sc
 Limits, stated plainly: small distant people are still missed on busy cameras (G419: 26 tracks against 77 annotated people);
 people counts per camera are not exact; colour is read for most but not all people and estimates are labelled; activities
 other than the vehicle and standing-together cues are not recognised; the evaluation covers one site and window.
+
+## API at a glance
+
+The interface is a client of this API (`contracts/` holds the full specification and generated TypeScript types).
+
+| Route | What it does |
+|---|---|
+| `POST /api/cameras` | upload camera files (multipart) or add an RTSP camera (JSON); returns each camera's clock and its source |
+| `POST /api/ingest`, `GET /api/events` | start indexing; progress, answers, alerts and notes arrive on the event stream |
+| `POST /api/query` | ask a question; a server-sent stream of `plan`, `evidence`, `answer`, `verified` or `clarify` events |
+| `POST /api/clarify` | answer the one clarifying question (camera, optional line or area, or text) |
+| `GET /api/globals/{id}/path`, `GET /api/tracks/{id}/similar` | the path of an identity across cameras; look-alike tracks |
+| `POST /api/standing`, `GET /api/alerts` | standing questions and their alerts |
+| `POST /api/live/replay` | replay recorded files as live streams, optionally analysed as they play |
+| `POST /api/evidence/{id}/pack` | export a signed evidence pack |
+| `GET /api/health`, `POST /api/settings` | machine state, privacy switch |
+| `GET /api/report` | the evaluation report shown on `/report` |
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| Cameras stop with "No module named 'torch'" | the perception stack is not installed: `start.bat setup` (or `make setup-perception`), then restart; a failed camera is retried on start |
+| "ffmpeg not found" | install ffmpeg and open a new terminal so PATH is refreshed |
+| Small or distant people are missed | set `evora_PROFILE=gpu` in `.env` (the `cpu` profile uses a 640 px detector and 1 fps) |
+| The first question of the day takes 10 seconds | the local model is loading; ask one throwaway question before a demo |
+| Answers say "I can't look for X here" or describe nothing | `ollama pull qwen3-vl:4b-instruct`, set `OLLAMA_VISION_MODEL`, run `python scripts/check_local_models.py` |
+| Anything else | `make doctor` lists every problem with the command that fixes it |
 
 ## 10. Repository
 
