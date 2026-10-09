@@ -21,6 +21,7 @@ export function Timeline() {
   const lanes = useRef<HTMLOListElement>(null);
   const dragging = useRef(false);
   const memory = useEvora((s) => s.memory);
+  const zoneVersion = useEvora((s) => s.zoneVersion);
   // crossings and entries of remembered places: memory events, drawn in yellow
   const [zoneEvents, setZoneEvents] = useState<(ZoneEvent & { place: string })[]>([]);
   const zoneKey = memory.map((f) => `${f.id}:${String(f.binding.zone_id ?? "")}`).join(",");
@@ -33,9 +34,10 @@ export function Timeline() {
     return () => {
       live = false;
     };
-    // refetch when the set of remembered zones changes
+    // refetch when the set of remembered zones changes, and when the server has
+    // recomputed their crossings (after a line is drawn, and as indexing adds tracks)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoneKey]);
+  }, [zoneKey, zoneVersion]);
 
   const range = useMemo(() => {
     if (!cameras.length) return null;

@@ -62,6 +62,8 @@ export function AppShell() {
             void st.refreshCameras();
           }
         } else if (n.kind === "site") st.siteChanged();
+        else if (n.kind === "zone") st.zoneChanged();
+        else if (n.kind === "note" && typeof n.message === "string") st.setBulletin(n.message);
         else if (n.kind === "privacy") void st.refreshHealth();
         else if (n.kind === "live" && typeof n.camera_id === "string" && typeof n.state === "string") st.setLive(n.camera_id, n.state);
         else if (n.kind === "analysis" && typeof n.camera_id === "string" && typeof n.state === "string") st.setAnalysis(n.camera_id, n.state);

@@ -78,6 +78,10 @@ interface State {
   clock: Record<string, { state: "reading" | "failed"; error?: string }>;
   /** bumped when the site plan picture changes anywhere (note kind="site") */
   siteVersion: number;
+  /** bumped when a zone's crossings are recomputed (note kind="zone"): the timeline refetches */
+  zoneVersion: number;
+  /** the server's latest word on an upload in progress ("converting x.avi to H.264") */
+  bulletin: string | null;
   drawer: boolean;
   /** text to prefill in the watch form ("Watch for this" on an answer) */
   draft: string;
@@ -104,6 +108,8 @@ interface State {
   /** a camera's clock was corrected: answers that cite it now show stale times */
   clockCorrected: (cameraId: string) => void;
   siteChanged: () => void;
+  zoneChanged: () => void;
+  setBulletin: (text: string | null) => void;
   /** show an alert's evidence as an entry in the case log */
   openAlert: (a: Alert, watchText: string) => void;
   /** query by example: sightings that look like this track */
@@ -275,6 +281,8 @@ export const useEvora = create<State>()((set, get) => {
     analysis: {},
     clock: {},
     siteVersion: 0,
+    zoneVersion: 0,
+    bulletin: null,
     drawer: false,
     draft: "",
 
@@ -417,6 +425,8 @@ export const useEvora = create<State>()((set, get) => {
     setLive: (cameraId, state) => set((s) => ({ live: { ...s.live, [cameraId]: state } })),
     setAnalysis: (cameraId, state) => set((s) => ({ analysis: { ...s.analysis, [cameraId]: state } })),
     siteChanged: () => set((s) => ({ siteVersion: s.siteVersion + 1 })),
+    zoneChanged: () => set((s) => ({ zoneVersion: s.zoneVersion + 1 })),
+    setBulletin: (bulletin) => set({ bulletin }),
     clockCorrected: (cameraId) =>
       set((s) => ({
         cases: s.cases.map((c) =>

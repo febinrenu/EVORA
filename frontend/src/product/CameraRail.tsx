@@ -32,6 +32,8 @@ export function CameraRail() {
   const cameras = useEvora((s) => s.cameras);
   const [over, setOver] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
+  // what the server says while it works on the upload, e.g. converting an odd codec
+  const bulletin = useEvora((s) => s.bulletin);
   const [error, setError] = useState<string | null>(null);
 
   const upload = useCallback(async (files: File[]) => {
@@ -41,6 +43,7 @@ export function CameraRail() {
       return;
     }
     setError(null);
+    useEvora.getState().setBulletin(null);
     setUploading(videos.length === 1 ? `Reading ${videos[0].name}…` : `Reading ${videos.length} files…`);
     try {
       const cams = await endpoints.upload(videos);
@@ -49,6 +52,7 @@ export function CameraRail() {
       setError(e instanceof ApiError ? e.message : "The upload did not reach this machine's API.");
     } finally {
       setUploading(null);
+      useEvora.getState().setBulletin(null);
     }
   }, []);
 
@@ -84,7 +88,7 @@ export function CameraRail() {
       ) : null}
       <label className="lt-drop">
         <input type="file" accept={ACCEPT} multiple onChange={(e) => void upload(Array.from(e.target.files ?? []))} />
-        <span>{uploading ?? (cameras.length ? "Drop more footage, or choose files" : "Drop footage here, or choose files")}</span>
+        <span>{uploading ? (bulletin ? `${uploading} ${bulletin[0].toUpperCase()}${bulletin.slice(1)}…` : uploading) : cameras.length ? "Drop more footage, or choose files" : "Drop footage here, or choose files"}</span>
       </label>
       {error ? (
         <p className="lt-error" role="alert">
