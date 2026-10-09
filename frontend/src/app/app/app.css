@@ -99,6 +99,91 @@
   background: none;
 }
 
+/* sessions */
+.lt-session {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.lt-session > .lt-site {
+  border: 1px solid transparent;
+  background: none;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.lt-session > .lt-site:hover,
+.lt-session > .lt-site[aria-expanded="true"] {
+  border-color: var(--g16);
+  background: var(--diffuser);
+}
+.lt-session-pop {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  z-index: 30;
+  min-width: 16rem;
+  padding: 0.7rem;
+  background: var(--diffuser);
+  border: 1px solid var(--g16);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 12%);
+}
+.lt-session-pop ul {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  max-height: 14rem;
+  overflow: auto;
+}
+.lt-session-pop li button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 0.35rem 0.4rem;
+  border-radius: 4px;
+  font: inherit;
+  cursor: pointer;
+}
+.lt-session-pop li button:hover:not(:disabled) {
+  background: var(--g8);
+}
+.lt-session-pop li button:disabled {
+  color: var(--cyanotype);
+  cursor: default;
+}
+.lt-session-new {
+  width: 100%;
+  border: 1px solid var(--cyanotype);
+  color: var(--cyanotype);
+  background: none;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  font: inherit;
+  cursor: pointer;
+}
+.lt-session-hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+.lt-session-open {
+  opacity: 0.8;
+}
+.lt-session-wait {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgb(255 255 255 / 85%);
+  font-size: 1.2rem;
+}
+
 /* camera rail */
 .lt-rail {
   grid-area: rail;

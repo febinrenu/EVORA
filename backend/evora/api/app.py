@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import os
+import time
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -32,6 +33,7 @@ from evora.api.ui import mount_ui
 from evora.core import cameras as cams
 from evora.core import perception_adapter
 from evora.core import settings as app_settings
+from evora.core import workspace as wsmod
 from evora.core.config import REPO_ROOT, load_config
 from evora.core.jobs import IngestFn
 from evora.core.media_service import BlurFn
@@ -109,26 +111,49 @@ def create_app(
             "tz": "UTC" if ctx.mock else (ctx.db.get_meta("tz") or "UTC"),  # the zone the answer text uses for clock times
         }
 
+    # Sessions are workspaces. Under the launcher (`app.state.switch` is set) they are real folders and activating one
+    # restarts the server in this process on that folder; without it (tests, fixtures) the list is a stub.
+    def real() -> bool:
+        return getattr(app.state, "switch", None) is not None and not ctx.mock
+
     @app.get("/api/workspaces")
     def workspaces():
-        return state["workspaces"]
+        if not real():
+            return state["workspaces"]
+        return [{"slug": w.slug, "name": w.slug, "active": w.slug == ctx.ws.slug} for w in wsmod.list_all(workspaces_root)]
 
     @app.post("/api/workspaces")
     def create_workspace(body: dict):
         name = str(body.get("name", "")).strip()
-        if not name:
-            raise HTTPException(422, "name required")
-        ws = {"slug": name.lower().replace(" ", "-"), "name": name, "active": False}
-        state["workspaces"].append(ws)
-        return ws
+        if not real():
+            if not name:
+                raise HTTPException(422, "name required")
+            ws = {"slug": name.lower().replace(" ", "-"), "name": name, "active": False}
+            state["workspaces"].append(ws)
+            return ws
+        try:
+            made = wsmod.create(name or time.strftime("session-%Y%m%d-%H%M%S"), workspaces_root)
+        except wsmod.WorkspaceError as exc:
+            raise HTTPException(422, str(exc)) from None
+        if body.get("activate"):
+            app.state.switch(made.slug)
+        return {"slug": made.slug, "name": made.slug, "active": False, "switching": bool(body.get("activate"))}
 
-    @app.post("/api/workspaces/{slug}/activate")
+    @app.post("/api/workspaces/{slug}/activate", status_code=202)
     def activate_workspace(slug: str):
-        if slug not in {w["slug"] for w in state["workspaces"]}:
-            raise HTTPException(404, "unknown workspace")
-        for w in state["workspaces"]:
-            w["active"] = w["slug"] == slug
-        return state["workspaces"]
+        if not real():
+            if slug not in {w["slug"] for w in state["workspaces"]}:
+                raise HTTPException(404, "unknown workspace")
+            for w in state["workspaces"]:
+                w["active"] = w["slug"] == slug
+            return state["workspaces"]
+        try:
+            target = wsmod.get(slug, workspaces_root)
+        except wsmod.WorkspaceError:
+            raise HTTPException(404, "unknown workspace") from None
+        if target.slug != ctx.ws.slug:
+            app.state.switch(target.slug)
+        return {"switching_to": target.slug}
 
     # --- zones, tracks, globals ---
     # --- settings, voice, report, dev ---

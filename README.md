@@ -118,7 +118,10 @@ make up                                 # backend and built UI on http://127.0.0
 | `GROQ_KEYS` | optional comma-separated keys for the cloud planner; without them a local model plans |
 | `NTFY_TOPIC` | optional phone alerts |
 
-**Use it:** open http://127.0.0.1:8700/app/ , drop camera files on the rail, ask in the bar at the bottom. The story page is
+**Use it:** open http://127.0.0.1:8700/app/ , drop camera files on the rail, ask in the bar at the bottom. Your work is kept on the
+server, so a reload or a restart shows the same cameras and learned places. To start from nothing click the session name in the top
+bar and choose **New session** (the old one is kept and can be reopened from the same menu); `start.bat` reopens the folder named
+by `evora_WORKSPACE` in `.env`. The story page is
 `/`, the evaluation report `/report`. The six-minute demo script is `docs/DEMO.md`; `docs/JUDGE_SIM.md` is the rehearsal on
 unseen footage. A scripted browser rehearsal and its recording are described in `PROGRESS.md`.
 

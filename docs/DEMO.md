@@ -12,7 +12,8 @@ Numbers quoted on stage come from `make eval` on the tagged commit, never from m
    the command that fixes it. With Wi-Fi off use `make doctor ARGS="--on-prem"`.
 2. Decide the privacy mode: cloud allowed, or on-prem (`evora_ONPREM=1`, or the toggle in the UI). With on-prem, Ollama
    must have its models (`ollama list` shows `qwen3.5:4b` and `qwen3-vl:2b` or `4b`).
-3. Start from a fresh workspace so nothing pre-names "main gate": `evora_WORKSPACE=judge-set-1 make up ARGS="--live --open"`.
+3. Start from a fresh workspace so nothing pre-names "main gate": `evora_WORKSPACE=judge-set-1 make up ARGS="--live --open"`, or click the
+   session name in the top bar and choose **New session** (an empty workspace; the previous one is kept).
    The banner shows the API address (http://127.0.0.1:8700), the interface address, privacy mode and what is missing.
 4. Put the judges' footage in `data/judge/` first and work from there, not from a USB stick.
 5. Phone: subscribe to your ntfy topic and set `NTFY_TOPIC` in `.env` (skipped automatically in on-prem mode).

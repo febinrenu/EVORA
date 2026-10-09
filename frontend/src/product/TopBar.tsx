@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { endpoints } from "@/lib/api/client";
 import { clock } from "./format";
+import { SessionMenu } from "./SessionMenu";
 import { useEvora } from "./store";
 
 /** Workspace, the footage clock (end of the latest recording) and the privacy state. */
@@ -33,7 +34,7 @@ export function TopBar({ onHelp, onCheck }: { onHelp: () => void; onCheck: () =>
       <a href="/" className="lt-mark" title="Back to the story">
         EVORA
       </a>
-      <span className="lt-site">{health?.workspace ?? "No workspace"}</span>
+      <SessionMenu current={health?.workspace ?? ""} />
       <span className="lt-clock">{end ? `Footage clock ${clock(end)}` : "No footage yet"}</span>
       <span className="lt-spacer" />
       {!connected ? <span className="lt-offline">Reconnecting to this machine…</span> : null}

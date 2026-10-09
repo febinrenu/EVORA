@@ -194,7 +194,24 @@ def main(argv: list[str] | None = None) -> int:
 
     from evora.api.app import create_app
 
-    app = create_app()
+    pending: dict[str, str] = {}
+    first = True
+    try:
+        while True:
+            app = create_app()
+            if _serve(app, args, env, checks, ollama_state, first=first, pending=pending):
+                break
+            os.environ["evora_WORKSPACE"] = pending.pop("slug")      # a session switch: the same process opens another folder
+            first = False
+    finally:
+        if ollama_child is not None:
+            ollama_child.terminate()
+    return 0
+
+
+def _serve(app: Any, args: argparse.Namespace, env: doctor.Env, checks: list[doctor.Check], ollama_state: str, *,
+           first: bool, pending: dict[str, str]) -> bool:
+    """Run one server until it stops; True when the process should end, False when a session switch was asked for."""
     ctx = app.state.ctx
     served_here = any(getattr(r, "name", "") == "ui" for r in app.routes)
     problems = [f"{c.title}: {c.fix or c.detail}" for c in checks if c.status in (doctor.WARN, doctor.FAIL)]
@@ -214,16 +231,24 @@ def main(argv: list[str] | None = None) -> int:
         interface, ui_child = start_ui(env, url, args.ui_port)
     print(banner(url, ctx.ws.slug, bool(ctx.settings["onprem"]), count_keys(env), ollama_state,
                  env.mediamtx() is not None, interface, problems, indexing_state(checks)), flush=True)
-    if args.open:
+    if args.open and first:
         threading.Timer(1.5, lambda: webbrowser.open(url)).start()
     import uvicorn
 
+    server = uvicorn.Server(uvicorn.Config(app, host=args.host, port=args.port, log_level="warning"))
+
+    def switch(slug: str) -> None:
+        pending["slug"] = slug
+        server.should_exit = True
+
+    app.state.switch = switch
     try:
-        uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+        server.run()
     finally:
         if ui_child is not None:
             stop_tree(ui_child)
-        if ollama_child is not None:
-            ollama_child.terminate()
-    return 0
+        from evora.core.db import close_all
+
+        close_all()
+    return "slug" not in pending
 

@@ -114,9 +114,21 @@ class FakeApp:
 
 @pytest.fixture()
 def wired(monkeypatch):
-    calls = {"uvicorn": [], "checks": []}
+    calls = {"uvicorn": [], "checks": [], "servers": [], "switch_to": []}
     monkeypatch.setattr("evora.api.app.create_app", lambda: FakeApp)
-    monkeypatch.setattr("uvicorn.run", lambda app, **kw: calls["uvicorn"].append(kw))
+    class FakeServer:
+        def __init__(self, config):
+            self.config = config
+            self.should_exit = False
+
+        def run(self):
+            calls["uvicorn"].append(self.config.kw)
+            calls["servers"].append(self)
+            if calls["switch_to"]:
+                self.config.app.state.switch(calls["switch_to"].pop(0))
+
+    monkeypatch.setattr("uvicorn.Config", lambda app, **kw: type("Cfg", (), {"app": app, "kw": kw})())
+    monkeypatch.setattr("uvicorn.Server", FakeServer)
     monkeypatch.setattr(launcher, "load_config", lambda: {"server": {"host": "127.0.0.1", "port": 8700}, "up": {}})
     healthy_rows = [Check("python", "Python", OK, "3.12")]
     monkeypatch.setattr(doctor, "run_checks", lambda e, skip=frozenset(): calls["checks"] or healthy_rows)
@@ -150,6 +162,17 @@ def test_the_default_host_is_loopback_and_starts_the_server(wired, monkeypatch, 
     assert wired["uvicorn"] == [{"host": "127.0.0.1", "port": 8700, "log_level": "warning"}]
     out = capsys.readouterr().out
     assert "WARNING" not in out and "evora is starting at http://127.0.0.1:8700" in out
+
+
+def test_a_session_switch_restarts_the_server_in_the_same_process_on_the_other_folder(wired, monkeypatch, capsys):
+    make_env_factory(monkeypatch)
+    opened = []
+    monkeypatch.setattr("evora.api.app.create_app", lambda: (opened.append(os.environ.get("evora_WORKSPACE")), FakeApp)[1])
+    monkeypatch.setenv("evora_WORKSPACE", "first")
+    wired["switch_to"].append("second")
+    assert launcher.main([]) == 0
+    assert opened == ["first", "second"] and len(wired["servers"]) == 2
+    assert capsys.readouterr().out.count("evora is starting") == 2
 
 
 def test_listening_on_the_network_prints_a_warning(wired, monkeypatch, capsys):
